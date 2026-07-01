@@ -1,6 +1,6 @@
 # IKA Platform
 
-Digital platform for the International Kempo Association.
+Gestion de IKA: digital platform for the International Kempo Association.
 
 The project starts with architecture, database design, permissions, and multilingual foundations before application screens.
 
