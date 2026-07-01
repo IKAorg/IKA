@@ -2,19 +2,15 @@ import Link from "next/link";
 import { ArrowRight, Globe2, Handshake, MapPin, ShieldCheck } from "lucide-react";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { latestReports } from "@/lib/content/latest-reports";
+import { getLatestReports } from "@/lib/content/latest-reports";
 
 type HomePageProps = {
   params: Promise<{ locale: string }>;
 };
 
-const heroImage =
-  "/images/home/hero.webp";
-
+const heroImage = "/images/home/hero.webp";
 const featureImage = "/images/home/about.webp";
-
 const membersImage = "/images/home/members.webp";
-
 const eventsImage = "/images/home/events.webp";
 
 export default async function HomePage({ params }: HomePageProps) {
@@ -25,6 +21,7 @@ export default async function HomePage({ params }: HomePageProps) {
   }
 
   const dictionary = getDictionary(locale);
+  const latestReports = getLatestReports(locale);
 
   return (
     <div>
@@ -73,7 +70,7 @@ export default async function HomePage({ params }: HomePageProps) {
           </blockquote>
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-              IKA
+              {dictionary.home.introEyebrow}
             </p>
             <h2 className="mt-3 text-3xl font-semibold">
               {dictionary.home.introTitle}
@@ -98,8 +95,8 @@ export default async function HomePage({ params }: HomePageProps) {
         />
         <PublicPillar
           icon={<ShieldCheck size={24} />}
-          title="Private member access"
-          text="Kenshi, dojo administrators, country administrators, and global administrators enter through one secure access point according to their role."
+          title={dictionary.home.accessTitle}
+          text={dictionary.home.accessText}
         />
       </section>
 
@@ -108,17 +105,17 @@ export default async function HomePage({ params }: HomePageProps) {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
-                Latest reports
+                {dictionary.home.reportsEyebrow}
               </p>
               <h2 className="mt-3 text-3xl font-semibold">
-                News from the IKA family
+                {dictionary.home.reportsTitle}
               </h2>
             </div>
             <Link
               href={`/${locale}/news`}
               className="inline-flex items-center gap-2 text-sm font-semibold text-white"
             >
-              View all news
+              {dictionary.home.reportsAction}
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
           </div>
@@ -132,6 +129,7 @@ export default async function HomePage({ params }: HomePageProps) {
                 date={report.date}
                 title={report.title}
                 image={report.image}
+                action={dictionary.home.reportCardAction}
                 ariaHidden={index >= latestReports.length}
               />
             ))}
@@ -142,10 +140,10 @@ export default async function HomePage({ params }: HomePageProps) {
       <section className="overflow-hidden border-y border-[var(--line)] bg-white">
         <div className="mx-auto max-w-7xl px-5 pt-16">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-            Read more
+            {dictionary.home.readMoreEyebrow}
           </p>
           <h2 className="mt-3 text-3xl font-semibold">
-            Explore the association
+            {dictionary.home.readMoreTitle}
           </h2>
         </div>
         <div className="home-marquee py-10">
@@ -153,40 +151,46 @@ export default async function HomePage({ params }: HomePageProps) {
             <ArticleLink
               href={`/${locale}/about`}
               image={featureImage}
-              label="About the IKA"
-              title="Shared heritage, training, and philosophy"
+              label={dictionary.home.articleAboutLabel}
+              title={dictionary.home.articleAboutTitle}
+              action={dictionary.home.readMoreAction}
             />
             <ArticleLink
               href={`/${locale}/countries`}
               image={membersImage}
-              label="Member organisations"
-              title="An international association across continents"
+              label={dictionary.home.articleCountriesLabel}
+              title={dictionary.home.articleCountriesTitle}
+              action={dictionary.home.readMoreAction}
             />
             <ArticleLink
               href={`/${locale}/events`}
               image={eventsImage}
-              label="Upcoming events"
-              title="Seminars, courses, and gatherings"
+              label={dictionary.home.articleEventsLabel}
+              title={dictionary.home.articleEventsTitle}
+              action={dictionary.home.readMoreAction}
             />
             <ArticleLink
               href={`/${locale}/about`}
               image={featureImage}
-              label="About the IKA"
-              title="Shared heritage, training, and philosophy"
+              label={dictionary.home.articleAboutLabel}
+              title={dictionary.home.articleAboutTitle}
+              action={dictionary.home.readMoreAction}
               ariaHidden
             />
             <ArticleLink
               href={`/${locale}/countries`}
               image={membersImage}
-              label="Member organisations"
-              title="An international association across continents"
+              label={dictionary.home.articleCountriesLabel}
+              title={dictionary.home.articleCountriesTitle}
+              action={dictionary.home.readMoreAction}
               ariaHidden
             />
             <ArticleLink
               href={`/${locale}/events`}
               image={eventsImage}
-              label="Upcoming events"
-              title="Seminars, courses, and gatherings"
+              label={dictionary.home.articleEventsLabel}
+              title={dictionary.home.articleEventsTitle}
+              action={dictionary.home.readMoreAction}
               ariaHidden
             />
           </div>
@@ -196,17 +200,17 @@ export default async function HomePage({ params }: HomePageProps) {
       <section className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-16 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-            Join IKA
+            {dictionary.home.joinEyebrow}
           </p>
           <h2 className="mt-3 text-3xl font-semibold">
-            Train together for mutual self-development.
+            {dictionary.home.joinTitle}
           </h2>
         </div>
         <Link
           href={`/${locale}/join`}
           className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white"
         >
-          Contact the association
+          {dictionary.home.joinAction}
           <MapPin size={16} aria-hidden="true" />
         </Link>
       </section>
@@ -219,12 +223,14 @@ function ReportCard({
   date,
   title,
   image,
+  action,
   ariaHidden = false,
 }: {
   href: string;
   date: string;
   title: string;
   image: string;
+  action: string;
   ariaHidden?: boolean;
 }) {
   return (
@@ -243,7 +249,7 @@ function ReportCard({
         <span className="text-sm font-semibold text-white/65">{date}</span>
         <h3 className="mt-8 text-2xl font-semibold leading-tight">{title}</h3>
         <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold">
-          Read report
+          {action}
           <ArrowRight size={16} aria-hidden="true" />
         </span>
       </div>
@@ -276,12 +282,14 @@ function ArticleLink({
   image,
   label,
   title,
+  action,
   ariaHidden = false,
 }: {
   href: string;
   image: string;
   label: string;
   title: string;
+  action: string;
   ariaHidden?: boolean;
 }) {
   return (
@@ -302,7 +310,7 @@ function ArticleLink({
         </p>
         <h3 className="mt-3 text-2xl font-semibold leading-tight">{title}</h3>
         <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold">
-          Read more
+          {action}
           <ArrowRight size={16} aria-hidden="true" />
         </span>
       </div>

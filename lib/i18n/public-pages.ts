@@ -1,17 +1,25 @@
 import { defaultLocale, type Locale } from "./config";
 
-type TextBlock = {
+export type TextBlock = {
   title: string;
   text: string;
 };
 
-type StepBlock = {
+export type StepBlock = {
   number: string;
   title: string;
   text: string;
 };
 
-type PublicPageContent = {
+export type AboutSection = {
+  title: string;
+  image: string;
+  body: string[];
+  bullets?: string[];
+  note?: string;
+};
+
+export type PublicPageContent = {
   eyebrow: string;
   title: string;
   intro: string;
@@ -22,7 +30,7 @@ type PublicPageContent = {
   emailLabel?: string;
 };
 
-type PublicPageKey =
+export type PublicPageKey =
   | "about"
   | "philosophy"
   | "countries"
@@ -33,36 +41,100 @@ type PublicPageKey =
   | "contact"
   | "portal";
 
-const memberCountries = [
-  "Costa Rica",
-  "Czech Republic",
-  "Indonesia and Malaysia",
-  "Ireland",
-  "Italy",
-  "Hong Kong",
-  "Japan",
-  "Spain",
-  "Switzerland",
-  "United Kingdom",
-];
+const memberCountriesByLocale: Record<Locale, string[]> = {
+  en: [
+    "Costa Rica",
+    "Czech Republic",
+    "Indonesia and Malaysia",
+    "Ireland",
+    "Italy",
+    "Hong Kong",
+    "Japan",
+    "Spain",
+    "Switzerland",
+    "United Kingdom",
+  ],
+  es: [
+    "Costa Rica",
+    "República Checa",
+    "Indonesia y Malasia",
+    "Irlanda",
+    "Italia",
+    "Hong Kong",
+    "Japón",
+    "España",
+    "Suiza",
+    "Reino Unido",
+  ],
+  it: [
+    "Costa Rica",
+    "Repubblica Ceca",
+    "Indonesia e Malesia",
+    "Irlanda",
+    "Italia",
+    "Hong Kong",
+    "Giappone",
+    "Spagna",
+    "Svizzera",
+    "Regno Unito",
+  ],
+  fr: [
+    "Costa Rica",
+    "République tchèque",
+    "Indonésie et Malaisie",
+    "Irlande",
+    "Italie",
+    "Hong Kong",
+    "Japon",
+    "Espagne",
+    "Suisse",
+    "Royaume-Uni",
+  ],
+  ja: [
+    "コスタリカ",
+    "チェコ共和国",
+    "インドネシアとマレーシア",
+    "アイルランド",
+    "イタリア",
+    "香港",
+    "日本",
+    "スペイン",
+    "スイス",
+    "英国",
+  ],
+  zh: [
+    "哥斯达黎加",
+    "捷克共和国",
+    "印度尼西亚和马来西亚",
+    "爱尔兰",
+    "意大利",
+    "香港",
+    "日本",
+    "西班牙",
+    "瑞士",
+    "英国",
+  ],
+  cs: [
+    "Kostarika",
+    "Česká republika",
+    "Indonésie a Malajsie",
+    "Irsko",
+    "Itálie",
+    "Hongkong",
+    "Japonsko",
+    "Španělsko",
+    "Švýcarsko",
+    "Spojené království",
+  ],
+};
 
 const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
   en: {
     about: {
       eyebrow: "About IKA",
-      title: "An international association for a shared Kempo family.",
+      title: "About the International Kempo Association",
       intro:
         "The International Kempo Association brings together practitioners and organisations from around the world who share a common heritage, physical style, and philosophy.",
-      blocks: [
-        {
-          title: "Founded in Kobe",
-          text: "IKA was officially launched in October 2015 at the inaugural IKA seminar in Kobe, Japan.",
-        },
-        {
-          title: "Common roots",
-          text: "Member organisations may use different names, but they are united by teachings connected to Doshin So and the spirit of Shorinji Kempo.",
-        },
-      ],
     },
     philosophy: {
       eyebrow: "Philosophy",
@@ -72,10 +144,22 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       quote:
         "Live half for the happiness of oneself, and half for the happiness of others.",
       blocks: [
-        { title: "Mutual development", text: "Practitioners train with each other to grow together." },
-        { title: "Defence before attack", text: "Techniques emphasise control, balance, weak points, and minimum necessary force." },
-        { title: "Mind and body", text: "Practice combines hard and soft techniques with meditation and reflection." },
-        { title: "Positive society", text: "Training should build people who contribute confidently and compassionately." },
+        {
+          title: "Mutual development",
+          text: "Practitioners train with each other to grow together.",
+        },
+        {
+          title: "Defence before attack",
+          text: "Techniques emphasise control, balance, weak points, and minimum necessary force.",
+        },
+        {
+          title: "Mind and body",
+          text: "Practice combines hard and soft techniques with meditation and reflection.",
+        },
+        {
+          title: "Positive society",
+          text: "Training should build people who contribute confidently and compassionately.",
+        },
       ],
     },
     countries: {
@@ -83,7 +167,7 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       title: "IKA around the world",
       intro:
         "IKA brings together member organisations across countries and continents. This directory will become fully editable from the CMS.",
-      countries: memberCountries,
+      countries: memberCountriesByLocale.en,
     },
     dojos: {
       eyebrow: "Dojos",
@@ -95,7 +179,7 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       eyebrow: "News",
       title: "Latest IKA news",
       intro:
-        "Published multilingual news will appear here once the CMS module is connected.",
+        "Latest reports migrated from the current IKA website. These will be editable from the CMS once the news module is connected.",
     },
     events: {
       eyebrow: "Events",
@@ -109,15 +193,27 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       intro:
         "IKA welcomes organisations that share the association's technical roots, philosophy, and commitment to training together across borders.",
       steps: [
-        { number: "01", title: "Contact IKA", text: "Introduce your organisation and country." },
-        { number: "02", title: "Review alignment", text: "Share technical, historical, and organisational background." },
-        { number: "03", title: "Train together", text: "Join seminars, events, and association activities." },
+        {
+          number: "01",
+          title: "Contact IKA",
+          text: "Introduce your organisation and country.",
+        },
+        {
+          number: "02",
+          title: "Review alignment",
+          text: "Share technical, historical, and organisational background.",
+        },
+        {
+          number: "03",
+          title: "Train together",
+          text: "Join seminars, events, and association activities.",
+        },
       ],
     },
     contact: {
       eyebrow: "Contact",
       title: "Get in touch with the International Kempo Association.",
-      intro: "Use the official contact email for association enquiries.",
+      intro: "Use the form below to contact the IKA.",
       emailLabel: "Email",
     },
     portal: {
@@ -126,22 +222,27 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       intro:
         "After login, each user will enter the correct portal according to their role: Kenshi, dojo admin, country admin, global admin, or super admin.",
       blocks: [
-        { title: "Kenshi", text: "Personal profile, grade history, courses, taikais, certificates, and IKA Passport." },
-        { title: "Dojo Admin", text: "Dojo page, Kenshi in the dojo, basic updates, and dojo statistics." },
-        { title: "Country Admin", text: "Country page, dojos, Kenshi, courses, taikais, and country reports." },
+        {
+          title: "Kenshi",
+          text: "Personal profile, grade history, courses, taikais, certificates, and IKA Passport.",
+        },
+        {
+          title: "Dojo Admin",
+          text: "Dojo page, Kenshi in the dojo, basic updates, and dojo statistics.",
+        },
+        {
+          title: "Country Admin",
+          text: "Country page, dojos, Kenshi, courses, taikais, and country reports.",
+        },
       ],
     },
   },
   es: {
     about: {
       eyebrow: "Sobre IKA",
-      title: "Una asociación internacional para una familia Kempo común.",
+      title: "Sobre la International Kempo Association",
       intro:
         "La International Kempo Association reúne a practicantes y organizaciones de todo el mundo que comparten herencia, estilo físico y filosofía.",
-      blocks: [
-        { title: "Fundada en Kobe", text: "IKA se lanzó oficialmente en octubre de 2015 durante el primer seminario IKA en Kobe, Japón." },
-        { title: "Raíces comunes", text: "Las organizaciones miembro pueden usar nombres distintos, pero están unidas por las enseñanzas de Doshin So y el espíritu de Shorinji Kempo." },
-      ],
     },
     philosophy: {
       eyebrow: "Filosofía",
@@ -151,18 +252,30 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       quote:
         "Vivir la mitad para la felicidad de uno mismo y la mitad para la felicidad de los demás.",
       blocks: [
-        { title: "Desarrollo mutuo", text: "Los practicantes entrenan juntos para crecer juntos." },
-        { title: "Defensa antes que ataque", text: "Las técnicas priorizan control, equilibrio, puntos débiles y fuerza mínima necesaria." },
-        { title: "Mente y cuerpo", text: "La práctica combina técnicas duras y suaves con meditación y reflexión." },
-        { title: "Sociedad positiva", text: "El entrenamiento debe formar personas capaces de aportar con confianza y compasión." },
+        {
+          title: "Desarrollo mutuo",
+          text: "Los practicantes entrenan unos con otros para crecer juntos.",
+        },
+        {
+          title: "Defensa antes que ataque",
+          text: "Las técnicas priorizan control, equilibrio, puntos débiles y la mínima fuerza necesaria.",
+        },
+        {
+          title: "Mente y cuerpo",
+          text: "La práctica combina técnicas duras y suaves con meditación y reflexión.",
+        },
+        {
+          title: "Sociedad positiva",
+          text: "El entrenamiento debe formar personas capaces de contribuir con confianza y compasión.",
+        },
       ],
     },
     countries: {
       eyebrow: "Países miembros",
       title: "IKA alrededor del mundo",
       intro:
-        "IKA reúne organizaciones miembro en distintos países y continentes. Este directorio será editable desde el CMS.",
-      countries: memberCountries,
+        "IKA reúne organizaciones miembro en distintos países y continentes. Este directorio será completamente editable desde el CMS.",
+      countries: memberCountriesByLocale.es,
     },
     dojos: {
       eyebrow: "Dojos",
@@ -173,13 +286,14 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
     news: {
       eyebrow: "Noticias",
       title: "Últimas noticias de IKA",
-      intro: "Las noticias multilingües publicadas aparecerán aquí cuando se conecte el módulo CMS.",
+      intro:
+        "Últimos informes migrados desde la web actual de IKA. Serán editables desde el CMS cuando el módulo de noticias esté conectado.",
     },
     events: {
       eyebrow: "Eventos",
       title: "Seminarios, cursos y encuentros",
       intro:
-        "Los eventos públicos aparecerán aquí. Los cursos y taikais seguirán siendo módulos separados en la administración privada.",
+        "Los eventos públicos aparecerán aquí. Los cursos y taikais seguirán siendo módulos separados dentro de la administración privada.",
     },
     join: {
       eyebrow: "Unirse a IKA",
@@ -187,183 +301,1024 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       intro:
         "IKA da la bienvenida a organizaciones que comparten sus raíces técnicas, filosofía y compromiso de entrenar juntas a través de fronteras.",
       steps: [
-        { number: "01", title: "Contactar con IKA", text: "Presenta tu organización y país." },
-        { number: "02", title: "Revisar alineación", text: "Comparte información técnica, histórica y organizativa." },
-        { number: "03", title: "Entrenar juntos", text: "Participa en seminarios, eventos y actividades de la asociación." },
+        {
+          number: "01",
+          title: "Contactar con IKA",
+          text: "Presenta tu organización y país.",
+        },
+        {
+          number: "02",
+          title: "Revisar alineación",
+          text: "Comparte información técnica, histórica y organizativa.",
+        },
+        {
+          number: "03",
+          title: "Entrenar juntos",
+          text: "Participa en seminarios, eventos y actividades de la asociación.",
+        },
       ],
     },
     contact: {
       eyebrow: "Contacto",
       title: "Contacta con la International Kempo Association.",
-      intro: "Usa el email oficial para consultas sobre la asociación.",
+      intro: "Usa el formulario inferior para contactar con IKA.",
       emailLabel: "Email",
     },
     portal: {
       eyebrow: "Acceso privado",
       title: "Un solo login, el portal correcto para cada rol.",
       intro:
-        "Después de iniciar sesión, cada usuario entrará en el portal correspondiente: Kenshi, admin de dojo, admin de país, admin global o super admin.",
+        "Después de iniciar sesión, cada usuario entrará en el portal correspondiente a su rol: Kenshi, administrador de dojo, administrador de país, administrador global o super admin.",
       blocks: [
-        { title: "Kenshi", text: "Perfil personal, grados, cursos, taikais, certificados e IKA Passport." },
-        { title: "Admin de dojo", text: "Página del dojo, Kenshi del dojo, actualizaciones básicas y estadísticas." },
-        { title: "Admin de país", text: "Página del país, dojos, Kenshi, cursos, taikais e informes." },
+        {
+          title: "Kenshi",
+          text: "Perfil personal, historial de grados, cursos, taikais, certificados e IKA Passport.",
+        },
+        {
+          title: "Admin de dojo",
+          text: "Página del dojo, Kenshi del dojo, actualizaciones básicas y estadísticas.",
+        },
+        {
+          title: "Admin de país",
+          text: "Página del país, dojos, Kenshi, cursos, taikais e informes nacionales.",
+        },
       ],
     },
   },
   it: {
     about: {
       eyebrow: "IKA",
-      title: "Un'associazione internazionale per una famiglia Kempo comune.",
+      title: "Informazioni sulla International Kempo Association",
       intro:
-        "La International Kempo Association riunisce praticanti e organizzazioni che condividono patrimonio, stile e filosofia.",
-      blocks: [
-        { title: "Fondata a Kobe", text: "IKA è stata lanciata ufficialmente nell'ottobre 2015 al primo seminario IKA a Kobe, Giappone." },
-        { title: "Radici comuni", text: "Le organizzazioni membro sono unite dagli insegnamenti di Doshin So e dallo spirito dello Shorinji Kempo." },
-      ],
+        "La International Kempo Association riunisce praticanti e organizzazioni di tutto il mondo che condividono patrimonio, stile fisico e filosofia.",
     },
     philosophy: {
       eyebrow: "Filosofia",
       title: "Forza, compassione e autonomia.",
-      intro: "La pratica IKA sviluppa le persone tecnicamente, mentalmente e socialmente.",
-      quote: "Vivere metà per la felicità di sé stessi e metà per la felicità degli altri.",
+      intro:
+        "L'allenamento IKA sviluppa le persone tecnicamente, mentalmente e socialmente attraverso pratica in coppia, meditazione e filosofia.",
+      quote:
+        "Vivere metà per la felicità di sé stessi e metà per la felicità degli altri.",
       blocks: [
-        { title: "Sviluppo reciproco", text: "I praticanti si allenano insieme per crescere insieme." },
-        { title: "Difesa prima dell'attacco", text: "Le tecniche privilegiano controllo, equilibrio e forza minima necessaria." },
-        { title: "Mente e corpo", text: "La pratica combina tecniche dure e morbide con meditazione." },
-        { title: "Società positiva", text: "L'allenamento deve formare persone capaci di contribuire con compassione." },
+        {
+          title: "Sviluppo reciproco",
+          text: "I praticanti si allenano insieme per crescere insieme.",
+        },
+        {
+          title: "Difesa prima dell'attacco",
+          text: "Le tecniche privilegiano controllo, equilibrio, punti deboli e forza minima necessaria.",
+        },
+        {
+          title: "Mente e corpo",
+          text: "La pratica combina tecniche dure e morbide con meditazione e riflessione.",
+        },
+        {
+          title: "Società positiva",
+          text: "L'allenamento deve formare persone capaci di contribuire con fiducia e compassione.",
+        },
       ],
     },
-    countries: { eyebrow: "Paesi membri", title: "IKA nel mondo", intro: "IKA riunisce organizzazioni membro in diversi paesi e continenti.", countries: memberCountries },
-    dojos: { eyebrow: "Dojo", title: "Trova un dojo IKA", intro: "Il direttorio pubblico dei dojo mostrerà i dojo ufficiali per paese e città." },
-    news: { eyebrow: "Notizie", title: "Ultime notizie IKA", intro: "Le notizie multilingue pubblicate appariranno qui quando il CMS sarà collegato." },
-    events: { eyebrow: "Eventi", title: "Seminari, corsi e incontri", intro: "Gli eventi pubblici appariranno qui. Corsi e taikai saranno moduli separati." },
+    countries: {
+      eyebrow: "Paesi membri",
+      title: "IKA nel mondo",
+      intro:
+        "IKA riunisce organizzazioni membro in paesi e continenti diversi. Questo direttorio sarà completamente modificabile dal CMS.",
+      countries: memberCountriesByLocale.it,
+    },
+    dojos: {
+      eyebrow: "Dojo",
+      title: "Trova un dojo IKA",
+      intro:
+        "Il direttorio pubblico dei dojo mostrerà i dojo ufficiali per paese e città quando il CMS e gli strumenti amministrativi saranno collegati.",
+    },
+    news: {
+      eyebrow: "Notizie",
+      title: "Ultime notizie IKA",
+      intro:
+        "Ultimi report migrati dall'attuale sito IKA. Saranno modificabili dal CMS quando il modulo notizie sarà collegato.",
+    },
+    events: {
+      eyebrow: "Eventi",
+      title: "Seminari, corsi e incontri",
+      intro:
+        "Gli eventi pubblici appariranno qui. Corsi e taikai resteranno moduli separati nell'amministrazione privata.",
+    },
     join: {
       eyebrow: "Unisciti a IKA",
       title: "Collega la tua organizzazione alla famiglia internazionale IKA.",
-      intro: "IKA accoglie organizzazioni che condividono radici tecniche, filosofia e formazione comune.",
+      intro:
+        "IKA accoglie organizzazioni che condividono radici tecniche, filosofia e l'impegno ad allenarsi insieme oltre i confini.",
       steps: [
-        { number: "01", title: "Contatta IKA", text: "Presenta la tua organizzazione e il paese." },
-        { number: "02", title: "Verifica l'allineamento", text: "Condividi informazioni tecniche, storiche e organizzative." },
-        { number: "03", title: "Allenarsi insieme", text: "Partecipa a seminari, eventi e attività." },
+        {
+          number: "01",
+          title: "Contatta IKA",
+          text: "Presenta la tua organizzazione e il paese.",
+        },
+        {
+          number: "02",
+          title: "Verifica l'allineamento",
+          text: "Condividi informazioni tecniche, storiche e organizzative.",
+        },
+        {
+          number: "03",
+          title: "Allenarsi insieme",
+          text: "Partecipa a seminari, eventi e attività dell'associazione.",
+        },
       ],
     },
-    contact: { eyebrow: "Contatti", title: "Contatta la International Kempo Association.", intro: "Usa l'email ufficiale per richieste sull'associazione.", emailLabel: "Email" },
-    portal: { eyebrow: "Accesso privato", title: "Un login, il portale giusto per ogni ruolo.", intro: "Dopo il login ogni utente entra nel portale corretto secondo il ruolo.", blocks: [
-      { title: "Kenshi", text: "Profilo personale, gradi, corsi, taikai, certificati e IKA Passport." },
-      { title: "Admin dojo", text: "Pagina dojo, Kenshi del dojo, aggiornamenti e statistiche." },
-      { title: "Admin paese", text: "Pagina paese, dojo, Kenshi, corsi, taikai e report." },
-    ] },
+    contact: {
+      eyebrow: "Contatti",
+      title: "Contatta la International Kempo Association.",
+      intro: "Usa il modulo qui sotto per contattare IKA.",
+      emailLabel: "Email",
+    },
+    portal: {
+      eyebrow: "Accesso privato",
+      title: "Un login, il portale giusto per ogni ruolo.",
+      intro:
+        "Dopo il login ogni utente entra nel portale corretto: Kenshi, admin dojo, admin paese, admin globale o super admin.",
+      blocks: [
+        {
+          title: "Kenshi",
+          text: "Profilo personale, storia dei gradi, corsi, taikai, certificati e IKA Passport.",
+        },
+        {
+          title: "Admin dojo",
+          text: "Pagina dojo, Kenshi del dojo, aggiornamenti di base e statistiche.",
+        },
+        {
+          title: "Admin paese",
+          text: "Pagina paese, dojo, Kenshi, corsi, taikai e report nazionali.",
+        },
+      ],
+    },
   },
   fr: {
-    about: { eyebrow: "À propos", title: "Une association internationale pour une famille Kempo commune.", intro: "L'International Kempo Association réunit des pratiquants et organisations partageant héritage, style et philosophie.", blocks: [
-      { title: "Fondée à Kobe", text: "IKA a été lancée officiellement en octobre 2015 lors du premier séminaire IKA à Kobe, au Japon." },
-      { title: "Racines communes", text: "Les organisations membres sont unies par les enseignements de Doshin So et l'esprit du Shorinji Kempo." },
-    ] },
-    philosophy: { eyebrow: "Philosophie", title: "Force, compassion et autonomie.", intro: "L'entraînement IKA développe les personnes techniquement, mentalement et socialement.", quote: "Vivre moitié pour son propre bonheur, moitié pour le bonheur des autres.", blocks: [
-      { title: "Développement mutuel", text: "Les pratiquants s'entraînent ensemble pour grandir ensemble." },
-      { title: "Défense avant attaque", text: "Les techniques privilégient contrôle, équilibre et force minimale." },
-      { title: "Esprit et corps", text: "La pratique combine techniques dures et souples avec méditation." },
-      { title: "Société positive", text: "L'entraînement forme des personnes capables de contribuer avec compassion." },
-    ] },
-    countries: { eyebrow: "Pays membres", title: "IKA dans le monde", intro: "IKA réunit des organisations membres dans plusieurs pays et continents.", countries: memberCountries },
-    dojos: { eyebrow: "Dojos", title: "Trouver un dojo IKA", intro: "Le répertoire public des dojos affichera les dojos officiels par pays et ville." },
-    news: { eyebrow: "Actualités", title: "Dernières actualités IKA", intro: "Les actualités multilingues publiées apparaîtront ici lorsque le CMS sera connecté." },
-    events: { eyebrow: "Événements", title: "Séminaires, cours et rencontres", intro: "Les événements publics apparaîtront ici. Les cours et taikais resteront des modules séparés." },
-    join: { eyebrow: "Rejoindre IKA", title: "Reliez votre organisation à la famille internationale IKA.", intro: "IKA accueille les organisations partageant ses racines techniques, sa philosophie et l'entraînement commun.", steps: [
-      { number: "01", title: "Contacter IKA", text: "Présentez votre organisation et votre pays." },
-      { number: "02", title: "Vérifier l'alignement", text: "Partagez les informations techniques, historiques et organisationnelles." },
-      { number: "03", title: "S'entraîner ensemble", text: "Participez aux séminaires, événements et activités." },
-    ] },
-    contact: { eyebrow: "Contact", title: "Contactez l'International Kempo Association.", intro: "Utilisez l'email officiel pour les demandes concernant l'association.", emailLabel: "Email" },
-    portal: { eyebrow: "Accès privé", title: "Un login, le bon portail pour chaque rôle.", intro: "Après connexion, chaque utilisateur accède au portail correspondant à son rôle.", blocks: [
-      { title: "Kenshi", text: "Profil, grades, cours, taikais, certificats et IKA Passport." },
-      { title: "Admin dojo", text: "Page dojo, Kenshi du dojo, mises à jour et statistiques." },
-      { title: "Admin pays", text: "Page pays, dojos, Kenshi, cours, taikais et rapports." },
-    ] },
+    about: {
+      eyebrow: "À propos",
+      title: "À propos de l'International Kempo Association",
+      intro:
+        "L'International Kempo Association réunit des pratiquants et organisations du monde entier partageant un héritage, un style physique et une philosophie communs.",
+    },
+    philosophy: {
+      eyebrow: "Philosophie",
+      title: "Force, compassion et autonomie.",
+      intro:
+        "L'entraînement IKA développe les personnes techniquement, mentalement et socialement par la pratique en binôme, la méditation et la philosophie.",
+      quote:
+        "Vivre moitié pour son propre bonheur, moitié pour le bonheur des autres.",
+      blocks: [
+        {
+          title: "Développement mutuel",
+          text: "Les pratiquants s'entraînent ensemble pour progresser ensemble.",
+        },
+        {
+          title: "Défense avant attaque",
+          text: "Les techniques privilégient contrôle, équilibre, points faibles et force minimale nécessaire.",
+        },
+        {
+          title: "Esprit et corps",
+          text: "La pratique combine techniques dures et souples avec méditation et réflexion.",
+        },
+        {
+          title: "Société positive",
+          text: "L'entraînement doit former des personnes capables de contribuer avec confiance et compassion.",
+        },
+      ],
+    },
+    countries: {
+      eyebrow: "Pays membres",
+      title: "IKA dans le monde",
+      intro:
+        "IKA réunit des organisations membres à travers pays et continents. Ce répertoire sera entièrement modifiable depuis le CMS.",
+      countries: memberCountriesByLocale.fr,
+    },
+    dojos: {
+      eyebrow: "Dojos",
+      title: "Trouver un dojo IKA",
+      intro:
+        "Le répertoire public des dojos affichera les dojos officiels par pays et ville lorsque le CMS et les outils d'administration seront connectés.",
+    },
+    news: {
+      eyebrow: "Actualités",
+      title: "Dernières actualités IKA",
+      intro:
+        "Derniers rapports migrés depuis le site IKA actuel. Ils seront modifiables depuis le CMS lorsque le module d'actualités sera connecté.",
+    },
+    events: {
+      eyebrow: "Événements",
+      title: "Séminaires, cours et rencontres",
+      intro:
+        "Les événements publics apparaîtront ici. Les cours et taikais resteront des modules séparés dans l'administration privée.",
+    },
+    join: {
+      eyebrow: "Rejoindre IKA",
+      title: "Reliez votre organisation à la famille internationale IKA.",
+      intro:
+        "IKA accueille les organisations qui partagent ses racines techniques, sa philosophie et l'engagement de s'entraîner ensemble au-delà des frontières.",
+      steps: [
+        {
+          number: "01",
+          title: "Contacter IKA",
+          text: "Présentez votre organisation et votre pays.",
+        },
+        {
+          number: "02",
+          title: "Vérifier l'alignement",
+          text: "Partagez les informations techniques, historiques et organisationnelles.",
+        },
+        {
+          number: "03",
+          title: "S'entraîner ensemble",
+          text: "Participez aux séminaires, événements et activités de l'association.",
+        },
+      ],
+    },
+    contact: {
+      eyebrow: "Contact",
+      title: "Contactez l'International Kempo Association.",
+      intro: "Utilisez le formulaire ci-dessous pour contacter IKA.",
+      emailLabel: "Email",
+    },
+    portal: {
+      eyebrow: "Accès privé",
+      title: "Un login, le bon portail pour chaque rôle.",
+      intro:
+        "Après connexion, chaque utilisateur accède au portail correspondant: Kenshi, admin dojo, admin pays, admin global ou super admin.",
+      blocks: [
+        {
+          title: "Kenshi",
+          text: "Profil personnel, historique des grades, cours, taikais, certificats et IKA Passport.",
+        },
+        {
+          title: "Admin dojo",
+          text: "Page dojo, Kenshi du dojo, mises à jour de base et statistiques.",
+        },
+        {
+          title: "Admin pays",
+          text: "Page pays, dojos, Kenshi, cours, taikais et rapports nationaux.",
+        },
+      ],
+    },
   },
   ja: {
-    about: { eyebrow: "IKAについて", title: "共通のKempoファミリーのための国際協会。", intro: "International Kempo Associationは、共通の伝統、技術、哲学を持つ実践者と団体を結びます。", blocks: [
-      { title: "神戸で発足", text: "IKAは2015年10月、神戸での第1回IKAセミナーで正式に発足しました。" },
-      { title: "共通の根", text: "加盟団体は宗道臣の教えと少林寺拳法の精神で結ばれています。" },
-    ] },
-    philosophy: { eyebrow: "理念", title: "強さ、慈悲、自立。", intro: "IKAの稽古は、技術、心、社会性を育てます。", quote: "自己の幸福の半分を、他者の幸福の半分を。", blocks: [
-      { title: "相互の成長", text: "共に稽古し、共に成長します。" },
-      { title: "攻撃より防御", text: "制御、崩し、急所、最小限の力を重視します。" },
-      { title: "心と身体", text: "剛法と柔法、瞑想、内省を組み合わせます。" },
-      { title: "より良い社会", text: "自信と慈悲を持って社会に貢献する人を育てます。" },
-    ] },
-    countries: { eyebrow: "加盟国", title: "世界のIKA", intro: "IKAは国と大陸を越えて加盟団体を結びます。", countries: memberCountries },
-    dojos: { eyebrow: "道場", title: "IKA道場を探す", intro: "公式道場一覧は、CMS接続後に国と都市別に表示されます。" },
-    news: { eyebrow: "ニュース", title: "IKA最新ニュース", intro: "CMS接続後、公開済みの多言語ニュースがここに表示されます。" },
-    events: { eyebrow: "イベント", title: "セミナー、講習、集まり", intro: "公開イベントを表示します。講習と大会は別モジュールで管理します。" },
-    join: { eyebrow: "参加", title: "あなたの団体を国際IKAファミリーへ。", intro: "IKAは技術的な根、哲学、国境を越えた稽古を共有する団体を歓迎します。", steps: [
-      { number: "01", title: "IKAへ連絡", text: "団体と国を紹介します。" },
-      { number: "02", title: "方向性の確認", text: "技術、歴史、組織情報を共有します。" },
-      { number: "03", title: "共に稽古", text: "セミナー、イベント、協会活動に参加します。" },
-    ] },
-    contact: { eyebrow: "連絡", title: "International Kempo Associationへお問い合わせください。", intro: "協会への問い合わせは公式メールをご利用ください。", emailLabel: "Email" },
-    portal: { eyebrow: "専用アクセス", title: "一つのログインで役割に応じたポータルへ。", intro: "ログイン後、拳士、道場管理者、国管理者、グローバル管理者、スーパー管理者の役割に応じて移動します。", blocks: [
-      { title: "拳士", text: "プロフィール、段位、講習、大会、証明書、IKA Passport。" },
-      { title: "道場管理者", text: "道場ページ、所属拳士、基本更新、統計。" },
-      { title: "国管理者", text: "国ページ、道場、拳士、講習、大会、レポート。" },
-    ] },
+    about: {
+      eyebrow: "IKAについて",
+      title: "国際拳法協会について",
+      intro:
+        "国際拳法協会は、共通の伝統、身体技法、哲学を共有する世界中の実践者と団体を結びます。",
+    },
+    philosophy: {
+      eyebrow: "理念",
+      title: "強さ、慈悲、自立。",
+      intro:
+        "IKAの稽古は、相対演練、瞑想、哲学を通じて、技術的・精神的・社会的に人を育てます。",
+      quote: "自己の幸せの半分を、他者の幸せの半分を。",
+      blocks: [
+        {
+          title: "相互の成長",
+          text: "実践者は互いに稽古し、ともに成長します。",
+        },
+        {
+          title: "攻撃より防御",
+          text: "技法は制御、崩し、急所、必要最小限の力を重視します。",
+        },
+        {
+          title: "心と身体",
+          text: "稽古は剛法と柔法に瞑想と内省を組み合わせます。",
+        },
+        {
+          title: "より良い社会",
+          text: "稽古は自信と慈悲を持って社会に貢献できる人を育てます。",
+        },
+      ],
+    },
+    countries: {
+      eyebrow: "加盟国",
+      title: "世界のIKA",
+      intro:
+        "IKAは国と大陸を越えて加盟団体を結びます。この一覧はCMSから完全に編集できるようになります。",
+      countries: memberCountriesByLocale.ja,
+    },
+    dojos: {
+      eyebrow: "道場",
+      title: "IKA道場を探す",
+      intro:
+        "CMSと管理ツールの接続後、公式道場一覧は国と都市別に表示されます。",
+    },
+    news: {
+      eyebrow: "ニュース",
+      title: "IKA最新ニュース",
+      intro:
+        "現在のIKAウェブサイトから移行した最新レポートです。ニュースモジュール接続後はCMSから編集できます。",
+    },
+    events: {
+      eyebrow: "イベント",
+      title: "セミナー、講習、集まり",
+      intro:
+        "公開イベントはここに表示されます。講習と大会は専用管理システム内の別モジュールとして扱われます。",
+    },
+    join: {
+      eyebrow: "IKAに参加",
+      title: "あなたの団体を国際IKAファミリーへつなげます。",
+      intro:
+        "IKAは、技術的な根、哲学、国境を越えて共に稽古する姿勢を共有する団体を歓迎します。",
+      steps: [
+        {
+          number: "01",
+          title: "IKAへ連絡",
+          text: "団体と国を紹介してください。",
+        },
+        {
+          number: "02",
+          title: "方向性の確認",
+          text: "技術、歴史、組織に関する情報を共有します。",
+        },
+        {
+          number: "03",
+          title: "共に稽古",
+          text: "セミナー、イベント、協会活動に参加します。",
+        },
+      ],
+    },
+    contact: {
+      eyebrow: "連絡先",
+      title: "国際拳法協会へお問い合わせください。",
+      intro: "下のフォームからIKAへご連絡ください。",
+      emailLabel: "Email",
+    },
+    portal: {
+      eyebrow: "専用アクセス",
+      title: "一つのログインで、役割に応じたポータルへ。",
+      intro:
+        "ログイン後、拳士、道場管理者、国管理者、グローバル管理者、スーパー管理者の役割に応じて適切なポータルへ入ります。",
+      blocks: [
+        {
+          title: "拳士",
+          text: "個人プロフィール、段位履歴、講習、大会、証明書、IKA Passport。",
+        },
+        {
+          title: "道場管理者",
+          text: "道場ページ、所属拳士、基本更新、道場統計。",
+        },
+        {
+          title: "国管理者",
+          text: "国ページ、道場、拳士、講習、大会、国別レポート。",
+        },
+      ],
+    },
   },
   zh: {
-    about: { eyebrow: "关于 IKA", title: "面向共同 Kempo 家庭的国际协会。", intro: "International Kempo Association 连接拥有共同传承、技术风格和哲学的练习者与组织。", blocks: [
-      { title: "创立于神户", text: "IKA 于 2015 年 10 月在日本神户首届 IKA 研讨会上正式启动。" },
-      { title: "共同根基", text: "成员组织由宗道臣的教义和少林寺拳法精神连接在一起。" },
-    ] },
-    philosophy: { eyebrow: "理念", title: "力量、慈悲与自立。", intro: "IKA 训练通过双人练习、冥想和哲学发展人的技术、心智和社会能力。", quote: "一半为自己的幸福而活，一半为他人的幸福而活。", blocks: [
-      { title: "共同成长", text: "练习者共同训练，共同成长。" },
-      { title: "防御优先", text: "技术强调控制、平衡、弱点和必要的最小力量。" },
-      { title: "身心合一", text: "练习结合刚法、柔法、冥想和反思。" },
-      { title: "积极社会", text: "训练培养能够自信且慈悲地贡献社会的人。" },
-    ] },
-    countries: { eyebrow: "成员国家", title: "世界各地的 IKA", intro: "IKA 连接多个国家和大洲的成员组织。", countries: memberCountries },
-    dojos: { eyebrow: "道场", title: "寻找 IKA 道场", intro: "连接 CMS 后，公开道场目录将按国家和城市显示官方道场。" },
-    news: { eyebrow: "新闻", title: "IKA 最新新闻", intro: "连接 CMS 后，已发布的多语言新闻将在这里显示。" },
-    events: { eyebrow: "活动", title: "研讨会、课程和聚会", intro: "公开活动将在这里显示。课程和大会将作为独立模块管理。" },
-    join: { eyebrow: "加入 IKA", title: "将你的组织连接到国际 IKA 家庭。", intro: "IKA 欢迎共享技术根基、哲学和跨国训练承诺的组织。", steps: [
-      { number: "01", title: "联系 IKA", text: "介绍你的组织和国家。" },
-      { number: "02", title: "审查契合度", text: "分享技术、历史和组织背景。" },
-      { number: "03", title: "共同训练", text: "参加研讨会、活动和协会项目。" },
-    ] },
-    contact: { eyebrow: "联系", title: "联系 International Kempo Association。", intro: "请使用官方邮箱进行协会相关咨询。", emailLabel: "Email" },
-    portal: { eyebrow: "私人访问", title: "一个登录，根据角色进入正确门户。", intro: "登录后，用户将根据角色进入拳士、道场管理员、国家管理员、全球管理员或超级管理员门户。", blocks: [
-      { title: "拳士", text: "个人资料、段位、课程、大会、证书和 IKA Passport。" },
-      { title: "道场管理员", text: "道场页面、道场拳士、基础更新和统计。" },
-      { title: "国家管理员", text: "国家页面、道场、拳士、课程、大会和报告。" },
-    ] },
+    about: {
+      eyebrow: "关于 IKA",
+      title: "关于国际拳法协会",
+      intro:
+        "国际拳法协会连接世界各地拥有共同传承、身体技法和哲学的练习者与组织。",
+    },
+    philosophy: {
+      eyebrow: "理念",
+      title: "力量、慈悲与自立。",
+      intro:
+        "IKA 训练通过双人练习、冥想和哲学，在技术、心智和社会层面发展人。",
+      quote: "一半为自己的幸福而活，一半为他人的幸福而活。",
+      blocks: [
+        {
+          title: "共同成长",
+          text: "练习者相互训练，共同成长。",
+        },
+        {
+          title: "防御优先",
+          text: "技术强调控制、平衡、弱点和必要的最小力量。",
+        },
+        {
+          title: "身心合一",
+          text: "练习结合刚法、柔法、冥想和反思。",
+        },
+        {
+          title: "积极社会",
+          text: "训练旨在培养能以自信和慈悲贡献社会的人。",
+        },
+      ],
+    },
+    countries: {
+      eyebrow: "成员国家",
+      title: "世界各地的 IKA",
+      intro:
+        "IKA 连接多个国家和大陆的成员组织。该目录未来可从 CMS 完全编辑。",
+      countries: memberCountriesByLocale.zh,
+    },
+    dojos: {
+      eyebrow: "道场",
+      title: "寻找 IKA 道场",
+      intro:
+        "连接 CMS 和管理工具后，公开道场目录将按国家和城市显示官方道场。",
+    },
+    news: {
+      eyebrow: "新闻",
+      title: "IKA 最新新闻",
+      intro:
+        "从当前 IKA 网站迁移的最新报告。新闻模块连接后，可从 CMS 编辑。",
+    },
+    events: {
+      eyebrow: "活动",
+      title: "研讨会、课程与聚会",
+      intro:
+        "公开活动将在此显示。课程和大会将作为私人管理系统中的独立模块。",
+    },
+    join: {
+      eyebrow: "加入 IKA",
+      title: "将你的组织连接到国际 IKA 大家庭。",
+      intro:
+        "IKA 欢迎共享技术根基、哲学以及跨国共同训练承诺的组织。",
+      steps: [
+        {
+          number: "01",
+          title: "联系 IKA",
+          text: "介绍你的组织和国家。",
+        },
+        {
+          number: "02",
+          title: "审查契合度",
+          text: "分享技术、历史和组织背景。",
+        },
+        {
+          number: "03",
+          title: "共同训练",
+          text: "参加研讨会、活动和协会项目。",
+        },
+      ],
+    },
+    contact: {
+      eyebrow: "联系",
+      title: "联系国际拳法协会。",
+      intro: "请使用下方表单联系 IKA。",
+      emailLabel: "Email",
+    },
+    portal: {
+      eyebrow: "私人访问",
+      title: "一个登录入口，根据角色进入正确门户。",
+      intro:
+        "登录后，用户将根据角色进入拳士、道场管理员、国家管理员、全球管理员或超级管理员门户。",
+      blocks: [
+        {
+          title: "拳士",
+          text: "个人资料、段位历史、课程、大会、证书和 IKA Passport。",
+        },
+        {
+          title: "道场管理员",
+          text: "道场页面、道场拳士、基础更新和统计。",
+        },
+        {
+          title: "国家管理员",
+          text: "国家页面、道场、拳士、课程、大会和国家报告。",
+        },
+      ],
+    },
   },
   cs: {
-    about: { eyebrow: "O IKA", title: "Mezinárodní asociace pro společnou rodinu Kempo.", intro: "International Kempo Association spojuje praktikující a organizace se společným dědictvím, stylem a filozofií.", blocks: [
-      { title: "Založeno v Kobe", text: "IKA byla oficiálně zahájena v říjnu 2015 na prvním semináři IKA v Kobe v Japonsku." },
-      { title: "Společné kořeny", text: "Členské organizace spojují učení Doshina So a duch Shorinji Kempo." },
-    ] },
-    philosophy: { eyebrow: "Filozofie", title: "Síla, soucit a soběstačnost.", intro: "Trénink IKA rozvíjí člověka technicky, mentálně i sociálně.", quote: "Žít polovinu pro vlastní štěstí a polovinu pro štěstí druhých.", blocks: [
-      { title: "Vzájemný rozvoj", text: "Praktikující trénují spolu, aby rostli společně." },
-      { title: "Obrana před útokem", text: "Techniky zdůrazňují kontrolu, rovnováhu a minimální nutnou sílu." },
-      { title: "Mysl a tělo", text: "Praxe kombinuje tvrdé a měkké techniky s meditací." },
-      { title: "Pozitivní společnost", text: "Trénink formuje lidi schopné přispívat s jistotou a soucitem." },
-    ] },
-    countries: { eyebrow: "Členské země", title: "IKA ve světě", intro: "IKA spojuje členské organizace napříč zeměmi a kontinenty.", countries: memberCountries },
-    dojos: { eyebrow: "Dódžó", title: "Najít IKA dódžó", intro: "Veřejný adresář dódžó zobrazí oficiální dódžó podle země a města." },
-    news: { eyebrow: "Novinky", title: "Nejnovější zprávy IKA", intro: "Publikované vícejazyčné novinky se zobrazí po připojení CMS." },
-    events: { eyebrow: "Události", title: "Semináře, kurzy a setkání", intro: "Veřejné události se zobrazí zde. Kurzy a taikai zůstanou samostatné moduly." },
-    join: { eyebrow: "Připojit se k IKA", title: "Propojte svou organizaci s mezinárodní rodinou IKA.", intro: "IKA vítá organizace sdílející technické kořeny, filozofii a společný trénink.", steps: [
-      { number: "01", title: "Kontaktovat IKA", text: "Představte organizaci a zemi." },
-      { number: "02", title: "Ověřit soulad", text: "Sdílejte technické, historické a organizační informace." },
-      { number: "03", title: "Trénovat společně", text: "Účastněte se seminářů, událostí a aktivit." },
-    ] },
-    contact: { eyebrow: "Kontakt", title: "Kontaktujte International Kempo Association.", intro: "Pro dotazy k asociaci použijte oficiální email.", emailLabel: "Email" },
-    portal: { eyebrow: "Soukromý přístup", title: "Jedno přihlášení, správný portál pro každou roli.", intro: "Po přihlášení uživatel vstoupí do portálu podle své role.", blocks: [
-      { title: "Kenshi", text: "Profil, historie stupňů, kurzy, taikai, certifikáty a IKA Passport." },
-      { title: "Admin dódžó", text: "Stránka dódžó, Kenshi v dódžó, aktualizace a statistiky." },
-      { title: "Admin země", text: "Stránka země, dódžó, Kenshi, kurzy, taikai a reporty." },
-    ] },
+    about: {
+      eyebrow: "O IKA",
+      title: "O International Kempo Association",
+      intro:
+        "International Kempo Association spojuje praktikující a organizace z celého světa, které sdílejí společné dědictví, fyzický styl a filozofii.",
+    },
+    philosophy: {
+      eyebrow: "Filozofie",
+      title: "Síla, soucit a soběstačnost.",
+      intro:
+        "Trénink IKA rozvíjí člověka technicky, mentálně i sociálně prostřednictvím párové praxe, meditace a filozofie.",
+      quote: "Žít polovinu pro vlastní štěstí a polovinu pro štěstí druhých.",
+      blocks: [
+        {
+          title: "Vzájemný rozvoj",
+          text: "Praktikující trénují spolu, aby rostli společně.",
+        },
+        {
+          title: "Obrana před útokem",
+          text: "Techniky zdůrazňují kontrolu, rovnováhu, slabá místa a minimální nutnou sílu.",
+        },
+        {
+          title: "Mysl a tělo",
+          text: "Praxe kombinuje tvrdé a měkké techniky s meditací a reflexí.",
+        },
+        {
+          title: "Pozitivní společnost",
+          text: "Trénink má formovat lidi schopné přispívat s jistotou a soucitem.",
+        },
+      ],
+    },
+    countries: {
+      eyebrow: "Členské země",
+      title: "IKA ve světě",
+      intro:
+        "IKA spojuje členské organizace napříč zeměmi a kontinenty. Tento adresář bude plně upravitelný z CMS.",
+      countries: memberCountriesByLocale.cs,
+    },
+    dojos: {
+      eyebrow: "Dódžó",
+      title: "Najít IKA dódžó",
+      intro:
+        "Veřejný adresář dódžó zobrazí oficiální dódžó podle země a města po připojení CMS a administračních nástrojů.",
+    },
+    news: {
+      eyebrow: "Novinky",
+      title: "Nejnovější zprávy IKA",
+      intro:
+        "Nejnovější zprávy převedené ze současného webu IKA. Po připojení modulu novinek budou upravitelné z CMS.",
+    },
+    events: {
+      eyebrow: "Události",
+      title: "Semináře, kurzy a setkání",
+      intro:
+        "Veřejné události se zobrazí zde. Kurzy a taikai zůstanou samostatnými moduly v soukromé administraci.",
+    },
+    join: {
+      eyebrow: "Připojit se k IKA",
+      title: "Propojte svou organizaci s mezinárodní rodinou IKA.",
+      intro:
+        "IKA vítá organizace sdílející technické kořeny, filozofii a závazek společně trénovat přes hranice.",
+      steps: [
+        {
+          number: "01",
+          title: "Kontaktovat IKA",
+          text: "Představte svou organizaci a zemi.",
+        },
+        {
+          number: "02",
+          title: "Ověřit soulad",
+          text: "Sdílejte technické, historické a organizační informace.",
+        },
+        {
+          number: "03",
+          title: "Trénovat společně",
+          text: "Účastněte se seminářů, událostí a aktivit asociace.",
+        },
+      ],
+    },
+    contact: {
+      eyebrow: "Kontakt",
+      title: "Kontaktujte International Kempo Association.",
+      intro: "Použijte níže uvedený formulář pro kontaktování IKA.",
+      emailLabel: "Email",
+    },
+    portal: {
+      eyebrow: "Soukromý přístup",
+      title: "Jedno přihlášení, správný portál pro každou roli.",
+      intro:
+        "Po přihlášení uživatel vstoupí do správného portálu podle své role: Kenshi, admin dódžó, admin země, globální admin nebo super admin.",
+      blocks: [
+        {
+          title: "Kenshi",
+          text: "Osobní profil, historie stupňů, kurzy, taikai, certifikáty a IKA Passport.",
+        },
+        {
+          title: "Admin dódžó",
+          text: "Stránka dódžó, Kenshi v dódžó, základní aktualizace a statistiky.",
+        },
+        {
+          title: "Admin země",
+          text: "Stránka země, dódžó, Kenshi, kurzy, taikai a národní zprávy.",
+        },
+      ],
+    },
   },
 };
 
+const aboutSections: Record<Locale, AboutSection[]> = {
+  en: [
+    {
+      title: "About the IKA",
+      image: "/images/about/about-intro.webp",
+      body: [
+        "The International Kempo Association was established in order to bring together practitioners of a particular family of martial arts from all over the world.",
+        "Although member organisations use different names to describe their martial art, all of them share a common heritage, physical style, and most importantly of all: philosophy.",
+        "The International Kempo Association brings all these organisations together, so that they can train together for mutual self-development, fun, and good company.",
+      ],
+    },
+    {
+      title: "What unites the IKA Kempo family?",
+      image: "/images/about/kobe-2015.webp",
+      body: [
+        "The Kempo family of martial arts which make up the International Kempo Association are traditional Japanese martial arts, but can trace their heritage back to the Shaolin Temple in China.",
+        "They are qualitatively different from both Chinese martial arts and Japanese karate styles.",
+      ],
+      bullets: [
+        "They train in both hard techniques, such as kicks, punches and blocks, and soft techniques, such as throws, grappling and nerve point attacks.",
+        "They train to develop both the mind and the body through physical training combined with meditation and philosophy.",
+        "They emphasise compassion together with the strength of self-reliance.",
+        "They practice in pairs to increase the speed of learning as well as building relationships.",
+        "Their style comprises techniques that incapacitate with the minimum strength required by the defender and the minimum damage inflicted on the opponent.",
+        "They place a strong emphasis on defence rather than attack.",
+      ],
+      note: "Kempo, or kenpo, is a term for several Japanese styles of martial arts and is shared by many members of the IKA. It is the Japanese reading of the Chinese quan fa, made up of ken, meaning fist, and ho, meaning method or system.",
+    },
+    {
+      title: "History",
+      image: "/images/about/history.webp",
+      body: [
+        "The founding members of the IKA originally met at the British Shorinji Kempo Federation's 40th anniversary celebrations in London, 2014.",
+        "At a meeting after this event they pledged to cooperate to share teaching expertise and facilitate training across national borders and continental divides.",
+        "The word Shorinji is the Japanese reading of the Chinese Shaolinsi, meaning Shaolin temple.",
+      ],
+    },
+    {
+      title: "Philosophy",
+      image: "/images/about/philosophy.webp",
+      body: [
+        "All of the members of the IKA are united in the desire to develop individuals so that they can be confident and self-reliant enough to make a positive difference within their societies.",
+        "This was best summarised by So Doshin, the founder of Shorinji Kempo, as living half for yourselves, and half for others.",
+        "During training, students practice with each other for mutual development, not personal competition.",
+      ],
+    },
+    {
+      title: "Techniques",
+      image: "/images/about/techniques.webp",
+      body: [
+        "The techniques practiced match the philosophy taught in classes. All of the techniques use principles that allow a less powerful defender to overcome a more powerful attacker.",
+      ],
+      bullets: [
+        "By focusing on the natural weak points of the attacker's body, such as striking or applying pressure to nerve junctions.",
+        "By using the attacker's instinctive reactions to influence and control their movements, for instance by interfering with their balance strategy.",
+        "By understanding the mechanical principles that the human body is built upon, such as using joint reversals to throw.",
+        "By using and redirecting the momentum of the attacker.",
+      ],
+      note: "The techniques form the defence to an attack and allow the defender to incapacitate the attacker with the minimum amount of damage.",
+    },
+  ],
+  es: [
+    {
+      title: "Sobre IKA",
+      image: "/images/about/about-intro.webp",
+      body: [
+        "La International Kempo Association fue creada para reunir a practicantes de una familia concreta de artes marciales de todo el mundo.",
+        "Aunque las organizaciones miembro usan nombres distintos para describir su arte marcial, todas comparten una herencia común, un estilo físico y, por encima de todo, una filosofía.",
+        "IKA une a estas organizaciones para que puedan entrenar juntas en desarrollo mutuo, amistad y buena compañía.",
+      ],
+    },
+    {
+      title: "¿Qué une a la familia Kempo de IKA?",
+      image: "/images/about/kobe-2015.webp",
+      body: [
+        "La familia de artes marciales Kempo que forma la International Kempo Association pertenece a las artes marciales tradicionales japonesas, pero puede rastrear su herencia hasta el templo Shaolin en China.",
+        "Son cualitativamente diferentes tanto de las artes marciales chinas como de los estilos japoneses de karate.",
+      ],
+      bullets: [
+        "Entrenan técnicas duras, como patadas, golpes y bloqueos, y técnicas suaves, como proyecciones, agarres y ataques a puntos nerviosos.",
+        "Desarrollan mente y cuerpo mediante entrenamiento físico combinado con meditación y filosofía.",
+        "Ponen énfasis en la compasión junto con la fuerza de la autosuficiencia.",
+        "Practican por parejas para acelerar el aprendizaje y construir relaciones.",
+        "Su estilo incluye técnicas que incapacitan con la mínima fuerza necesaria del defensor y el mínimo daño al oponente.",
+        "Dan una gran importancia a la defensa antes que al ataque.",
+      ],
+      note: "Kempo, o kenpo, es un término usado para varios estilos japoneses de artes marciales y compartido por muchos miembros de IKA. Es la lectura japonesa del chino quan fa: ken significa puño y ho significa método o sistema.",
+    },
+    {
+      title: "Historia",
+      image: "/images/about/history.webp",
+      body: [
+        "Los miembros fundadores de IKA se conocieron originalmente en las celebraciones del 40 aniversario de la British Shorinji Kempo Federation en Londres, en 2014.",
+        "En una reunión posterior se comprometieron a cooperar, compartir experiencia docente y facilitar el entrenamiento entre países y continentes.",
+        "La palabra Shorinji es la lectura japonesa del chino Shaolinsi, que significa templo Shaolin.",
+      ],
+    },
+    {
+      title: "Filosofía",
+      image: "/images/about/philosophy.webp",
+      body: [
+        "Todos los miembros de IKA comparten el deseo de desarrollar personas seguras y autosuficientes, capaces de marcar una diferencia positiva en sus sociedades.",
+        "So Doshin, fundador de Shorinji Kempo, lo resumió como vivir la mitad para uno mismo y la mitad para los demás.",
+        "Durante el entrenamiento, los estudiantes practican entre sí para el desarrollo mutuo, no para la competición personal.",
+      ],
+    },
+    {
+      title: "Técnicas",
+      image: "/images/about/techniques.webp",
+      body: [
+        "Las técnicas practicadas reflejan la filosofía enseñada en clase. Todas usan principios que permiten a un defensor menos fuerte superar a un atacante más poderoso.",
+      ],
+      bullets: [
+        "Centrarse en los puntos débiles naturales del cuerpo del atacante, como golpear o presionar uniones nerviosas.",
+        "Usar las reacciones instintivas del atacante para influir y controlar sus movimientos, por ejemplo alterando su equilibrio.",
+        "Comprender los principios mecánicos del cuerpo humano, como el uso de inversiones articulares para proyectar.",
+        "Usar y redirigir el impulso del atacante.",
+      ],
+      note: "Las técnicas son la defensa ante un ataque y permiten incapacitar al atacante con el mínimo daño posible.",
+    },
+  ],
+  it: [],
+  fr: [],
+  ja: [],
+  zh: [],
+  cs: [],
+};
+
+const aboutQuote: Record<Locale, string[]> = {
+  en: [
+    "Avoid rather than fight,",
+    "Fight rather than hurt,",
+    "Hurt rather than maim,",
+    "Maim rather than kill,",
+    "For all life is precious and cannot be replaced.",
+  ],
+  es: [
+    "Evita antes que luchar,",
+    "Lucha antes que herir,",
+    "Hiere antes que mutilar,",
+    "Mutila antes que matar,",
+    "Porque toda vida es preciosa y no puede ser reemplazada.",
+  ],
+  it: [
+    "Evita piuttosto che combattere,",
+    "Combatti piuttosto che ferire,",
+    "Ferire piuttosto che menomare,",
+    "Menomare piuttosto che uccidere,",
+    "Perché ogni vita è preziosa e non può essere sostituita.",
+  ],
+  fr: [
+    "Éviter plutôt que combattre,",
+    "Combattre plutôt que blesser,",
+    "Blesser plutôt que mutiler,",
+    "Mutiler plutôt que tuer,",
+    "Car toute vie est précieuse et ne peut être remplacée.",
+  ],
+  ja: [
+    "戦うより避ける、",
+    "傷つけるより戦う、",
+    "不具にするより傷つける、",
+    "殺すより不具にする、",
+    "すべての命は尊く、代えることができないから。",
+  ],
+  zh: [
+    "能避则不战，",
+    "能战则不伤，",
+    "能伤则不残，",
+    "能残则不杀，",
+    "因为一切生命都珍贵且不可替代。",
+  ],
+  cs: [
+    "Raději se vyhnout než bojovat,",
+    "raději bojovat než zranit,",
+    "raději zranit než zmrzačit,",
+    "raději zmrzačit než zabít,",
+    "protože každý život je vzácný a nelze jej nahradit.",
+  ],
+};
+
+function localizeAboutFromSpanish(locale: Locale): AboutSection[] {
+  if (locale === "en" || locale === "es") {
+    return aboutSections[locale];
+  }
+
+  const translations: Record<Locale, string[][]> = {
+    en: [],
+    es: [],
+    it: [
+      [
+        "Informazioni su IKA",
+        "La International Kempo Association è stata creata per riunire praticanti di una particolare famiglia di arti marziali da tutto il mondo.",
+        "Sebbene le organizzazioni membro usino nomi diversi per descrivere la loro arte marziale, tutte condividono un patrimonio comune, uno stile fisico e soprattutto una filosofia.",
+        "IKA unisce queste organizzazioni affinché possano allenarsi insieme per lo sviluppo reciproco, l'amicizia e la buona compagnia.",
+      ],
+      [
+        "Cosa unisce la famiglia Kempo di IKA?",
+        "La famiglia di arti marziali Kempo che forma la International Kempo Association appartiene alle arti marziali tradizionali giapponesi, ma può far risalire il proprio patrimonio al tempio Shaolin in Cina.",
+        "È qualitativamente diversa sia dalle arti marziali cinesi sia dagli stili giapponesi di karate.",
+        "Allenano tecniche dure, come calci, pugni e parate, e tecniche morbide, come proiezioni, leve e attacchi ai punti nervosi.",
+        "Sviluppano mente e corpo attraverso allenamento fisico combinato con meditazione e filosofia.",
+        "Sottolineano la compassione insieme alla forza dell'autonomia.",
+        "Praticano in coppia per aumentare la velocità di apprendimento e costruire relazioni.",
+        "Il loro stile comprende tecniche che neutralizzano con la minima forza richiesta al difensore e il minimo danno inflitto all'avversario.",
+        "Danno grande importanza alla difesa più che all'attacco.",
+        "Kempo, o kenpo, è un termine per diversi stili giapponesi di arti marziali ed è condiviso da molti membri IKA. È la lettura giapponese del cinese quan fa: ken significa pugno e ho significa metodo o sistema.",
+      ],
+      [
+        "Storia",
+        "I membri fondatori di IKA si incontrarono originariamente alle celebrazioni del 40º anniversario della British Shorinji Kempo Federation a Londra, nel 2014.",
+        "In una riunione successiva si impegnarono a cooperare, condividere competenze didattiche e facilitare l'allenamento oltre i confini nazionali e continentali.",
+        "La parola Shorinji è la lettura giapponese del cinese Shaolinsi, che significa tempio Shaolin.",
+      ],
+      [
+        "Filosofia",
+        "Tutti i membri IKA sono uniti dal desiderio di sviluppare individui sicuri e autonomi, capaci di fare una differenza positiva nelle loro società.",
+        "So Doshin, fondatore dello Shorinji Kempo, lo riassunse come vivere metà per sé stessi e metà per gli altri.",
+        "Durante l'allenamento gli studenti praticano insieme per lo sviluppo reciproco, non per la competizione personale.",
+      ],
+      [
+        "Tecniche",
+        "Le tecniche praticate rispecchiano la filosofia insegnata nelle lezioni. Tutte usano principi che permettono a un difensore meno potente di superare un aggressore più forte.",
+        "Concentrandosi sui punti deboli naturali del corpo dell'aggressore, come colpire o premere le giunzioni nervose.",
+        "Usando le reazioni istintive dell'aggressore per influenzare e controllare i suoi movimenti, per esempio interferendo con l'equilibrio.",
+        "Comprendendo i principi meccanici del corpo umano, come l'uso delle leve articolari per proiettare.",
+        "Usando e reindirizzando lo slancio dell'aggressore.",
+        "Le tecniche costituiscono la difesa da un attacco e permettono al difensore di neutralizzare l'aggressore con il minimo danno.",
+      ],
+    ],
+    fr: [
+      [
+        "À propos d'IKA",
+        "L'International Kempo Association a été créée afin de réunir des pratiquants d'une famille particulière d'arts martiaux du monde entier.",
+        "Même si les organisations membres utilisent des noms différents pour décrire leur art martial, elles partagent toutes un héritage commun, un style physique et surtout une philosophie.",
+        "IKA réunit ces organisations afin qu'elles puissent s'entraîner ensemble pour le développement mutuel, l'amitié et la bonne compagnie.",
+      ],
+      [
+        "Qu'est-ce qui unit la famille Kempo d'IKA?",
+        "La famille d'arts martiaux Kempo qui compose l'International Kempo Association appartient aux arts martiaux traditionnels japonais, mais peut retracer son héritage jusqu'au temple Shaolin en Chine.",
+        "Elle est qualitativement différente des arts martiaux chinois comme des styles japonais de karaté.",
+        "Elles pratiquent des techniques dures, comme les coups de pied, coups de poing et blocages, et des techniques souples, comme projections, saisies et attaques de points nerveux.",
+        "Elles développent l'esprit et le corps par un entraînement physique associé à la méditation et à la philosophie.",
+        "Elles soulignent la compassion avec la force de l'autonomie.",
+        "Elles pratiquent en binôme pour accélérer l'apprentissage et construire des relations.",
+        "Leur style comprend des techniques qui neutralisent avec la force minimale nécessaire au défenseur et le minimum de dommages infligés à l'adversaire.",
+        "Elles mettent fortement l'accent sur la défense plutôt que l'attaque.",
+        "Kempo, ou kenpo, est un terme désignant plusieurs styles japonais d'arts martiaux et partagé par de nombreux membres d'IKA. C'est la lecture japonaise du chinois quan fa: ken signifie poing et ho signifie méthode ou système.",
+      ],
+      [
+        "Histoire",
+        "Les membres fondateurs d'IKA se sont rencontrés à l'origine lors des célébrations du 40e anniversaire de la British Shorinji Kempo Federation à Londres, en 2014.",
+        "Lors d'une réunion après cet événement, ils se sont engagés à coopérer, partager leur expertise pédagogique et faciliter l'entraînement au-delà des frontières nationales et continentales.",
+        "Le mot Shorinji est la lecture japonaise du chinois Shaolinsi, qui signifie temple Shaolin.",
+      ],
+      [
+        "Philosophie",
+        "Tous les membres d'IKA sont unis par le désir de développer des individus confiants et autonomes, capables d'apporter une différence positive dans leurs sociétés.",
+        "So Doshin, fondateur du Shorinji Kempo, l'a résumé par vivre moitié pour soi-même et moitié pour les autres.",
+        "Pendant l'entraînement, les élèves pratiquent ensemble pour le développement mutuel, non pour la compétition personnelle.",
+      ],
+      [
+        "Techniques",
+        "Les techniques pratiquées correspondent à la philosophie enseignée en cours. Elles utilisent des principes permettant à un défenseur moins puissant de vaincre un attaquant plus fort.",
+        "En se concentrant sur les points faibles naturels du corps de l'attaquant, par exemple en frappant ou en exerçant une pression sur les jonctions nerveuses.",
+        "En utilisant les réactions instinctives de l'attaquant pour influencer et contrôler ses mouvements, par exemple en perturbant son équilibre.",
+        "En comprenant les principes mécaniques du corps humain, comme l'utilisation des inversions articulaires pour projeter.",
+        "En utilisant et en redirigeant l'élan de l'attaquant.",
+        "Les techniques constituent la défense contre une attaque et permettent au défenseur de neutraliser l'attaquant avec un minimum de dommages.",
+      ],
+    ],
+    ja: [
+      [
+        "IKAについて",
+        "国際拳法協会は、世界中にある特定の武道ファミリーの実践者を結びつけるために設立されました。",
+        "加盟団体は自らの武道を説明するために異なる名称を使うことがありますが、すべてが共通の伝統、身体技法、そして何より哲学を共有しています。",
+        "IKAはこれらの団体を結び、相互の自己成長、楽しさ、良い仲間づくりのために共に稽古できるようにします。",
+      ],
+      [
+        "IKAのKempoファミリーを結ぶもの",
+        "国際拳法協会を構成するKempoの武道ファミリーは日本の伝統武道ですが、その伝統は中国の少林寺にまで遡ることができます。",
+        "それらは中国武術とも日本の空手流派とも質的に異なります。",
+        "蹴り、突き、受けなどの剛法と、投げ、組み技、急所攻撃などの柔法を稽古します。",
+        "身体的稽古に瞑想と哲学を組み合わせ、心と身体の両方を育てます。",
+        "慈悲と自立の強さを重視します。",
+        "学習速度を高め、関係を築くために相対で稽古します。",
+        "防御者に必要な最小限の力と、相手への最小限の損傷で制圧する技法で構成されています。",
+        "攻撃よりも防御を強く重視します。",
+        "Kempo、またはkenpoは、複数の日本武道の名称であり、多くのIKAメンバーに共有されています。中国語のquan faの日本語読みで、kenは拳、hoは方法または体系を意味します。",
+      ],
+      [
+        "歴史",
+        "IKAの創設メンバーは、2014年ロンドンで行われたBritish Shorinji Kempo Federationの40周年記念行事で初めて出会いました。",
+        "その後の会合で、指導経験を共有し、国境や大陸を越えた稽古を促進するために協力することを誓いました。",
+        "Shorinjiという言葉は、中国語のShaolinsi、すなわち少林寺の日本語読みです。",
+      ],
+      [
+        "哲学",
+        "IKAのすべてのメンバーは、自信と自立を持ち、社会に前向きな違いを生み出せる個人を育てたいという願いで結ばれています。",
+        "これは少林寺拳法の創始者である宗道臣が、半ばは自己のため、半ばは他人のために生きる、と最もよく表現しました。",
+        "稽古中、学生は個人的な競争ではなく相互の発展のために互いに練習します。",
+      ],
+      [
+        "技法",
+        "稽古される技法は、授業で教えられる哲学に一致しています。すべての技法は、力の弱い防御者がより強い攻撃者を制するための原理を用います。",
+        "神経の接合部を打つ、または圧迫するなど、攻撃者の身体の自然な弱点に焦点を当てます。",
+        "攻撃者の本能的反応を利用して動きを誘導・制御します。たとえばバランス戦略を崩します。",
+        "関節の反転を用いて投げるなど、人体の機械的原理を理解します。",
+        "攻撃者の勢いを利用し、方向を変えます。",
+        "技法は攻撃に対する防御であり、防御者が最小限の損傷で攻撃者を制圧できるようにします。",
+      ],
+    ],
+    zh: [
+      [
+        "关于 IKA",
+        "国际拳法协会的成立，是为了汇聚来自世界各地、属于同一武道大家庭的练习者。",
+        "虽然成员组织使用不同名称描述自己的武道，但它们都共享共同传承、身体风格，最重要的是共同哲学。",
+        "IKA 将这些组织连接在一起，使它们能够为了相互自我成长、友谊和良好伙伴关系而共同训练。",
+      ],
+      [
+        "是什么连接 IKA 的 Kempo 大家庭？",
+        "组成国际拳法协会的 Kempo 武道家族属于日本传统武道，但其传承可追溯至中国少林寺。",
+        "它们在性质上不同于中国武术，也不同于日本空手道流派。",
+        "它们训练刚性技术，如踢、打和格挡，也训练柔性技术，如投技、擒拿和神经点攻击。",
+        "它们通过身体训练结合冥想和哲学，同时发展心灵与身体。",
+        "它们强调慈悲以及自立的力量。",
+        "它们通过双人练习提高学习速度并建立关系。",
+        "其风格包含以防御者所需的最小力量和对对手造成的最小伤害进行制伏的技术。",
+        "它们强调整体上防御重于攻击。",
+        "Kempo 或 kenpo 是若干日本武道流派的术语，也被许多 IKA 成员共同使用。它是中文“拳法”的日语读法，其中 ken 指拳，ho 指方法或体系。",
+      ],
+      [
+        "历史",
+        "IKA 的创始成员最初在 2014 年伦敦 British Shorinji Kempo Federation 成立 40 周年庆典上相遇。",
+        "在该活动之后的一次会议上，他们承诺合作、分享教学经验，并促进跨越国界和大陆的训练。",
+        "Shorinji 一词是中文 Shaolinsi，即少林寺的日语读法。",
+      ],
+      [
+        "哲学",
+        "IKA 的所有成员都希望培养自信、自立，并能够在社会中产生积极影响的人。",
+        "少林寺拳法创始人宗道臣将其概括为：一半为自己而活，一半为他人而活。",
+        "训练中，学生彼此练习是为了共同发展，而不是个人竞争。",
+      ],
+      [
+        "技术",
+        "所练习的技术与课堂上教授的哲学相一致。所有技术都运用原则，使力量较弱的防御者能够战胜更强的攻击者。",
+        "关注攻击者身体的自然弱点，例如打击或按压神经交汇处。",
+        "利用攻击者的本能反应影响并控制其动作，例如干扰其平衡策略。",
+        "理解人体构造的机械原理，例如利用关节反转进行投技。",
+        "利用并重新引导攻击者的动量。",
+        "这些技术构成对攻击的防御，使防御者能够以最小伤害制伏攻击者。",
+      ],
+    ],
+    cs: [
+      [
+        "O IKA",
+        "International Kempo Association byla založena, aby spojila praktikující určité rodiny bojových umění z celého světa.",
+        "Ačkoli členské organizace používají různé názvy pro své bojové umění, všechny sdílejí společné dědictví, fyzický styl a především filozofii.",
+        "IKA tyto organizace spojuje, aby mohly trénovat společně pro vzájemný seberozvoj, radost a dobrou společnost.",
+      ],
+      [
+        "Co spojuje rodinu Kempo IKA?",
+        "Rodina bojových umění Kempo tvořící International Kempo Association patří k tradičním japonským bojovým uměním, ale její dědictví lze vysledovat až k chrámu Shaolin v Číně.",
+        "Je kvalitativně odlišná od čínských bojových umění i japonských stylů karate.",
+        "Trénují tvrdé techniky, jako kopy, údery a bloky, i měkké techniky, jako hody, páky a útoky na nervové body.",
+        "Rozvíjejí mysl i tělo prostřednictvím fyzického tréninku kombinovaného s meditací a filozofií.",
+        "Zdůrazňují soucit spolu se silou soběstačnosti.",
+        "Cvičí ve dvojicích, aby zrychlili učení a budovali vztahy.",
+        "Jejich styl zahrnuje techniky, které zneškodní protivníka s minimální silou obránce a minimálním poškozením protivníka.",
+        "Silně zdůrazňují obranu před útokem.",
+        "Kempo, nebo kenpo, je termín pro několik japonských stylů bojových umění a sdílí jej mnoho členů IKA. Je to japonské čtení čínského quan fa: ken znamená pěst a ho znamená metoda nebo systém.",
+      ],
+      [
+        "Historie",
+        "Zakládající členové IKA se původně setkali na oslavách 40. výročí British Shorinji Kempo Federation v Londýně v roce 2014.",
+        "Na následné schůzce se zavázali spolupracovat, sdílet pedagogické zkušenosti a usnadňovat trénink přes národní hranice a kontinenty.",
+        "Slovo Shorinji je japonské čtení čínského Shaolinsi, což znamená chrám Shaolin.",
+      ],
+      [
+        "Filozofie",
+        "Všechny členy IKA spojuje přání rozvíjet jednotlivce tak, aby byli sebevědomí a soběstační a dokázali pozitivně působit ve své společnosti.",
+        "So Doshin, zakladatel Shorinji Kempo, to nejlépe shrnul jako žít polovinu pro sebe a polovinu pro druhé.",
+        "Během tréninku studenti cvičí spolu pro vzájemný rozvoj, nikoli pro osobní soutěžení.",
+      ],
+      [
+        "Techniky",
+        "Procvičované techniky odpovídají filozofii vyučované v hodinách. Všechny používají principy, které umožňují méně silnému obránci překonat silnějšího útočníka.",
+        "Zaměřením na přirozená slabá místa těla útočníka, například úderem nebo tlakem na nervové spoje.",
+        "Využitím instinktivních reakcí útočníka k ovlivnění a kontrole jeho pohybů, například narušením rovnováhy.",
+        "Pochopením mechanických principů lidského těla, například použitím kloubních zvratů k hodu.",
+        "Využitím a přesměrováním hybnosti útočníka.",
+        "Techniky tvoří obranu proti útoku a umožňují obránci zneškodnit útočníka s minimálním poškozením.",
+      ],
+    ],
+  };
+
+  return translations[locale].map((section, index) => {
+    const base = aboutSections.en[index];
+    if (index === 0 || index === 2 || index === 3) {
+      return {
+        title: section[0],
+        image: base.image,
+        body: section.slice(1),
+      };
+    }
+
+    if (index === 1) {
+      return {
+        title: section[0],
+        image: base.image,
+        body: section.slice(1, 3),
+        bullets: section.slice(3, 9),
+        note: section[9],
+      };
+    }
+
+    return {
+      title: section[0],
+      image: base.image,
+      body: section.slice(1, 2),
+      bullets: section.slice(2, 6),
+      note: section[6],
+    };
+  });
+}
+
 export function getPublicPageContent(locale: Locale, page: PublicPageKey) {
   return content[locale]?.[page] ?? content[defaultLocale][page];
+}
+
+export function getAboutSections(locale: Locale) {
+  return locale === "en" || locale === "es"
+    ? aboutSections[locale]
+    : localizeAboutFromSpanish(locale);
+}
+
+export function getAboutQuote(locale: Locale) {
+  return aboutQuote[locale] ?? aboutQuote[defaultLocale];
 }

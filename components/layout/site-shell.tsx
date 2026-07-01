@@ -80,14 +80,13 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
               </span>
             </Link>
             <p className="mt-5 max-w-md leading-7">
-              Return to the original spirit through international training,
-              friendship, philosophy, and shared Kempo heritage.
+              {dictionary.footer.summary}
             </p>
           </div>
 
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--foreground)]">
-              Web
+              {dictionary.footer.webTitle}
             </h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
               {publicLinks.map((item) => (
@@ -100,7 +99,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
 
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--foreground)]">
-              Contact
+              {dictionary.footer.contactTitle}
             </h2>
             <div className="mt-4 space-y-3">
               <Link
@@ -119,8 +118,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
           </div>
         </div>
         <div className="border-t border-[var(--line)] px-5 py-4 text-center text-xs leading-6 text-[var(--muted)]">
-          © Copyright IKA 2022, all rights reserved. &apos;International Kempo
-          Association&apos; and the IKA logo are UK registered trademarks.
+          {dictionary.footer.legal}
         </div>
       </footer>
     </div>

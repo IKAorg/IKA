@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { isLocale } from "@/lib/i18n/config";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
-import { latestReports } from "@/lib/content/latest-reports";
+import { getLatestReports } from "@/lib/content/latest-reports";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 type NewsPageProps = {
   params: Promise<{ locale: string }>;
@@ -12,6 +13,8 @@ export default async function NewsPage({ params }: NewsPageProps) {
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "en";
   const content = getPublicPageContent(safeLocale, "news");
+  const dictionary = getDictionary(safeLocale);
+  const latestReports = getLatestReports(safeLocale);
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">
@@ -20,7 +23,7 @@ export default async function NewsPage({ params }: NewsPageProps) {
         className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--muted)]"
       >
         <ArrowLeft size={16} aria-hidden="true" />
-        Back to homepage
+        {dictionary.nav.home}
       </Link>
 
       <div className="mt-8 flex flex-col gap-5 border-b border-[var(--line)] pb-10 lg:flex-row lg:items-end lg:justify-between">
@@ -30,15 +33,14 @@ export default async function NewsPage({ params }: NewsPageProps) {
           </p>
           <h1 className="mt-4 text-4xl font-semibold">{content.title}</h1>
           <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-            Latest reports migrated from the current IKA website. These will be
-            editable from the CMS once the news module is connected.
+            {content.intro}
           </p>
         </div>
         <Link
           href={`/${safeLocale}/contact`}
           className="inline-flex items-center justify-center bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white"
         >
-          Contact IKA
+          {dictionary.nav.contact}
         </Link>
       </div>
 
@@ -70,7 +72,7 @@ export default async function NewsPage({ params }: NewsPageProps) {
                 href={`/${safeLocale}/news#${report.slug}`}
                 className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--ink-blue)]"
               >
-                View report summary
+                {dictionary.home.reportCardAction}
                 <ArrowUpRight size={16} aria-hidden="true" />
               </a>
             </div>
