@@ -21,7 +21,7 @@ export const archiveLabels: Record<
     all: "All",
     months: "Archives",
     category: "Category",
-    read: "Archive item",
+    read: "Open old news",
     noImage: "Archive",
   },
   es: {
@@ -32,7 +32,7 @@ export const archiveLabels: Record<
     all: "Todas",
     months: "Archivos",
     category: "Categoría",
-    read: "Elemento de archivo",
+    read: "Abrir noticia antigua",
     noImage: "Archivo",
   },
   it: {
@@ -43,7 +43,7 @@ export const archiveLabels: Record<
     all: "Tutte",
     months: "Archivi",
     category: "Categoria",
-    read: "Voce archivio",
+    read: "Apri vecchia notizia",
     noImage: "Archivio",
   },
   fr: {
@@ -54,7 +54,7 @@ export const archiveLabels: Record<
     all: "Toutes",
     months: "Archives",
     category: "Catégorie",
-    read: "Élément d'archive",
+    read: "Ouvrir l'ancienne actualité",
     noImage: "Archive",
   },
   ja: {
@@ -65,7 +65,7 @@ export const archiveLabels: Record<
     all: "すべて",
     months: "アーカイブ",
     category: "カテゴリー",
-    read: "アーカイブ項目",
+    read: "旧ニュースを開く",
     noImage: "アーカイブ",
   },
   zh: {
@@ -76,7 +76,7 @@ export const archiveLabels: Record<
     all: "全部",
     months: "档案",
     category: "类别",
-    read: "档案项目",
+    read: "打开旧新闻",
     noImage: "档案",
   },
   cs: {
@@ -87,7 +87,7 @@ export const archiveLabels: Record<
     all: "Vše",
     months: "Archiv",
     category: "Kategorie",
-    read: "Položka archivu",
+    read: "Otevřít starou novinku",
     noImage: "Archiv",
   },
 };

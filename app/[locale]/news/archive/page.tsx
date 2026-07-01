@@ -72,12 +72,12 @@ export default async function ArchivePage({ params }: ArchivePageProps) {
                       {item.excerpt}
                     </p>
                   </div>
-                  <a
-                    href={`/${safeLocale}/news/archive#${item.slug}`}
+                  <Link
+                    href={`/${safeLocale}/news/archive/item/${item.slug}`}
                     className="mt-8 text-sm font-semibold text-[var(--ink-blue)]"
                   >
                     {labels.read}
-                  </a>
+                  </Link>
                 </div>
               </article>
             ))}

@@ -79,16 +79,24 @@ export default async function ArchiveMonthPage({
                     </div>
                   </div>
                 )}
-                <div className="p-6">
-                  <p className="text-sm font-semibold text-[var(--accent)]">
-                    {item.date}
-                  </p>
-                  <h2 className="mt-3 text-2xl font-semibold leading-tight">
-                    {item.title}
-                  </h2>
-                  <p className="mt-4 text-base leading-7 text-[var(--muted)]">
-                    {item.excerpt}
-                  </p>
+                <div className="flex flex-col justify-between p-6">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--accent)]">
+                      {item.date}
+                    </p>
+                    <h2 className="mt-3 text-2xl font-semibold leading-tight">
+                      {item.title}
+                    </h2>
+                    <p className="mt-4 text-base leading-7 text-[var(--muted)]">
+                      {item.excerpt}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/${locale}/news/archive/item/${item.slug}`}
+                    className="mt-8 text-sm font-semibold text-[var(--ink-blue)]"
+                  >
+                    {labels.read}
+                  </Link>
                 </div>
               </article>
             ))}

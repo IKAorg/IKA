@@ -23,7 +23,7 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Report from seminar in Switzerland",
     excerpt:
       "The annual international seminar in Switzerland, and the second in this summer's series of European seminars, was hosted once again in Neuchatel.",
-    image: "",
+    image: "/images/reports/archive/report-from-seminar-in-switzerland.jpg",
     slug: "report-from-seminar-in-switzerland",
   },
   {
@@ -32,7 +32,8 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Report from seminar in Czech Republic",
     excerpt:
       "The first of this summer's international seminars was held in Karlovy Vary, Czech Republic, with guests from several IKA member countries.",
-    image: "",
+    image:
+      "/images/reports/archive/report-from-ika-seminar-in-czech-republic.jpg",
     slug: "report-from-ika-seminar-in-czech-republic",
   },
   {
@@ -41,7 +42,8 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Report from IKA Leaders Seminar, Cyprus 2018",
     excerpt:
       "IKA members from Hong Kong, Ireland, Japan, Switzerland and the UK came together for an intensive leaders seminar in Cyprus.",
-    image: "",
+    image:
+      "/images/reports/archive/report-from-ika-leaders-seminar-cyprus-2018.jpg",
     slug: "report-from-ika-leaders-seminar-cyprus-2018",
   },
   {
@@ -50,7 +52,7 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Report from 3rd IKA Seminar, UK",
     excerpt:
       "The third IKA seminar was held in Bristol, UK, attended by kenshi from Czech Republic, Ireland, Japan, Spain, Switzerland and the UK.",
-    image: "",
+    image: "/images/reports/archive/report-from-3rd-ika-seminar-uk.jpg",
     slug: "report-from-3rd-ika-seminar-uk",
   },
   {
@@ -59,7 +61,7 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Report from 2nd IKA Taikai, Spain",
     excerpt:
       "The 2nd IKA taikai was held in Beasain in the Basque region of Spain and marked the 35th anniversary of Shorinji Kempo in the region.",
-    image: "",
+    image: "/images/reports/archive/report-from-2nd-ika-taikai-spain.jpg",
     slug: "report-from-2nd-ika-taikai-spain",
   },
   {
@@ -68,7 +70,8 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "BSKF 2017 University Training Seminar Report",
     excerpt:
       "The BSKF annual University Training Seminar was hosted in Glasgow, welcoming students from across the UK and Ireland.",
-    image: "",
+    image:
+      "/images/reports/archive/bskf-2017-university-training-seminar-report.jpg",
     slug: "bskf-2017-university-training-seminar-report",
   },
   {
@@ -77,7 +80,7 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Report from 2016 Leader's Seminar",
     excerpt:
       "The IKA annual leaders seminar returned to Cyprus with advanced training, principles, shakujo practice and shared study.",
-    image: "",
+    image: "/images/ika-logo.webp",
     slug: "report-from-2016-leaders-seminar",
   },
   {
@@ -86,7 +89,8 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Report from IKA Taikai, Czech Republic",
     excerpt:
       "The first IKA International Taikai took place in Karlovy Vary, Czech Republic, with instructors and students from several member countries.",
-    image: "",
+    image:
+      "/images/reports/archive/report-from-ika-taikai-czech-republic.jpg",
     slug: "report-from-ika-taikai-czech-republic",
   },
   {
@@ -95,7 +99,7 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Report from Swiss Seminar (2016)",
     excerpt:
       "IKA members from the UK and Spain joined students from across Switzerland for a two day seminar in Neuchatel.",
-    image: "",
+    image: "/images/reports/archive/report-from-swiss-seminar-2016.jpg",
     slug: "report-from-swiss-seminar-2016",
   },
   {
@@ -104,7 +108,7 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "BSKF report from 1st IKA Seminar in Kobe, Japan",
     excerpt:
       "A report from the first IKA Seminar in Kobe, Japan, originally written by Will Ng and republished for the IKA archive.",
-    image: "",
+    image: "/images/ika-logo.webp",
     slug: "bskf-report-from-1st-ika-seminar-in-kobe-japan",
   },
   {
@@ -113,7 +117,7 @@ const olderArchiveItems: ArchiveNewsItem[] = [
     title: "Return to the original spirit",
     excerpt:
       "The International Kempo Association was officially launched in October 2015 at the inaugural IKA seminar in Kobe, Japan.",
-    image: "",
+    image: "/images/ika-logo.webp",
     slug: "post-1",
   },
 ];
@@ -163,6 +167,10 @@ export function getArchiveNews(locale: Locale): ArchiveNewsItem[] {
 
 export function getArchiveNewsByMonth(locale: Locale, month: string) {
   return getArchiveNews(locale).filter((item) => item.month === month);
+}
+
+export function getArchiveNewsItem(locale: Locale, slug: string) {
+  return getArchiveNews(locale).find((item) => item.slug === slug);
 }
 
 export function getNewNews(): LatestReport[] {
