@@ -56,6 +56,10 @@ select {
   animation: ika-marquee 38s linear infinite;
 }
 
+.home-marquee-track-slow {
+  animation-duration: 56s;
+}
+
 .home-marquee:hover .home-marquee-track {
   animation-play-state: paused;
 }

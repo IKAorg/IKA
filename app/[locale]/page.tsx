@@ -19,6 +19,33 @@ const membersImage =
 const eventsImage =
   "https://www.internationalkempo.org/uploads/6/8/3/8/68384729/editor/12144854-1044517215582109-4555426269645854085-n_1.jpg?1536701322";
 
+const latestReports = [
+  {
+    date: "30/6/2023",
+    title: "IKA seminar in Sicily, June 2023",
+  },
+  {
+    date: "28/2/2023",
+    title: "IKA training and grading in Indonesia, February 2023",
+  },
+  {
+    date: "7/10/2022",
+    title: "Grading results",
+  },
+  {
+    date: "22/11/2021",
+    title: "Messages of condolences",
+  },
+  {
+    date: "12/10/2019",
+    title: "Porkemi (Indonesia) accepted to National Olympic Committee",
+  },
+  {
+    date: "25/6/2019",
+    title: "Report from international seminar in Spain",
+  },
+];
+
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
 
@@ -105,6 +132,41 @@ export default async function HomePage({ params }: HomePageProps) {
         />
       </section>
 
+      <section className="overflow-hidden border-t border-[var(--line)] bg-[var(--ink-blue)] text-white">
+        <div className="mx-auto max-w-7xl px-5 pt-16">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
+                Latest reports
+              </p>
+              <h2 className="mt-3 text-3xl font-semibold">
+                News from the IKA family
+              </h2>
+            </div>
+            <Link
+              href={`/${locale}/news`}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-white"
+            >
+              View all news
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+        <div className="home-marquee py-10">
+          <div className="home-marquee-track home-marquee-track-slow">
+            {[...latestReports, ...latestReports].map((report, index) => (
+              <ReportCard
+                key={`${report.title}-${index}`}
+                href={`/${locale}/news`}
+                date={report.date}
+                title={report.title}
+                ariaHidden={index >= latestReports.length}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="overflow-hidden border-y border-[var(--line)] bg-white">
         <div className="mx-auto max-w-7xl px-5 pt-16">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
@@ -177,6 +239,34 @@ export default async function HomePage({ params }: HomePageProps) {
         </Link>
       </section>
     </div>
+  );
+}
+
+function ReportCard({
+  href,
+  date,
+  title,
+  ariaHidden = false,
+}: {
+  href: string;
+  date: string;
+  title: string;
+  ariaHidden?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-hidden={ariaHidden}
+      tabIndex={ariaHidden ? -1 : undefined}
+      className="flex min-h-[210px] w-[min(82vw,420px)] shrink-0 flex-col justify-between border border-white/20 bg-white/8 p-6 text-white backdrop-blur transition-colors hover:bg-white/14"
+    >
+      <span className="text-sm font-semibold text-white/65">{date}</span>
+      <h3 className="mt-8 text-2xl font-semibold leading-tight">{title}</h3>
+      <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold">
+        Read report
+        <ArrowRight size={16} aria-hidden="true" />
+      </span>
+    </Link>
   );
 }
 
