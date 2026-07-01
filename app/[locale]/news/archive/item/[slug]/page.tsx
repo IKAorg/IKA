@@ -7,6 +7,10 @@ import {
   getArchiveNews,
   getArchiveNewsItem,
 } from "@/lib/content/news-archive";
+import {
+  getArchiveDetail,
+  getArchiveDetailHtml,
+} from "@/lib/content/archive-details";
 import { archiveLabels } from "@/lib/i18n/news-archive";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -30,8 +34,9 @@ export default async function ArchiveItemPage({
   }
 
   const item = getArchiveNewsItem(locale, slug);
+  const detail = getArchiveDetail(locale, slug);
 
-  if (!item) {
+  if (!item || !detail) {
     notFound();
   }
 
@@ -49,10 +54,10 @@ export default async function ArchiveItemPage({
       </Link>
 
       <div className="mt-8 border border-[var(--line)] bg-white">
-        {item.image ? (
+        {detail.heroImage ? (
           <div
             className="min-h-[360px] bg-cover bg-center"
-            style={{ backgroundImage: `url(${item.image})` }}
+            style={{ backgroundImage: `url(${detail.heroImage})` }}
             aria-hidden="true"
           />
         ) : null}
@@ -67,9 +72,12 @@ export default async function ArchiveItemPage({
           <h1 className="mt-4 text-4xl font-semibold leading-tight">
             {item.title}
           </h1>
-          <p className="mt-6 text-lg leading-8 text-[var(--muted)]">
-            {item.excerpt}
-          </p>
+          <div
+            className="archive-detail-content mt-8"
+            dangerouslySetInnerHTML={{
+              __html: getArchiveDetailHtml(detail, locale),
+            }}
+          />
 
           <div className="mt-10 flex flex-wrap gap-3 border-t border-[var(--line)] pt-6">
             <Link

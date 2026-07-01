@@ -1,4 +1,5 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { getArchiveDetail } from "./archive-details";
 import { getLatestReports, type LatestReport } from "./latest-reports";
 
 export type ArchiveNewsItem = LatestReport & {
@@ -158,11 +159,23 @@ export function isArchiveMonth(value: string): value is ArchiveMonth {
 export function getArchiveNews(locale: Locale): ArchiveNewsItem[] {
   const migrated = getLatestReports(locale).map((report) => ({
     ...report,
-    image: localImageBySlug[report.slug] ?? report.image,
+    image:
+      getArchiveDetail(locale, report.slug)?.heroImage ??
+      localImageBySlug[report.slug] ??
+      report.image,
+    excerpt: getArchiveDetail(locale, report.slug)?.excerpt ?? report.excerpt,
     month: monthBySlug[report.slug] ?? "",
   }));
 
-  return [...migrated, ...olderArchiveItems];
+  return [...migrated, ...olderArchiveItems].map((item) => {
+    const detail = getArchiveDetail(locale, item.slug);
+
+    return {
+      ...item,
+      image: detail?.heroImage || item.image,
+      excerpt: detail?.excerpt || item.excerpt,
+    };
+  });
 }
 
 export function getArchiveNewsByMonth(locale: Locale, month: string) {
