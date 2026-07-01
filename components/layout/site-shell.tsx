@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Locale } from "@/lib/i18n/config";
-import { localeLabels, locales } from "@/lib/i18n/config";
 import type { getDictionary } from "@/lib/i18n/dictionaries";
+import { LanguageSwitcher } from "./language-switcher";
 
 type SiteShellProps = {
   locale: Locale;
@@ -12,11 +12,22 @@ type SiteShellProps = {
 
 export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
   const nav = dictionary.nav;
+  const publicLinks = [
+    { href: `/${locale}`, label: nav.home },
+    { href: `/${locale}/about`, label: nav.about },
+    { href: `/${locale}/philosophy`, label: nav.philosophy },
+    { href: `/${locale}/countries`, label: nav.countries },
+    { href: `/${locale}/dojos`, label: nav.dojos },
+    { href: `/${locale}/news`, label: nav.news },
+    { href: `/${locale}/events`, label: nav.events },
+    { href: `/${locale}/join`, label: nav.join },
+    { href: `/${locale}/contact`, label: nav.contact },
+  ];
 
   return (
     <div className="min-h-screen">
       <header className="border-b border-[var(--line)] bg-[var(--background)]/95">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <Link href={`/${locale}`} className="flex items-center gap-3">
             <Image
               src="/images/ika-logo.webp"
@@ -31,21 +42,19 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-5 text-sm text-[var(--muted)] md:flex">
-            <Link href={`/${locale}`}>{nav.home}</Link>
-            <Link href={`/${locale}/about`}>{nav.about}</Link>
-            <Link href={`/${locale}/philosophy`}>{nav.philosophy}</Link>
-            <Link href={`/${locale}/countries`}>{nav.countries}</Link>
-            <Link href={`/${locale}/dojos`}>{nav.dojos}</Link>
-            <Link href={`/${locale}/events`}>{nav.events}</Link>
-            <Link href={`/${locale}/join`}>{nav.join}</Link>
-            <Link href={`/${locale}/contact`}>{nav.contact}</Link>
+          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[var(--muted)]">
+            {publicLinks.map((item) => (
+              <Link key={item.href} href={item.href}>
+                {item.label}
+              </Link>
+            ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <LanguageSwitcher locale={locale} />
             <Link
               href={`/${locale}/portal`}
-              className="hidden border border-[var(--line)] px-3 py-2 text-sm text-[var(--ink-blue)] sm:inline-flex"
+              className="border border-[var(--line)] px-3 py-2 text-center text-sm text-[var(--ink-blue)]"
             >
               {nav.portal}
             </Link>
@@ -55,20 +64,62 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
 
       <main>{children}</main>
 
-      <footer className="border-t border-[var(--line)]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm text-[var(--muted)] md:flex-row md:items-center md:justify-between">
-          <span>IKA Platform foundation</span>
-          <div className="flex flex-wrap gap-3">
-            {locales.map((item) => (
-              <Link
-                key={item}
-                href={`/${item}`}
-                className={item === locale ? "text-black" : "text-[var(--muted)]"}
-              >
-                {localeLabels[item]}
-              </Link>
-            ))}
+      <footer className="border-t border-[var(--line)] bg-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 text-sm text-[var(--muted)] md:grid-cols-[1.2fr_1fr_1fr]">
+          <div>
+            <Link href={`/${locale}`} className="flex items-center gap-3">
+              <Image
+                src="/images/ika-logo.webp"
+                alt="International Kempo Association"
+                width={52}
+                height={52}
+                className="size-13 object-contain"
+              />
+              <span className="max-w-64 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--foreground)]">
+                International Kempo Association
+              </span>
+            </Link>
+            <p className="mt-5 max-w-md leading-7">
+              Return to the original spirit through international training,
+              friendship, philosophy, and shared Kempo heritage.
+            </p>
           </div>
+
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--foreground)]">
+              Web
+            </h2>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {publicLinks.map((item) => (
+                <Link key={item.href} href={item.href}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--foreground)]">
+              Contact
+            </h2>
+            <div className="mt-4 space-y-3">
+              <Link
+                href="mailto:internationalkempoassociation@gmail.com"
+                className="block break-words font-semibold text-[var(--foreground)]"
+              >
+                internationalkempoassociation@gmail.com
+              </Link>
+              <Link
+                href={`/${locale}/portal`}
+                className="inline-flex border border-[var(--line)] px-4 py-2 font-semibold text-[var(--ink-blue)]"
+              >
+                {nav.portal}
+              </Link>
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-[var(--line)] px-5 py-4 text-center text-xs text-[var(--muted)]">
+          International Kempo Association
         </div>
       </footer>
     </div>
