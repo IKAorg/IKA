@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Locale } from "@/lib/i18n/config";
 import { localeLabels, locales } from "@/lib/i18n/config";
 import type { getDictionary } from "@/lib/i18n/dictionaries";
@@ -17,9 +18,14 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
       <header className="border-b border-[var(--line)] bg-[var(--background)]/95">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4">
           <Link href={`/${locale}`} className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center border border-black bg-black text-sm font-semibold text-white">
-              IKA
-            </span>
+            <Image
+              src="/images/ika-logo.webp"
+              alt="International Kempo Association"
+              width={44}
+              height={44}
+              className="size-11 object-contain"
+              priority
+            />
             <span className="text-sm font-semibold uppercase tracking-[0.18em]">
               International Kempo Association
             </span>

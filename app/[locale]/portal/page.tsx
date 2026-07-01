@@ -1,35 +1,43 @@
 import { BadgeCheck, FileText, UserRound } from "lucide-react";
+import { isLocale } from "@/lib/i18n/config";
+import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
-export default function PortalPage() {
+type PortalPageProps = {
+  params: Promise<{ locale: string }>;
+};
+
+export default async function PortalPage({ params }: PortalPageProps) {
+  const { locale } = await params;
+  const content = getPublicPageContent(isLocale(locale) ? locale : "en", "portal");
+  const blocks = content.blocks ?? [];
+
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">
       <div className="max-w-3xl">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
-          Kenshi Portal
+          {content.eyebrow}
         </p>
-        <h1 className="mt-4 text-4xl font-semibold">Private Kenshi Area</h1>
+        <h1 className="mt-4 text-4xl font-semibold">{content.title}</h1>
         <p className="mt-4 text-lg leading-8 text-[var(--muted)]">
-          This will be the single private access point. After login, each user
-          will enter the correct portal according to their role: Kenshi, dojo
-          admin, country admin, global admin, or super admin.
+          {content.intro}
         </p>
       </div>
 
       <div className="mt-10 grid gap-4 md:grid-cols-3">
         <PortalCapability
           icon={<UserRound size={22} />}
-          title="Profile"
-          text="Read-only official member data with correction request workflow."
+          title={blocks[0]?.title ?? "Kenshi"}
+          text={blocks[0]?.text ?? ""}
         />
         <PortalCapability
           icon={<BadgeCheck size={22} />}
-          title="Grade History"
-          text="Official grades, exam dates, places, examiners, and certificates."
+          title={blocks[1]?.title ?? "Dojo Admin"}
+          text={blocks[1]?.text ?? ""}
         />
         <PortalCapability
           icon={<FileText size={22} />}
-          title="IKA Passport"
-          text="A digital passport view prepared for future PDF export."
+          title={blocks[2]?.title ?? "Country Admin"}
+          text={blocks[2]?.text ?? ""}
         />
       </div>
     </section>

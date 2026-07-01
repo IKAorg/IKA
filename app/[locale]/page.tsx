@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, Globe2, Handshake, MapPin, ShieldCheck } from "lucide-react";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -37,6 +38,14 @@ export default async function HomePage({ params }: HomePageProps) {
 
         <div className="relative mx-auto flex min-h-[82vh] max-w-7xl items-center px-5 py-20">
           <div className="max-w-3xl">
+            <Image
+              src="/images/ika-logo.webp"
+              alt="International Kempo Association"
+              width={130}
+              height={130}
+              className="mb-8 size-28 bg-white/90 object-contain p-2"
+              priority
+            />
             <p className="mb-5 text-sm font-semibold uppercase tracking-[0.22em] text-white/75">
               {dictionary.home.eyebrow}
             </p>

@@ -1,13 +1,22 @@
-export default function DojosPage() {
+import { isLocale } from "@/lib/i18n/config";
+import { getPublicPageContent } from "@/lib/i18n/public-pages";
+
+type DojosPageProps = {
+  params: Promise<{ locale: string }>;
+};
+
+export default async function DojosPage({ params }: DojosPageProps) {
+  const { locale } = await params;
+  const content = getPublicPageContent(isLocale(locale) ? locale : "en", "dojos");
+
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
-        Dojos
+        {content.eyebrow}
       </p>
-      <h1 className="mt-4 text-4xl font-semibold">Find an IKA dojo</h1>
+      <h1 className="mt-4 text-4xl font-semibold">{content.title}</h1>
       <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-        The public dojo directory will list official dojos by country and city
-        once the CMS and country administration tools are connected.
+        {content.intro}
       </p>
     </section>
   );

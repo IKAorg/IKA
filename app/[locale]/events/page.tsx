@@ -1,13 +1,22 @@
-export default function EventsPage() {
+import { isLocale } from "@/lib/i18n/config";
+import { getPublicPageContent } from "@/lib/i18n/public-pages";
+
+type EventsPageProps = {
+  params: Promise<{ locale: string }>;
+};
+
+export default async function EventsPage({ params }: EventsPageProps) {
+  const { locale } = await params;
+  const content = getPublicPageContent(isLocale(locale) ? locale : "en", "events");
+
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
-        Events
+        {content.eyebrow}
       </p>
-      <h1 className="mt-4 text-4xl font-semibold">Seminars, courses, and gatherings</h1>
+      <h1 className="mt-4 text-4xl font-semibold">{content.title}</h1>
       <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-        Public events will be listed here. Courses and taikais will remain
-        separate modules in the private administration system.
+        {content.intro}
       </p>
     </section>
   );

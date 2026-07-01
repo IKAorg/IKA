@@ -1,20 +1,29 @@
-export default function JoinPage() {
+import { isLocale } from "@/lib/i18n/config";
+import { getPublicPageContent } from "@/lib/i18n/public-pages";
+
+type JoinPageProps = {
+  params: Promise<{ locale: string }>;
+};
+
+export default async function JoinPage({ params }: JoinPageProps) {
+  const { locale } = await params;
+  const content = getPublicPageContent(isLocale(locale) ? locale : "en", "join");
+
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
-        Join IKA
+        {content.eyebrow}
       </p>
       <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight md:text-5xl">
-        Connect your organisation with the international IKA family.
+        {content.title}
       </h1>
       <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--muted)]">
-        IKA welcomes organisations that share the association&apos;s technical roots,
-        philosophy, and commitment to training together across borders.
+        {content.intro}
       </p>
       <div className="mt-10 grid gap-4 md:grid-cols-3">
-        <Step number="01" title="Contact IKA" text="Introduce your organisation and country." />
-        <Step number="02" title="Review alignment" text="Share technical, historical, and organisational background." />
-        <Step number="03" title="Train together" text="Join seminars, events, and association activities." />
+        {content.steps?.map((step) => (
+          <Step key={step.number} number={step.number} title={step.title} text={step.text} />
+        ))}
       </div>
     </section>
   );

@@ -1,33 +1,35 @@
-export default function PhilosophyPage() {
+import { isLocale } from "@/lib/i18n/config";
+import { getPublicPageContent } from "@/lib/i18n/public-pages";
+
+type PhilosophyPageProps = {
+  params: Promise<{ locale: string }>;
+};
+
+export default async function PhilosophyPage({ params }: PhilosophyPageProps) {
+  const { locale } = await params;
+  const content = getPublicPageContent(
+    isLocale(locale) ? locale : "en",
+    "philosophy",
+  );
+
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
-        Philosophy
+        {content.eyebrow}
       </p>
       <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight md:text-5xl">
-        Strength, compassion, and self-reliance.
+        {content.title}
       </h1>
+      <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--muted)]">
+        {content.intro}
+      </p>
       <blockquote className="mt-8 max-w-3xl border-l-4 border-[var(--accent)] pl-6 text-2xl font-semibold leading-tight text-[var(--ink-blue)]">
-        “Live half for the happiness of oneself, and half for the happiness of
-        others.”
+        “{content.quote}”
       </blockquote>
       <div className="mt-8 grid gap-6 md:grid-cols-2">
-        <TextBlock
-          title="Mutual development"
-          text="Training is not only physical competition. Practitioners train with each other to grow technically, mentally, and socially."
-        />
-        <TextBlock
-          title="Defence before attack"
-          text="The techniques emphasise defence, control, balance, weak points, and minimum necessary force."
-        />
-        <TextBlock
-          title="Mind and body"
-          text="Practice combines hard and soft techniques with meditation and philosophy."
-        />
-        <TextBlock
-          title="Positive society"
-          text="The purpose of training is to build people who can contribute confidently and compassionately to their communities."
-        />
+        {content.blocks?.map((block) => (
+          <TextBlock key={block.title} title={block.title} text={block.text} />
+        ))}
       </div>
     </section>
   );
