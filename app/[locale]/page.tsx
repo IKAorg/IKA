@@ -16,6 +16,9 @@ const featureImage =
 const membersImage =
   "https://www.internationalkempo.org/uploads/6/8/3/8/68384729/editor/p1050281.jpg?1536703477";
 
+const eventsImage =
+  "https://www.internationalkempo.org/uploads/6/8/3/8/68384729/editor/12144854-1044517215582109-4555426269645854085-n_1.jpg?1536701322";
+
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
 
@@ -102,20 +105,57 @@ export default async function HomePage({ params }: HomePageProps) {
         />
       </section>
 
-      <section className="border-y border-[var(--line)] bg-white">
-        <div className="mx-auto grid max-w-7xl gap-0 px-5 py-16 lg:grid-cols-2">
-          <ArticleLink
-            href={`/${locale}/about`}
-            image={featureImage}
-            label="About IKA"
-            title="Shared heritage, training, and philosophy"
-          />
-          <ArticleLink
-            href={`/${locale}/countries`}
-            image={membersImage}
-            label="Member countries"
-            title="An international association across continents"
-          />
+      <section className="overflow-hidden border-y border-[var(--line)] bg-white">
+        <div className="mx-auto max-w-7xl px-5 pt-16">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+            Read more
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold">
+            Explore the association
+          </h2>
+        </div>
+        <div className="home-marquee py-10">
+          <div className="home-marquee-track">
+            <ArticleLink
+              href={`/${locale}/about`}
+              image={featureImage}
+              label="About the IKA"
+              title="Shared heritage, training, and philosophy"
+            />
+            <ArticleLink
+              href={`/${locale}/countries`}
+              image={membersImage}
+              label="Member organisations"
+              title="An international association across continents"
+            />
+            <ArticleLink
+              href={`/${locale}/events`}
+              image={eventsImage}
+              label="Upcoming events"
+              title="Seminars, courses, and gatherings"
+            />
+            <ArticleLink
+              href={`/${locale}/about`}
+              image={featureImage}
+              label="About the IKA"
+              title="Shared heritage, training, and philosophy"
+              ariaHidden
+            />
+            <ArticleLink
+              href={`/${locale}/countries`}
+              image={membersImage}
+              label="Member organisations"
+              title="An international association across continents"
+              ariaHidden
+            />
+            <ArticleLink
+              href={`/${locale}/events`}
+              image={eventsImage}
+              label="Upcoming events"
+              title="Seminars, courses, and gatherings"
+              ariaHidden
+            />
+          </div>
         </div>
       </section>
 
@@ -165,14 +205,21 @@ function ArticleLink({
   image,
   label,
   title,
+  ariaHidden = false,
 }: {
   href: string;
   image: string;
   label: string;
   title: string;
+  ariaHidden?: boolean;
 }) {
   return (
-    <Link href={href} className="group grid min-h-[360px] overflow-hidden border border-[var(--line)] md:grid-cols-2">
+    <Link
+      href={href}
+      aria-hidden={ariaHidden}
+      tabIndex={ariaHidden ? -1 : undefined}
+      className="group grid min-h-[360px] w-[min(86vw,720px)] shrink-0 overflow-hidden border border-[var(--line)] md:grid-cols-2"
+    >
       <div
         className="min-h-[240px] bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.03]"
         style={{ backgroundImage: `url(${image})` }}

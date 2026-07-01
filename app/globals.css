@@ -43,3 +43,39 @@ select {
   background: var(--accent);
   color: white;
 }
+
+.home-marquee {
+  width: 100%;
+}
+
+.home-marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 24px;
+  padding-inline: 20px;
+  animation: ika-marquee 38s linear infinite;
+}
+
+.home-marquee:hover .home-marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes ika-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(-50% - 12px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-marquee {
+    overflow-x: auto;
+  }
+
+  .home-marquee-track {
+    animation: none;
+  }
+}
