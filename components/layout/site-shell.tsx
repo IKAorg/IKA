@@ -27,10 +27,13 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
 
           <nav className="hidden items-center gap-5 text-sm text-[var(--muted)] md:flex">
             <Link href={`/${locale}`}>{nav.home}</Link>
+            <Link href={`/${locale}/about`}>{nav.about}</Link>
+            <Link href={`/${locale}/philosophy`}>{nav.philosophy}</Link>
             <Link href={`/${locale}/countries`}>{nav.countries}</Link>
             <Link href={`/${locale}/dojos`}>{nav.dojos}</Link>
-            <Link href={`/${locale}/news`}>{nav.news}</Link>
             <Link href={`/${locale}/events`}>{nav.events}</Link>
+            <Link href={`/${locale}/join`}>{nav.join}</Link>
+            <Link href={`/${locale}/contact`}>{nav.contact}</Link>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -39,12 +42,6 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
               className="hidden border border-[var(--line)] px-3 py-2 text-sm text-[var(--ink-blue)] sm:inline-flex"
             >
               {nav.portal}
-            </Link>
-            <Link
-              href={`/${locale}/admin`}
-              className="bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white"
-            >
-              {nav.admin}
             </Link>
           </div>
         </div>

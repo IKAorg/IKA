@@ -9,8 +9,9 @@ export default function PortalPage() {
         </p>
         <h1 className="mt-4 text-4xl font-semibold">Private Kenshi Area</h1>
         <p className="mt-4 text-lg leading-8 text-[var(--muted)]">
-          Kenshi will access their official profile, grade history, course
-          history, taikai history, certificates, and IKA Passport here.
+          This will be the single private access point. After login, each user
+          will enter the correct portal according to their role: Kenshi, dojo
+          admin, country admin, global admin, or super admin.
         </p>
       </div>
 
