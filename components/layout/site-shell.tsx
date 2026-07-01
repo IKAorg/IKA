@@ -118,8 +118,9 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
             </div>
           </div>
         </div>
-        <div className="border-t border-[var(--line)] px-5 py-4 text-center text-xs text-[var(--muted)]">
-          International Kempo Association
+        <div className="border-t border-[var(--line)] px-5 py-4 text-center text-xs leading-6 text-[var(--muted)]">
+          © Copyright IKA 2022, all rights reserved. &apos;International Kempo
+          Association&apos; and the IKA logo are UK registered trademarks.
         </div>
       </footer>
     </div>
