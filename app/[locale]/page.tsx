@@ -9,16 +9,13 @@ type HomePageProps = {
 };
 
 const heroImage =
-  "https://www.internationalkempo.org/uploads/6/8/3/8/68384729/background-images/1264762536.png";
+  "/images/home/hero.webp";
 
-const featureImage =
-  "https://www.internationalkempo.org/uploads/6/8/3/8/68384729/editor/dsc-4384_1.jpg?1536703634";
+const featureImage = "/images/home/about.webp";
 
-const membersImage =
-  "https://www.internationalkempo.org/uploads/6/8/3/8/68384729/editor/p1050281.jpg?1536703477";
+const membersImage = "/images/home/members.webp";
 
-const eventsImage =
-  "https://www.internationalkempo.org/uploads/6/8/3/8/68384729/editor/12144854-1044517215582109-4555426269645854085-n_1.jpg?1536701322";
+const eventsImage = "/images/home/events.webp";
 
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;

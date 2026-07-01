@@ -46,6 +46,7 @@ export default async function NewsPage({ params }: NewsPageProps) {
         {latestReports.map((report) => (
           <article
             key={report.title}
+            id={report.slug}
             className="grid overflow-hidden border border-[var(--line)] bg-white lg:grid-cols-[0.42fr_0.58fr]"
           >
             <div
@@ -66,12 +67,10 @@ export default async function NewsPage({ params }: NewsPageProps) {
                 </p>
               </div>
               <a
-                href={report.legacyUrl}
-                target="_blank"
-                rel="noreferrer"
+                href={`/${safeLocale}/news#${report.slug}`}
                 className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--ink-blue)]"
               >
-                Open original report
+                View report summary
                 <ArrowUpRight size={16} aria-hidden="true" />
               </a>
             </div>
