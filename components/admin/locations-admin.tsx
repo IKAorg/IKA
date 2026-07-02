@@ -415,68 +415,128 @@ export function LocationsAdmin() {
     setSaving(true);
     setMessage("");
 
-    const existingCodes = new Set(countries.map((country) => country.code));
-    const seeds = legacyCountrySeeds.filter(
-      (country) => !existingCodes.has(country.code),
-    );
+    let importedCount = 0;
+    let skippedCount = 0;
 
-    if (seeds.length === 0) {
-      setMessage("Los países existentes ya están importados.");
+    const { data: latestCountries, error: latestCountriesError } =
+      await supabase
+        .from("countries")
+        .select("id,code")
+        .order("code", { ascending: true });
+
+    if (latestCountriesError) {
+      setMessage(latestCountriesError.message);
       setSaving(false);
       return;
     }
 
-    for (const seed of seeds) {
+    const countryIdByCode = new Map(
+      ((latestCountries ?? []) as Array<{ id: string; code: string }>).map(
+        (country) => [country.code, country.id],
+      ),
+    );
+
+    for (const seed of legacyCountrySeeds) {
       const spanishName =
         getPublicPageContent("es", "countries").countries?.[seed.index] ??
         seed.code;
-      const countryResult = await supabase
-        .from("countries")
-        .insert({
-          code: seed.code,
-          status: "published",
-          is_public: true,
-        })
-        .select("id")
-        .single();
+      let countryId = countryIdByCode.get(seed.code);
 
-      if (countryResult.error || !countryResult.data) {
-        setMessage(
-          countryResult.error?.message ??
-            `No se pudo importar ${spanishName}.`,
-        );
-        setSaving(false);
-        return;
+      if (!countryId) {
+        const { data: existingTranslation } = await supabase
+          .from("country_translations")
+          .select("country_id")
+          .eq("language_code", "es")
+          .eq("slug", slugify(spanishName))
+          .maybeSingle<{ country_id: string }>();
+
+        countryId = existingTranslation?.country_id;
       }
 
-      const countryId = countryResult.data.id as string;
-      const translations = locales.map((locale) => {
+      if (countryId) {
+        const { error } = await supabase
+          .from("countries")
+          .update({
+            code: seed.code,
+            status: "published",
+            is_public: true,
+          })
+          .eq("id", countryId);
+
+        if (error) {
+          setMessage(error.message);
+          setSaving(false);
+          return;
+        }
+      } else {
+        const countryResult = await supabase
+          .from("countries")
+          .insert({
+            code: seed.code,
+            status: "published",
+            is_public: true,
+          })
+          .select("id")
+          .single();
+
+        if (countryResult.error || !countryResult.data) {
+          setMessage(
+            countryResult.error?.message ??
+              `No se pudo importar ${spanishName}.`,
+          );
+          setSaving(false);
+          return;
+        }
+
+        countryId = countryResult.data.id as string;
+        importedCount += 1;
+      }
+
+      for (const locale of locales) {
         const name =
           getPublicPageContent(locale.key, "countries").countries?.[
             seed.index
           ] ?? spanishName;
+        const slug = slugify(name);
 
-        return {
-          country_id: countryId,
-          language_code: locale.key,
-          name,
-          slug: slugify(name),
-          description: null,
-        };
-      });
+        const { data: existingSlug } = await supabase
+          .from("country_translations")
+          .select("country_id")
+          .eq("language_code", locale.key)
+          .eq("slug", slug)
+          .maybeSingle<{ country_id: string }>();
 
-      const { error } = await supabase
-        .from("country_translations")
-        .insert(translations);
+        if (existingSlug && existingSlug.country_id !== countryId) {
+          skippedCount += 1;
+          continue;
+        }
 
-      if (error) {
-        setMessage(error.message);
-        setSaving(false);
-        return;
+        const { error } = await supabase.from("country_translations").upsert(
+          {
+            country_id: countryId,
+            language_code: locale.key,
+            name,
+            slug,
+            description: null,
+          },
+          { onConflict: "country_id,language_code" },
+        );
+
+        if (error) {
+          setMessage(error.message);
+          setSaving(false);
+          return;
+        }
       }
     }
 
-    setMessage("Países existentes importados al CMS.");
+    setMessage(
+      skippedCount > 0
+        ? `Países importados/actualizados. ${skippedCount} traducciones ya existían con el mismo slug y se han conservado.`
+        : importedCount > 0
+          ? "Países existentes importados al CMS."
+          : "Los países existentes ya están importados y actualizados.",
+    );
     await loadLocations();
     setSaving(false);
   }
