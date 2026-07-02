@@ -1,5 +1,6 @@
 import { isLocale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
+import { PublicContentBlocks } from "@/components/public/public-content-blocks";
 
 type JoinPageProps = {
   params: Promise<{ locale: string }>;
@@ -25,6 +26,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
       <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--muted)]">
         {content.intro}
       </p>
+      <PublicContentBlocks blocks={content.blocks} />
       <div className="mt-10 grid gap-4 md:grid-cols-3">
         {content.steps?.map((step) => (
           <Step key={step.number} number={step.number} title={step.title} text={step.text} />

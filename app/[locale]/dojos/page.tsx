@@ -1,5 +1,6 @@
 import { isLocale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
+import { PublicContentBlocks } from "@/components/public/public-content-blocks";
 
 type DojosPageProps = {
   params: Promise<{ locale: string }>;
@@ -23,6 +24,7 @@ export default async function DojosPage({ params }: DojosPageProps) {
       <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted)]">
         {content.intro}
       </p>
+      <PublicContentBlocks blocks={content.blocks} />
     </section>
   );
 }

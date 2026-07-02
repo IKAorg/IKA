@@ -2,6 +2,7 @@ import { CalendarDays, MapPin } from "lucide-react";
 import { getPublicEvents } from "@/lib/content/events-calendar";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { isLocale } from "@/lib/i18n/config";
+import { PublicContentBlocks } from "@/components/public/public-content-blocks";
 
 type EventsPageProps = {
   params: Promise<{ locale: string }>;
@@ -26,6 +27,7 @@ export default async function EventsPage({ params }: EventsPageProps) {
         <p className="mt-4 text-lg leading-8 text-[var(--muted)]">
           {content.intro}
         </p>
+        <PublicContentBlocks blocks={content.blocks} />
       </div>
 
       <div className="mt-10 border-y border-[var(--line)] bg-white">

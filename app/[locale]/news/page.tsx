@@ -4,6 +4,7 @@ import { isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { getNewNews } from "@/lib/content/news-archive";
+import { PublicContentBlocks } from "@/components/public/public-content-blocks";
 
 type NewsPageProps = {
   params: Promise<{ locale: string }>;
@@ -120,6 +121,7 @@ export default async function NewsPage({ params }: NewsPageProps) {
           <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted)]">
             {content.intro}
           </p>
+          <PublicContentBlocks blocks={content.blocks} />
         </div>
         <Link
           href={`/${safeLocale}/news/archive`}

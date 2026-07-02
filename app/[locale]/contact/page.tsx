@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Mail, Send } from "lucide-react";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
+import { PublicContentBlocks } from "@/components/public/public-content-blocks";
 
 type ContactPageProps = {
   params: Promise<{ locale: string }>;
@@ -100,6 +101,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
           <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--muted)]">
             {content.intro}
           </p>
+          <PublicContentBlocks blocks={content.blocks} />
           <div className="mt-8 border border-[var(--line)] bg-white p-6">
             <div className="flex items-center gap-3">
               <span className="flex size-11 items-center justify-center bg-[var(--ink-blue)] text-white">

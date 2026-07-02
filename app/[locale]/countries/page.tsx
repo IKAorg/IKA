@@ -1,5 +1,6 @@
 import { isLocale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
+import { PublicContentBlocks } from "@/components/public/public-content-blocks";
 
 type CountriesPageProps = {
   params: Promise<{ locale: string }>;
@@ -23,6 +24,7 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
       <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--muted)]">
         {content.intro}
       </p>
+      <PublicContentBlocks blocks={content.blocks} />
       <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {content.countries?.map((country) => (
           <div key={country} className="border border-[var(--line)] bg-white p-4">

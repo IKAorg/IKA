@@ -8,6 +8,7 @@ import {
 } from "@/lib/i18n/public-pages";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PublicContentBlocks } from "@/components/public/public-content-blocks";
 
 type AboutPageProps = {
   params: Promise<{ locale: string }>;
@@ -43,6 +44,7 @@ export default async function AboutPage({ params }: AboutPageProps) {
         <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--muted)]">
           {content.intro}
         </p>
+        <PublicContentBlocks blocks={content.blocks} />
       </section>
 
       <section className="mx-auto max-w-7xl px-5 pb-16">

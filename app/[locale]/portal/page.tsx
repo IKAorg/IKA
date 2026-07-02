@@ -1,4 +1,4 @@
-import { BadgeCheck, FileText, UserRound } from "lucide-react";
+import { BadgeCheck, FileText, ShieldCheck, UserRound } from "lucide-react";
 import { isLocale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 
@@ -29,24 +29,35 @@ export default async function PortalPage({ params }: PortalPageProps) {
       </div>
 
       <div className="mt-10 grid gap-4 md:grid-cols-3">
-        <PortalCapability
-          icon={<UserRound size={22} />}
-          title={blocks[0]?.title ?? "Kenshi"}
-          text={blocks[0]?.text ?? ""}
-        />
-        <PortalCapability
-          icon={<BadgeCheck size={22} />}
-          title={blocks[1]?.title ?? "Dojo Admin"}
-          text={blocks[1]?.text ?? ""}
-        />
-        <PortalCapability
-          icon={<FileText size={22} />}
-          title={blocks[2]?.title ?? "Country Admin"}
-          text={blocks[2]?.text ?? ""}
-        />
+        {(blocks.length > 0
+          ? blocks
+          : [
+              { title: "Kenshi", text: "" },
+              { title: "Dojo Admin", text: "" },
+              { title: "Country Admin", text: "" },
+            ]
+        ).map((block, index) => (
+          <PortalCapability
+            key={`${block.title}-${index}`}
+            icon={getPortalIcon(index)}
+            title={block.title}
+            text={block.text}
+          />
+        ))}
       </div>
     </section>
   );
+}
+
+function getPortalIcon(index: number) {
+  const icons = [
+    <UserRound key="kenshi" size={22} />,
+    <BadgeCheck key="dojo" size={22} />,
+    <FileText key="country" size={22} />,
+    <ShieldCheck key="admin" size={22} />,
+  ];
+
+  return icons[index % icons.length];
 }
 
 function PortalCapability({
