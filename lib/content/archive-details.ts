@@ -181,35 +181,42 @@ export function getArchiveDetailHtml(detail: ArchiveDetail, locale: Locale = def
     return originalHtml;
   }
 
-  return `<div><p>${copy.excerpt}</p></div>${getArchiveMediaHtml(originalHtml)}`;
+  if (copy.bodyHtml) {
+    return copy.bodyHtml.replaceAll("/__LOCALE__/", `/${locale}/`);
+  }
+
+  const labels = archiveDetailLabels[locale] ?? archiveDetailLabels[defaultLocale];
+
+  return `<div class="archive-translated-summary"><h2>${labels.summary}</h2><p>${copy.excerpt}</p></div><div class="archive-original-report"><h2>${labels.original}</h2>${originalHtml}</div>`;
 }
 
-function getArchiveMediaHtml(contentHtml: string) {
-  const imageSources = Array.from(
-    new Set(
-      [...contentHtml.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/g)]
-        .map((match) => match[1])
-        .filter((src) => src.startsWith("/images/")),
-    ),
-  );
-  const iframes = [...contentHtml.matchAll(/<iframe[\s\S]*?<\/iframe>/g)].map(
-    (match) => match[0],
-  );
-
-  const galleryHtml =
-    imageSources.length > 0
-      ? `<div class="archive-translated-gallery">${imageSources
-          .map(
-            (src) =>
-              `<a href="${src}"><img src="${src}" alt="" loading="lazy" /></a>`,
-          )
-          .join("")}</div>`
-      : "";
-
-  const videoHtml =
-    iframes.length > 0
-      ? `<div class="archive-translated-video">${iframes.join("")}</div>`
-      : "";
-
-  return `${galleryHtml}${videoHtml}`;
-}
+const archiveDetailLabels: Record<Locale, { summary: string; original: string }> = {
+  en: {
+    summary: "Translated summary",
+    original: "Original archive report",
+  },
+  es: {
+    summary: "Resumen traducido",
+    original: "Informe histórico completo",
+  },
+  it: {
+    summary: "Riepilogo tradotto",
+    original: "Report storico completo",
+  },
+  fr: {
+    summary: "Résumé traduit",
+    original: "Rapport historique complet",
+  },
+  ja: {
+    summary: "翻訳概要",
+    original: "完全なアーカイブ記事",
+  },
+  zh: {
+    summary: "翻译摘要",
+    original: "完整历史报道",
+  },
+  cs: {
+    summary: "Přeložené shrnutí",
+    original: "Úplná historická zpráva",
+  },
+};
