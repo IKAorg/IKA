@@ -31,26 +31,17 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
           {countries.map((country) => (
             <article
               key={country.id}
-              className="overflow-hidden border border-[var(--line)] bg-white"
+              className="border border-[var(--line)] bg-white"
             >
-              {country.imageUrl ? (
-                <Image
-                  src={country.imageUrl}
-                  alt={country.imageAlt}
-                  width={900}
-                  height={520}
-                  className="h-56 w-full object-cover"
-                />
-              ) : null}
               <div className="p-5">
                 <div className="flex items-start gap-4">
                   {country.logoUrl ? (
                     <Image
                       src={country.logoUrl}
-                      alt={`${country.name} logo`}
-                      width={72}
-                      height={72}
-                      className="size-16 object-contain"
+                      alt={`${country.name} flag`}
+                      width={44}
+                      height={32}
+                      className="mt-1 h-8 w-11 object-contain"
                     />
                   ) : null}
                   <div>

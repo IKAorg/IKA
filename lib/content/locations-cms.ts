@@ -14,7 +14,6 @@ type CountryRow = {
   responsible_person: string | null;
   responsible_email: string | null;
   flag_media_id: string | null;
-  main_image_media_id: string | null;
   country_translations: Array<{
     language_code: Locale;
     name: string;
@@ -50,8 +49,6 @@ export type PublicCountry = {
   responsiblePerson: string;
   responsibleEmail: string;
   logoUrl: string;
-  imageUrl: string;
-  imageAlt: string;
 };
 
 export type PublicDojo = {
@@ -67,8 +64,8 @@ export type PublicDojo = {
   email: string;
   phone: string;
   website: string;
-  imageUrl: string;
-  imageAlt: string;
+  logoUrl: string;
+  logoAlt: string;
 };
 
 export async function getPublicCountriesAndDojos(locale: Locale) {
@@ -81,7 +78,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   const { data: countriesData } = await supabase
     .from("countries")
     .select(
-      "id,code,responsible_person,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,responsible_person,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
     )
     .eq("status", "published")
     .eq("is_public", true)
@@ -113,10 +110,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   );
 
   const mediaIds = [
-    ...countries.flatMap((country) => [
-      country.flag_media_id,
-      country.main_image_media_id,
-    ]),
+    ...countries.map((country) => country.flag_media_id),
     ...dojos.map((dojo) => dojo.main_image_media_id),
   ].filter(Boolean) as string[];
 
@@ -126,9 +120,6 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
     const translation = country.country_translations[0];
     const logo = country.flag_media_id
       ? mediaById.get(country.flag_media_id)
-      : undefined;
-    const image = country.main_image_media_id
-      ? mediaById.get(country.main_image_media_id)
       : undefined;
 
     return {
@@ -140,8 +131,6 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       responsiblePerson: country.responsible_person ?? "",
       responsibleEmail: country.responsible_email ?? "",
       logoUrl: logo?.storage_path ?? "",
-      imageUrl: image?.storage_path ?? "",
-      imageAlt: image?.alt_text ?? translation.name,
     };
   });
 
@@ -168,8 +157,8 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       email: dojo.email ?? "",
       phone: dojo.phone ?? "",
       website: dojo.website ?? "",
-      imageUrl: image?.storage_path ?? "",
-      imageAlt: image?.alt_text ?? translation.name,
+      logoUrl: image?.storage_path ?? "",
+      logoAlt: image?.alt_text ?? translation.name,
     };
   });
 

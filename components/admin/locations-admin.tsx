@@ -307,11 +307,6 @@ export function LocationsAdmin({
       countryForm.logoUrl,
       `${countryForm.name} logo`,
     );
-    const imageMediaId = await saveMediaReference(
-      countryForm.imageUrl,
-      countryForm.name,
-    );
-
     const payload = {
       code: countryForm.code.toUpperCase(),
       status: countryForm.status,
@@ -319,7 +314,7 @@ export function LocationsAdmin({
       responsible_person: countryForm.responsiblePerson || null,
       responsible_email: countryForm.responsibleEmail || null,
       flag_media_id: logoMediaId,
-      main_image_media_id: imageMediaId,
+      main_image_media_id: null,
     };
 
     const countryResult = countryForm.id
@@ -1000,7 +995,7 @@ function CountryFormView({
           />
         </div>
         <ImageUploadField
-          label="Logo del país"
+          label="Bandera del país"
           value={form.logoUrl}
           uploading={uploadingField === "country-logo"}
           onUpload={async (file) => {
@@ -1010,18 +1005,6 @@ function CountryFormView({
             }
           }}
           onClear={() => setForm((current) => ({ ...current, logoUrl: "" }))}
-        />
-        <ImageUploadField
-          label="Foto principal del país"
-          value={form.imageUrl}
-          uploading={uploadingField === "country-main-image"}
-          onUpload={async (file) => {
-            const url = await onUploadImage(file, "country-main-image");
-            if (url) {
-              setForm((current) => ({ ...current, imageUrl: url }));
-            }
-          }}
-          onClear={() => setForm((current) => ({ ...current, imageUrl: "" }))}
         />
         <FormButtons
           saving={saving}
@@ -1185,7 +1168,7 @@ function DojoFormView({
           }
         />
         <ImageUploadField
-          label="Foto del dojo"
+          label="Logo de kempo del dojo"
           value={form.imageUrl}
           uploading={uploadingField === "dojo-main-image"}
           onUpload={async (file) => {

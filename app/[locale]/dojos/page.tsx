@@ -52,24 +52,28 @@ export default async function DojosPage({ params }: DojosPageProps) {
                     .map((dojo) => (
                       <article
                         key={dojo.id}
-                        className="overflow-hidden border border-[var(--line)] bg-white"
+                        className="border border-[var(--line)] bg-white p-5"
                       >
-                        {dojo.imageUrl ? (
-                          <Image
-                            src={dojo.imageUrl}
-                            alt={dojo.imageAlt}
-                            width={900}
-                            height={520}
-                            className="h-52 w-full object-cover"
-                          />
-                        ) : null}
-                        <div className="p-5">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
-                            {dojo.city}
-                          </p>
-                          <h3 className="mt-2 text-2xl font-semibold">
-                            {dojo.name}
-                          </h3>
+                        <div className="flex items-start gap-4">
+                          {dojo.logoUrl ? (
+                            <Image
+                              src={dojo.logoUrl}
+                              alt={dojo.logoAlt}
+                              width={64}
+                              height={64}
+                              className="size-14 object-contain"
+                            />
+                          ) : null}
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+                              {dojo.city}
+                            </p>
+                            <h3 className="mt-2 text-2xl font-semibold">
+                              {dojo.name}
+                            </h3>
+                          </div>
+                        </div>
+                        <div>
                           {dojo.description ? (
                             <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
                               {dojo.description}
