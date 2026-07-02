@@ -22,6 +22,10 @@ type SourceBlockRow = {
   data: {
     title?: string;
     text?: string;
+    image?: string;
+    alt?: string;
+    items?: string[];
+    note?: string;
   };
 };
 
@@ -45,6 +49,10 @@ type TranslatedLocale = {
     is_visible: boolean;
     title: string;
     text: string;
+    image: string | null;
+    alt: string | null;
+    items: string[];
+    note: string | null;
   }>;
 };
 
@@ -186,6 +194,10 @@ export async function POST(request: Request) {
       data: {
         title: block.title,
         text: block.text,
+        image: block.image || undefined,
+        alt: block.alt || undefined,
+        items: block.items,
+        note: block.note || undefined,
       },
     })),
   );
@@ -234,7 +246,7 @@ async function translatePage({
         {
           role: "system",
           content:
-            "You translate martial arts association website CMS content. Preserve names, organization acronyms, dates, places, URLs, and JSON structure. Return only valid JSON.",
+            "You translate martial arts association website CMS content. Preserve names, organization acronyms, dates, places, URLs, image paths, and JSON structure. Return only valid JSON.",
         },
         {
           role: "user",
@@ -242,7 +254,7 @@ async function translatePage({
             sourceLocale,
             targetLocales,
             expectedShape:
-              "{ locales: [{ locale, page: { title, summary, seo_title, seo_description }, blocks: [{ sort_order, is_visible, title, text }] }] }",
+              "{ locales: [{ locale, page: { title, summary, seo_title, seo_description }, blocks: [{ sort_order, is_visible, title, text, image, alt, items, note }] }] }",
             page: {
               title: page.title,
               summary: page.summary,
@@ -254,6 +266,10 @@ async function translatePage({
               is_visible: block.is_visible,
               title: block.data.title ?? "",
               text: block.data.text ?? "",
+              image: block.data.image ?? null,
+              alt: block.data.alt ?? null,
+              items: block.data.items ?? [],
+              note: block.data.note ?? null,
             })),
           }),
         },
@@ -304,6 +320,10 @@ function normalizeTranslation(
         is_visible: block.is_visible,
         title: block.title ?? "",
         text: block.text ?? "",
+        image: block.image ?? null,
+        alt: block.alt ?? null,
+        items: block.items ?? [],
+        note: block.note ?? null,
       })),
     })),
   };

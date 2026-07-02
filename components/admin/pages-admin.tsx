@@ -1,11 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { FilePenLine, Languages, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import type { Locale } from "@/lib/i18n/config";
-import type { PublicPageKey } from "@/lib/i18n/public-pages";
+import {
+  getAboutSections,
+  getPublicPageContent,
+  type PublicPageKey,
+} from "@/lib/i18n/public-pages";
 
 type ContentStatus = "draft" | "published" | "archived";
 
@@ -36,6 +41,10 @@ type ContentBlockRow = {
   data: {
     title?: string;
     text?: string;
+    image?: string;
+    alt?: string;
+    items?: string[];
+    note?: string;
   };
 };
 
@@ -204,7 +213,12 @@ export function PagesAdmin() {
       return;
     }
 
-    const blocks = getSelectedBlocks(pages, form.pageId, form.locale);
+    const blocks = getSelectedBlocks(
+      pages,
+      form.pageId,
+      form.pageKey,
+      form.locale,
+    );
     const { error } = await supabase.from("content_blocks").insert({
       page_id: form.pageId,
       language_code: form.locale,
@@ -224,14 +238,30 @@ export function PagesAdmin() {
   }
 
   async function saveBlock(block: ContentBlockRow) {
-    const { error } = await supabase
-      .from("content_blocks")
-      .update({
-        sort_order: block.sort_order,
-        is_visible: block.is_visible,
-        data: block.data,
-      })
-      .eq("id", block.id);
+    if (!form.pageId) {
+      setMessage("Guarda la página antes de guardar secciones.");
+      return;
+    }
+
+    const payload = {
+      page_id: form.pageId,
+      language_code: form.locale,
+      block_type: "text_section",
+      sort_order: block.sort_order,
+      is_visible: block.is_visible,
+      data: block.data,
+    };
+
+    const { error } = block.id.startsWith("fallback-")
+      ? await supabase.from("content_blocks").insert(payload)
+      : await supabase
+          .from("content_blocks")
+          .update({
+            sort_order: block.sort_order,
+            is_visible: block.is_visible,
+            data: block.data,
+          })
+          .eq("id", block.id);
 
     if (error) {
       setMessage(error.message);
@@ -242,7 +272,50 @@ export function PagesAdmin() {
     await loadPages();
   }
 
+  async function saveAllBlocks() {
+    if (!form.pageId) {
+      setMessage("Guarda la página antes de importar secciones.");
+      return;
+    }
+
+    const blocks = getSelectedBlocks(
+      pages,
+      form.pageId,
+      form.pageKey,
+      form.locale,
+    ).filter((block) => block.id.startsWith("fallback-"));
+
+    if (blocks.length === 0) {
+      setMessage("No hay contenido base pendiente de importar.");
+      return;
+    }
+
+    const { error } = await supabase.from("content_blocks").insert(
+      blocks.map((block) => ({
+        page_id: form.pageId,
+        language_code: form.locale,
+        block_type: "text_section",
+        sort_order: block.sort_order,
+        is_visible: block.is_visible,
+        data: block.data,
+      })),
+    );
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage("Contenido base importado al CMS.");
+    await loadPages();
+  }
+
   async function deleteBlock(blockId: string) {
+    if (blockId.startsWith("fallback-")) {
+      setMessage("Guarda primero esta sección para poder eliminarla del CMS.");
+      return;
+    }
+
     const { error } = await supabase
       .from("content_blocks")
       .delete()
@@ -307,7 +380,12 @@ export function PagesAdmin() {
     );
   }
 
-  const selectedBlocks = getSelectedBlocks(pages, form.pageId, form.locale);
+  const selectedBlocks = getSelectedBlocks(
+    pages,
+    form.pageId,
+    form.pageKey,
+    form.locale,
+  );
 
   return (
     <section className="mt-8 border border-[var(--line)] bg-white p-5">
@@ -494,6 +572,17 @@ export function PagesAdmin() {
             <Plus size={16} />
             Añadir sección
           </button>
+          <button
+            onClick={saveAllBlocks}
+            disabled={
+              !form.pageId ||
+              !selectedBlocks.some((block) => block.id.startsWith("fallback-"))
+            }
+            className="inline-flex items-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold disabled:opacity-50"
+          >
+            <Save size={16} />
+            Importar contenido base
+          </button>
         </div>
 
         <div className="mt-5 grid gap-4">
@@ -578,6 +667,11 @@ function BlockEditor({
 }) {
   return (
     <article className="grid gap-4 border border-[var(--line)] bg-[var(--paper)] p-4">
+      {block.id.startsWith("fallback-") ? (
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+          Contenido base importable
+        </p>
+      ) : null}
       <div className="grid gap-3 lg:grid-cols-[1fr_140px_150px]">
         <TextInput
           label="Título de sección"
@@ -619,6 +713,41 @@ function BlockEditor({
         </label>
       </div>
 
+      <div className="grid gap-3 lg:grid-cols-2">
+        <TextInput
+          label="Imagen / URL"
+          value={block.data.image ?? ""}
+          onChange={(value) =>
+            onChange({
+              ...block,
+              data: { ...block.data, image: value || undefined },
+            })
+          }
+        />
+        <TextInput
+          label="Texto alternativo de la imagen"
+          value={block.data.alt ?? ""}
+          onChange={(value) =>
+            onChange({
+              ...block,
+              data: { ...block.data, alt: value || undefined },
+            })
+          }
+        />
+      </div>
+
+      {block.data.image ? (
+        <div className="relative h-48 overflow-hidden border border-[var(--line)] bg-white">
+          <Image
+            src={block.data.image}
+            alt={block.data.alt || block.data.title || "Imagen de sección"}
+            fill
+            sizes="(min-width: 1024px) 520px, 100vw"
+            className="object-cover"
+          />
+        </div>
+      ) : null}
+
       <TextArea
         label="Texto"
         value={block.data.text ?? ""}
@@ -626,6 +755,34 @@ function BlockEditor({
           onChange({
             ...block,
             data: { ...block.data, text: value },
+          })
+        }
+      />
+
+      <TextArea
+        label="Subsecciones / puntos (una línea por punto)"
+        value={(block.data.items ?? []).join("\n")}
+        onChange={(value) =>
+          onChange({
+            ...block,
+            data: {
+              ...block.data,
+              items: value
+                .split("\n")
+                .map((item) => item.trim())
+                .filter(Boolean),
+            },
+          })
+        }
+      />
+
+      <TextArea
+        label="Nota inferior"
+        value={block.data.note ?? ""}
+        onChange={(value) =>
+          onChange({
+            ...block,
+            data: { ...block.data, note: value || undefined },
           })
         }
       />
@@ -663,18 +820,115 @@ function slugify(value: string) {
 function getSelectedBlocks(
   pages: PageRow[],
   pageId: string | undefined,
+  pageKey: PublicPageKey,
   locale: Locale,
 ) {
   if (!pageId) {
-    return [];
+    return getFallbackBlocks(pageKey, locale);
   }
 
-  return (pages.find((page) => page.id === pageId)?.content_blocks ?? [])
+  const localBlocks = (pages.find((page) => page.id === pageId)?.content_blocks ?? [])
     .filter(
       (block) =>
         block.language_code === locale && block.block_type === "text_section",
     )
     .sort((left, right) => left.sort_order - right.sort_order);
+
+  const savedBlocks = localBlocks.filter(
+    (block) => !block.id.startsWith("fallback-"),
+  );
+
+  if (savedBlocks.length > 0) {
+    const savedOrders = new Set(savedBlocks.map((block) => block.sort_order));
+    const missingFallbackBlocks = getFallbackBlocks(pageKey, locale).filter(
+      (block) => !savedOrders.has(block.sort_order),
+    );
+
+    return [...localBlocks, ...missingFallbackBlocks].sort(
+      (left, right) => left.sort_order - right.sort_order,
+    );
+  }
+
+  const editedFallbackBlocks = new Map(
+    localBlocks.map((block) => [block.id, block]),
+  );
+
+  return getFallbackBlocks(pageKey, locale).map(
+    (block) => editedFallbackBlocks.get(block.id) ?? block,
+  );
+}
+
+function getFallbackBlocks(pageKey: PublicPageKey, locale: Locale): ContentBlockRow[] {
+  if (pageKey === "about") {
+    return getAboutSections(locale).map((section, index) => ({
+      id: `fallback-about-${index}`,
+      language_code: locale,
+      block_type: "text_section",
+      sort_order: (index + 1) * 100,
+      is_visible: true,
+      data: {
+        title: section.title,
+        text: section.body.join("\n\n"),
+        image: section.image,
+        alt: section.title,
+        items: section.bullets ?? [],
+        note: section.note,
+      },
+    }));
+  }
+
+  const content = getPublicPageContent(locale, pageKey);
+
+  if (content.blocks?.length) {
+    return content.blocks.map((block, index) => ({
+      id: `fallback-${pageKey}-${index}`,
+      language_code: locale,
+      block_type: "text_section",
+      sort_order: (index + 1) * 100,
+      is_visible: true,
+      data: {
+        title: block.title,
+        text: block.text,
+        image: block.image,
+        alt: block.alt,
+        items: block.items ?? [],
+        note: block.note,
+      },
+    }));
+  }
+
+  if (content.steps?.length) {
+    return content.steps.map((step, index) => ({
+      id: `fallback-${pageKey}-${index}`,
+      language_code: locale,
+      block_type: "text_section",
+      sort_order: (index + 1) * 100,
+      is_visible: true,
+      data: {
+        title: `${step.number}. ${step.title}`,
+        text: step.text,
+      },
+    }));
+  }
+
+  if (content.countries?.length) {
+    return [
+      {
+        id: `fallback-${pageKey}-countries`,
+        language_code: locale,
+        block_type: "text_section",
+        sort_order: 100,
+        is_visible: true,
+        data: {
+          title: content.title,
+          text: "",
+          items: content.countries,
+        },
+      },
+    ];
+  }
+
+  return [];
 }
 
 function updateLocalBlock(
@@ -690,9 +944,13 @@ function updateLocalBlock(
     page.id === pageId
       ? {
           ...page,
-          content_blocks: page.content_blocks.map((block) =>
-            block.id === nextBlock.id ? nextBlock : block,
-          ),
+          content_blocks: page.content_blocks.some(
+            (block) => block.id === nextBlock.id,
+          )
+            ? page.content_blocks.map((block) =>
+                block.id === nextBlock.id ? nextBlock : block,
+              )
+            : [...page.content_blocks, nextBlock],
         }
       : page,
   );

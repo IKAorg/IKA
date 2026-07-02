@@ -25,13 +25,18 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
         {content.intro}
       </p>
       <PublicContentBlocks blocks={content.blocks} />
-      <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {content.countries?.map((country) => (
-          <div key={country} className="border border-[var(--line)] bg-white p-4">
-            {country}
-          </div>
-        ))}
-      </div>
+      {!content.hasCmsBlocks ? (
+        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {content.countries?.map((country) => (
+            <div
+              key={country}
+              className="border border-[var(--line)] bg-white p-4"
+            >
+              {country}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

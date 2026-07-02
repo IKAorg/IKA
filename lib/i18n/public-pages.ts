@@ -3,6 +3,10 @@ import { defaultLocale, type Locale } from "./config";
 export type TextBlock = {
   title: string;
   text: string;
+  image?: string;
+  alt?: string;
+  items?: string[];
+  note?: string;
 };
 
 export type StepBlock = {
@@ -28,6 +32,7 @@ export type PublicPageContent = {
   steps?: StepBlock[];
   countries?: string[];
   emailLabel?: string;
+  hasCmsBlocks?: boolean;
 };
 
 export type PublicPageKey =

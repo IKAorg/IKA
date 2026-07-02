@@ -27,11 +27,18 @@ export default async function JoinPage({ params }: JoinPageProps) {
         {content.intro}
       </p>
       <PublicContentBlocks blocks={content.blocks} />
-      <div className="mt-10 grid gap-4 md:grid-cols-3">
-        {content.steps?.map((step) => (
-          <Step key={step.number} number={step.number} title={step.title} text={step.text} />
-        ))}
-      </div>
+      {!content.hasCmsBlocks ? (
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {content.steps?.map((step) => (
+            <Step
+              key={step.number}
+              number={step.number}
+              title={step.title}
+              text={step.text}
+            />
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

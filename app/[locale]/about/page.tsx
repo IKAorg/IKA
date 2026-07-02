@@ -44,9 +44,12 @@ export default async function AboutPage({ params }: AboutPageProps) {
         <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--muted)]">
           {content.intro}
         </p>
-        <PublicContentBlocks blocks={content.blocks} />
+        {content.hasCmsBlocks ? (
+          <PublicContentBlocks blocks={content.blocks} />
+        ) : null}
       </section>
 
+      {!content.hasCmsBlocks ? (
       <section className="mx-auto max-w-7xl px-5 pb-16">
         <div className="grid gap-8">
           {aboutSections.map((section, index) => (
@@ -101,6 +104,7 @@ export default async function AboutPage({ params }: AboutPageProps) {
           ))}
         </blockquote>
       </section>
+      ) : null}
     </div>
   );
 }

@@ -26,6 +26,10 @@ type CmsPageRow = {
     data: {
       title?: string;
       text?: string;
+      image?: string;
+      alt?: string;
+      items?: string[];
+      note?: string;
     };
     is_visible: boolean;
   }>;
@@ -70,6 +74,7 @@ export async function getEditablePublicPageContent(
     title: translation.title || fallback.title,
     intro: translation.summary || fallback.intro,
     blocks: blocks.length > 0 ? blocks : fallback.blocks,
+    hasCmsBlocks: blocks.length > 0,
   };
 }
 
@@ -88,6 +93,17 @@ function getCmsBlocks(
     .map((block) => ({
       title: block.data.title ?? "",
       text: block.data.text ?? "",
+      image: block.data.image,
+      alt: block.data.alt,
+      items: block.data.items,
+      note: block.data.note,
     }))
-    .filter((block) => block.title || block.text);
+    .filter(
+      (block) =>
+        block.title ||
+        block.text ||
+        block.image ||
+        block.items?.length ||
+        block.note,
+    );
 }
