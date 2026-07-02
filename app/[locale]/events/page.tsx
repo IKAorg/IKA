@@ -7,11 +7,13 @@ type EventsPageProps = {
   params: Promise<{ locale: string }>;
 };
 
+export const revalidate = 60;
+
 export default async function EventsPage({ params }: EventsPageProps) {
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "en";
   const content = getPublicPageContent(safeLocale, "events");
-  const events = getPublicEvents(safeLocale);
+  const events = await getPublicEvents(safeLocale);
   const labels = eventPageLabels[safeLocale];
 
   return (

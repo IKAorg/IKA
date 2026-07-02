@@ -1,4 +1,6 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { createClient } from "@supabase/supabase-js";
+import { getSupabaseProjectUrl } from "@/lib/supabase/url";
 
 export type PublicEvent = {
   id: string;
@@ -124,7 +126,7 @@ const eventSources: PublicEvent[] = [
   },
 ];
 
-export function getPublicEvents(locale: Locale): LocalizedPublicEvent[] {
+export function getFallbackPublicEvents(locale: Locale): LocalizedPublicEvent[] {
   return eventSources
     .filter((event) => Boolean(event.startsAt))
     .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
@@ -145,4 +147,78 @@ export function getPublicEvents(locale: Locale): LocalizedPublicEvent[] {
         locationLabel: copy.locationLabel,
       };
     });
+}
+
+type SupabaseEventRow = {
+  id: string;
+  status: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  countries: { name: string | null } | null;
+  dojos: { name: string | null; city: string | null } | null;
+  event_translations: Array<{
+    language_code: string;
+    title: string;
+    excerpt: string | null;
+    location_label: string | null;
+  }>;
+};
+
+export async function getPublicEvents(
+  locale: Locale,
+): Promise<LocalizedPublicEvent[]> {
+  const url = getSupabaseProjectUrl();
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    return getFallbackPublicEvents(locale);
+  }
+
+  const supabase = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data, error } = await supabase
+    .from("events")
+    .select(
+      "id,status,starts_at,ends_at,countries(name),dojos(name,city),event_translations(language_code,title,excerpt,location_label)",
+    )
+    .eq("status", "published")
+    .not("starts_at", "is", null)
+    .order("starts_at", { ascending: true })
+    .returns<SupabaseEventRow[]>();
+
+  if (error || !data || data.length === 0) {
+    return getFallbackPublicEvents(locale);
+  }
+
+  return data.map((event) => {
+    const translation =
+      event.event_translations.find(
+        (item) => item.language_code === locale,
+      ) ??
+      event.event_translations.find(
+        (item) => item.language_code === defaultLocale,
+      ) ??
+      event.event_translations[0];
+    const country = event.countries?.name ?? "";
+    const city = event.dojos?.city ?? "";
+    const locationLabel =
+      translation?.location_label ??
+      [city, country].filter(Boolean).join(", ") ??
+      country;
+
+    return {
+      id: event.id,
+      startsAt: event.starts_at ?? "",
+      endsAt: event.ends_at ?? undefined,
+      country,
+      city,
+      organiser: event.dojos?.name ?? country,
+      type: "seminar",
+      title: translation?.title ?? "IKA event",
+      summary: translation?.excerpt ?? "",
+      locationLabel,
+    };
+  });
 }

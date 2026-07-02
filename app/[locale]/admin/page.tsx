@@ -1,4 +1,5 @@
 import { LockKeyhole, PanelsTopLeft, ShieldCheck } from "lucide-react";
+import { EventsAdmin } from "@/components/admin/events-admin";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 
 type AdminPageProps = {
@@ -146,8 +147,8 @@ export default async function AdminPage({ params }: AdminPageProps) {
         />
         <AdminCapability
           icon={<PanelsTopLeft size={22} />}
-          title={copy.cmsTitle}
-          text={copy.cmsText}
+          title="Eventos CMS"
+          text="Primer módulo operativo: crear, editar y publicar eventos del calendario."
         />
         <AdminCapability
           icon={<ShieldCheck size={22} />}
@@ -155,6 +156,8 @@ export default async function AdminPage({ params }: AdminPageProps) {
           text={copy.rolesText}
         />
       </div>
+
+      <EventsAdmin />
     </section>
   );
 }
