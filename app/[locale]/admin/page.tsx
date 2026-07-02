@@ -1,5 +1,6 @@
 import { LockKeyhole, PanelsTopLeft, ShieldCheck } from "lucide-react";
 import { EventsAdmin } from "@/components/admin/events-admin";
+import { PagesAdmin } from "@/components/admin/pages-admin";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 
 type AdminPageProps = {
@@ -158,6 +159,7 @@ export default async function AdminPage({ params }: AdminPageProps) {
       </div>
 
       <EventsAdmin />
+      <PagesAdmin />
     </section>
   );
 }

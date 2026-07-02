@@ -5,18 +5,20 @@ import { isLocale } from "@/lib/i18n/config";
 import {
   getAboutQuote,
   getAboutSections,
-  getPublicPageContent,
 } from "@/lib/i18n/public-pages";
+import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
 type AboutPageProps = {
   params: Promise<{ locale: string }>;
 };
 
+export const revalidate = 60;
+
 export default async function AboutPage({ params }: AboutPageProps) {
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "en";
-  const content = getPublicPageContent(safeLocale, "about");
+  const content = await getEditablePublicPageContent(safeLocale, "about");
   const dictionary = getDictionary(safeLocale);
   const aboutSections = getAboutSections(safeLocale);
   const quote = getAboutQuote(safeLocale);

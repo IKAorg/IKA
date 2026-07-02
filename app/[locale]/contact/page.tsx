@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Mail, Send } from "lucide-react";
 import { isLocale, type Locale } from "@/lib/i18n/config";
-import { getPublicPageContent } from "@/lib/i18n/public-pages";
+import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 
 type ContactPageProps = {
   params: Promise<{ locale: string }>;
 };
+
+export const revalidate = 60;
 
 const formLabels: Record<
   Locale,
@@ -79,7 +81,7 @@ const formLabels: Record<
 export default async function ContactPage({ params }: ContactPageProps) {
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "en";
-  const content = getPublicPageContent(
+  const content = await getEditablePublicPageContent(
     safeLocale,
     "contact",
   );

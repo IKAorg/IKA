@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { Archive, Newspaper } from "lucide-react";
 import { isLocale, type Locale } from "@/lib/i18n/config";
-import { getPublicPageContent } from "@/lib/i18n/public-pages";
+import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { getNewNews } from "@/lib/content/news-archive";
 
 type NewsPageProps = {
   params: Promise<{ locale: string }>;
 };
+
+export const revalidate = 60;
 
 const newsLabels: Record<
   Locale,
@@ -102,7 +104,7 @@ const newsLabels: Record<
 export default async function NewsPage({ params }: NewsPageProps) {
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "en";
-  const content = getPublicPageContent(safeLocale, "news");
+  const content = await getEditablePublicPageContent(safeLocale, "news");
   const dictionary = getDictionary(safeLocale);
   const labels = newsLabels[safeLocale];
   const news = getNewNews();
@@ -116,7 +118,7 @@ export default async function NewsPage({ params }: NewsPageProps) {
           </p>
           <h1 className="mt-4 text-4xl font-semibold">{content.title}</h1>
           <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-            {labels.emptyText}
+            {content.intro}
           </p>
         </div>
         <Link

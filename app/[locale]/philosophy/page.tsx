@@ -1,13 +1,15 @@
 import { isLocale } from "@/lib/i18n/config";
-import { getPublicPageContent } from "@/lib/i18n/public-pages";
+import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 
 type PhilosophyPageProps = {
   params: Promise<{ locale: string }>;
 };
 
+export const revalidate = 60;
+
 export default async function PhilosophyPage({ params }: PhilosophyPageProps) {
   const { locale } = await params;
-  const content = getPublicPageContent(
+  const content = await getEditablePublicPageContent(
     isLocale(locale) ? locale : "en",
     "philosophy",
   );

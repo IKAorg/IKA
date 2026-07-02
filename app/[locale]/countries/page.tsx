@@ -1,13 +1,15 @@
 import { isLocale } from "@/lib/i18n/config";
-import { getPublicPageContent } from "@/lib/i18n/public-pages";
+import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 
 type CountriesPageProps = {
   params: Promise<{ locale: string }>;
 };
 
+export const revalidate = 60;
+
 export default async function CountriesPage({ params }: CountriesPageProps) {
   const { locale } = await params;
-  const content = getPublicPageContent(
+  const content = await getEditablePublicPageContent(
     isLocale(locale) ? locale : "en",
     "countries",
   );

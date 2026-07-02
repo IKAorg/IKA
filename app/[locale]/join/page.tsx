@@ -1,13 +1,18 @@
 import { isLocale } from "@/lib/i18n/config";
-import { getPublicPageContent } from "@/lib/i18n/public-pages";
+import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 
 type JoinPageProps = {
   params: Promise<{ locale: string }>;
 };
 
+export const revalidate = 60;
+
 export default async function JoinPage({ params }: JoinPageProps) {
   const { locale } = await params;
-  const content = getPublicPageContent(isLocale(locale) ? locale : "en", "join");
+  const content = await getEditablePublicPageContent(
+    isLocale(locale) ? locale : "en",
+    "join",
+  );
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">

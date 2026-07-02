@@ -1,7 +1,7 @@
 import { CalendarDays, MapPin } from "lucide-react";
 import { getPublicEvents } from "@/lib/content/events-calendar";
+import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { isLocale } from "@/lib/i18n/config";
-import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
 type EventsPageProps = {
   params: Promise<{ locale: string }>;
@@ -12,7 +12,7 @@ export const revalidate = 60;
 export default async function EventsPage({ params }: EventsPageProps) {
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "en";
-  const content = getPublicPageContent(safeLocale, "events");
+  const content = await getEditablePublicPageContent(safeLocale, "events");
   const events = await getPublicEvents(safeLocale);
   const labels = eventPageLabels[safeLocale];
 

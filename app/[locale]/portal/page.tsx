@@ -1,14 +1,19 @@
 import { BadgeCheck, FileText, UserRound } from "lucide-react";
 import { isLocale } from "@/lib/i18n/config";
-import { getPublicPageContent } from "@/lib/i18n/public-pages";
+import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 
 type PortalPageProps = {
   params: Promise<{ locale: string }>;
 };
 
+export const revalidate = 60;
+
 export default async function PortalPage({ params }: PortalPageProps) {
   const { locale } = await params;
-  const content = getPublicPageContent(isLocale(locale) ? locale : "en", "portal");
+  const content = await getEditablePublicPageContent(
+    isLocale(locale) ? locale : "en",
+    "portal",
+  );
   const blocks = content.blocks ?? [];
 
   return (
