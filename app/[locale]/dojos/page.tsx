@@ -44,7 +44,11 @@ export default async function DojosPage({ params }: DojosPageProps) {
                       height={32}
                       className="h-8 w-11 object-contain"
                     />
-                  ) : null}
+                  ) : (
+                    <span className="flex h-8 w-11 items-center justify-center border border-[var(--line)] bg-white text-lg">
+                      {getFlagFallback(country.code)}
+                    </span>
+                  )}
                   <h2 className="text-2xl font-semibold">{country.name}</h2>
                 </div>
                 <div className="grid gap-5 lg:grid-cols-2">
@@ -190,4 +194,21 @@ function InfoLine({ label, value }: { label: string; value: string }) {
 
 function normalizeUrl(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
+
+function getFlagFallback(code: string) {
+  const fallbackByCode: Record<string, string> = {
+    CH: "\u{1F1E8}\u{1F1ED}",
+    CR: "\u{1F1E8}\u{1F1F7}",
+    CZ: "\u{1F1E8}\u{1F1FF}",
+    ES: "\u{1F1EA}\u{1F1F8}",
+    GB: "\u{1F1EC}\u{1F1E7}",
+    HK: "\u{1F1ED}\u{1F1F0}",
+    IE: "\u{1F1EE}\u{1F1EA}",
+    IT: "\u{1F1EE}\u{1F1F9}",
+    JP: "\u{1F1EF}\u{1F1F5}",
+    "ID-MY": "\u{1F1EE}\u{1F1E9} \u{1F1F2}\u{1F1FE}",
+  };
+
+  return fallbackByCode[code] ?? code.slice(0, 2).toUpperCase();
 }

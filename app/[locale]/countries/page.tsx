@@ -29,19 +29,19 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
       </p>
       <PublicContentBlocks blocks={content.blocks} />
       {countries.length > 0 ? (
-        <div className="mt-10 grid gap-5">
+        <div id="countries-list" className="mt-10 grid gap-3">
           {countries.map((country) => {
             const countryDojos = dojos.filter(
               (dojo) => dojo.countryId === country.id,
             );
 
             return (
-              <article
+              <details
                 key={country.id}
-                className="border border-[var(--line)] bg-white"
+                className="group border border-[var(--line)] bg-white"
               >
-                <div className="p-5">
-                  <div className="flex items-start gap-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 marker:hidden">
+                  <span className="flex min-w-0 items-center gap-4">
                     {country.logoUrl ? (
                       <Image
                         src={country.logoUrl}
@@ -50,16 +50,29 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                         height={32}
                         className="mt-1 h-8 w-11 object-contain"
                       />
-                    ) : null}
-                    <div>
+                    ) : (
+                      <span className="flex h-8 w-11 items-center justify-center border border-[var(--line)] bg-[var(--paper)] text-lg">
+                        {getFlagFallback(country.code)}
+                      </span>
+                    )}
+                    <span className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
                         {country.code}
                       </p>
-                      <h2 className="mt-1 text-2xl font-semibold">
+                      <span className="mt-1 block truncate text-xl font-semibold">
                         {country.name}
-                      </h2>
-                    </div>
-                  </div>
+                      </span>
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-[var(--accent)] group-open:hidden">
+                    {labels.openCountry}
+                  </span>
+                  <span className="hidden shrink-0 text-sm font-semibold text-[var(--accent)] group-open:inline">
+                    {labels.closeCountry}
+                  </span>
+                </summary>
+
+                <div className="border-t border-[var(--line)] p-5">
 
                   {country.description ? (
                     <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
@@ -160,8 +173,16 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                       </div>
                     </div>
                   </div>
+                  <div className="mt-5 border-t border-[var(--line)] pt-4">
+                    <a
+                      href="#countries-list"
+                      className="text-sm font-semibold text-[var(--accent)]"
+                    >
+                      {labels.backToCountries}
+                    </a>
+                  </div>
                 </div>
-              </article>
+              </details>
             );
           })}
         </div>
@@ -187,6 +208,9 @@ const countryPageLabels: Record<
     countryContact: string;
     countryDojos: string;
     openDirectory: string;
+    openCountry: string;
+    closeCountry: string;
+    backToCountries: string;
     pending: string;
     noDojos: string;
     address: string;
@@ -198,6 +222,9 @@ const countryPageLabels: Record<
     countryContact: "Country contact",
     countryDojos: "Dojos in this country",
     openDirectory: "Open dojo directory",
+    openCountry: "Open",
+    closeCountry: "Close",
+    backToCountries: "Back to countries",
     pending: "Pending",
     noDojos: "No public dojos yet.",
     address: "Address",
@@ -208,6 +235,9 @@ const countryPageLabels: Record<
     countryContact: "Responsable del pais",
     countryDojos: "Dojos de este pais",
     openDirectory: "Abrir directorio de dojos",
+    openCountry: "Abrir",
+    closeCountry: "Cerrar",
+    backToCountries: "Volver a paises",
     pending: "Pendiente",
     noDojos: "Aun no hay dojos publicos.",
     address: "Direccion",
@@ -218,6 +248,9 @@ const countryPageLabels: Record<
     countryContact: "Responsabile del paese",
     countryDojos: "Dojo in questo paese",
     openDirectory: "Apri directory dojo",
+    openCountry: "Apri",
+    closeCountry: "Chiudi",
+    backToCountries: "Torna ai paesi",
     pending: "In attesa",
     noDojos: "Non ci sono ancora dojo pubblici.",
     address: "Indirizzo",
@@ -228,6 +261,9 @@ const countryPageLabels: Record<
     countryContact: "Responsable du pays",
     countryDojos: "Dojos dans ce pays",
     openDirectory: "Ouvrir l'annuaire des dojos",
+    openCountry: "Ouvrir",
+    closeCountry: "Fermer",
+    backToCountries: "Retour aux pays",
     pending: "En attente",
     noDojos: "Aucun dojo public pour le moment.",
     address: "Adresse",
@@ -238,6 +274,9 @@ const countryPageLabels: Record<
     countryContact: "Country contact",
     countryDojos: "Dojos in this country",
     openDirectory: "Open dojo directory",
+    openCountry: "Open",
+    closeCountry: "Close",
+    backToCountries: "Back to countries",
     pending: "Pending",
     noDojos: "No public dojos yet.",
     address: "Address",
@@ -248,6 +287,9 @@ const countryPageLabels: Record<
     countryContact: "Country contact",
     countryDojos: "Dojos in this country",
     openDirectory: "Open dojo directory",
+    openCountry: "Open",
+    closeCountry: "Close",
+    backToCountries: "Back to countries",
     pending: "Pending",
     noDojos: "No public dojos yet.",
     address: "Address",
@@ -258,6 +300,9 @@ const countryPageLabels: Record<
     countryContact: "Kontakt v zemi",
     countryDojos: "Dojo v teto zemi",
     openDirectory: "Otevrit adresar dojo",
+    openCountry: "Otevrit",
+    closeCountry: "Zavrit",
+    backToCountries: "Zpet na zeme",
     pending: "Ceka na doplneni",
     noDojos: "Zatim nejsou zverejnena zadna dojo.",
     address: "Adresa",
@@ -273,4 +318,21 @@ function InfoLine({ label, value }: { label: string; value: string }) {
       <dd>{value}</dd>
     </div>
   );
+}
+
+function getFlagFallback(code: string) {
+  const fallbackByCode: Record<string, string> = {
+    CH: "\u{1F1E8}\u{1F1ED}",
+    CR: "\u{1F1E8}\u{1F1F7}",
+    CZ: "\u{1F1E8}\u{1F1FF}",
+    ES: "\u{1F1EA}\u{1F1F8}",
+    GB: "\u{1F1EC}\u{1F1E7}",
+    HK: "\u{1F1ED}\u{1F1F0}",
+    IE: "\u{1F1EE}\u{1F1EA}",
+    IT: "\u{1F1EE}\u{1F1F9}",
+    JP: "\u{1F1EF}\u{1F1F5}",
+    "ID-MY": "\u{1F1EE}\u{1F1E9} \u{1F1F2}\u{1F1FE}",
+  };
+
+  return fallbackByCode[code] ?? code.slice(0, 2).toUpperCase();
 }

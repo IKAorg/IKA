@@ -996,6 +996,7 @@ function CountryFormView({
         </div>
         <ImageUploadField
           label="Bandera del país"
+          helperText="Solo bandera oficial del país. Si no se sube una imagen, la web usará una bandera automática por código de país cuando sea posible."
           value={form.logoUrl}
           uploading={uploadingField === "country-logo"}
           onUpload={async (file) => {
@@ -1169,6 +1170,7 @@ function DojoFormView({
         />
         <ImageUploadField
           label="Logo de kempo del dojo"
+          helperText="Solo logo del club o dojo. No subir fotos generales del dojo ni imágenes de entrenamientos en este campo."
           value={form.imageUrl}
           uploading={uploadingField === "dojo-main-image"}
           onUpload={async (file) => {
@@ -1323,12 +1325,14 @@ function TextArea({
 
 function ImageUploadField({
   label,
+  helperText,
   value,
   uploading,
   onUpload,
   onClear,
 }: {
   label: string;
+  helperText?: string;
   value: string;
   uploading: boolean;
   onUpload: (file: File) => void;
@@ -1337,6 +1341,11 @@ function ImageUploadField({
   return (
     <div className="grid gap-2 text-sm font-semibold">
       <span>{label}</span>
+      {helperText ? (
+        <p className="text-xs font-normal leading-5 text-[var(--muted)]">
+          {helperText}
+        </p>
+      ) : null}
       <div className="border border-[var(--line)] bg-[var(--paper)] p-3">
         {value ? (
           <div
