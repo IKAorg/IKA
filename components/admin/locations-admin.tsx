@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Building2, Flag, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import {
+  Building2,
+  Flag,
+  ImagePlus,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import type { Locale } from "@/lib/i18n/config";
@@ -90,6 +99,8 @@ type DojoForm = {
   imageUrl: string;
 };
 
+type UploadImageFn = (file: File, scope: string) => Promise<string | null>;
+
 const locales: Array<{ key: Locale; label: string }> = [
   { key: "en", label: "English" },
   { key: "es", label: "Español" },
@@ -154,6 +165,7 @@ export function LocationsAdmin() {
   const [dojoForm, setDojoForm] = useState<DojoForm>(emptyDojoForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   const loadMedia = useCallback(
@@ -296,11 +308,11 @@ export function LocationsAdmin() {
     setSaving(true);
     setMessage("");
 
-    const logoMediaId = await saveExternalMedia(
+    const logoMediaId = await saveMediaReference(
       countryForm.logoUrl,
       `${countryForm.name} logo`,
     );
-    const imageMediaId = await saveExternalMedia(
+    const imageMediaId = await saveMediaReference(
       countryForm.imageUrl,
       countryForm.name,
     );
@@ -358,7 +370,7 @@ export function LocationsAdmin() {
     setSaving(true);
     setMessage("");
 
-    const imageMediaId = await saveExternalMedia(dojoForm.imageUrl, dojoForm.name);
+    const imageMediaId = await saveMediaReference(dojoForm.imageUrl, dojoForm.name);
     const payload = {
       country_id: dojoForm.countryId,
       city: dojoForm.city,
@@ -565,7 +577,44 @@ export function LocationsAdmin() {
     await loadLocations();
   }
 
-  async function saveExternalMedia(url: string, title: string) {
+  async function uploadPublicImage(file: File, scope: string) {
+    if (!file.type.startsWith("image/")) {
+      setMessage("Selecciona un archivo de imagen.");
+      return null;
+    }
+
+    setUploadingField(scope);
+    setMessage("");
+
+    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const safeScope = slugify(scope) || "image";
+    const safeName =
+      slugify(file.name.replace(/\.[^.]+$/, "")) || `imagen-${Date.now()}`;
+    const storagePath = `locations/${safeScope}/${Date.now()}-${safeName}.${extension}`;
+
+    const { error } = await supabase.storage
+      .from("public-media")
+      .upload(storagePath, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: true,
+      });
+
+    setUploadingField(null);
+
+    if (error) {
+      setMessage(error.message);
+      return null;
+    }
+
+    const { data } = supabase.storage
+      .from("public-media")
+      .getPublicUrl(storagePath);
+
+    return data.publicUrl;
+  }
+
+  async function saveMediaReference(url: string, title: string) {
     if (!url) {
       return null;
     }
@@ -574,7 +623,7 @@ export function LocationsAdmin() {
       .from("media_library")
       .upsert(
         {
-          storage_bucket: "external",
+          storage_bucket: "public-media",
           storage_path: url,
           title,
           alt_text: title,
@@ -645,6 +694,8 @@ export function LocationsAdmin() {
             form={countryForm}
             setForm={setCountryForm}
             saving={saving}
+            uploadingField={uploadingField}
+            onUploadImage={uploadPublicImage}
             onSave={saveCountry}
             onReset={() => setCountryForm(emptyCountryForm)}
           />
@@ -653,6 +704,8 @@ export function LocationsAdmin() {
             setForm={setDojoForm}
             countries={countries}
             saving={saving}
+            uploadingField={uploadingField}
+            onUploadImage={uploadPublicImage}
             onSave={saveDojo}
             onReset={() => setDojoForm(emptyDojoForm)}
           />
@@ -836,12 +889,16 @@ function CountryFormView({
   form,
   setForm,
   saving,
+  uploadingField,
+  onUploadImage,
   onSave,
   onReset,
 }: {
   form: CountryForm;
   setForm: React.Dispatch<React.SetStateAction<CountryForm>>;
   saving: boolean;
+  uploadingField: string | null;
+  onUploadImage: UploadImageFn;
   onSave: () => void;
   onReset: () => void;
 }) {
@@ -933,19 +990,29 @@ function CountryFormView({
             }
           />
         </div>
-        <TextInput
-          label="Logo país / URL"
+        <ImageUploadField
+          label="Logo del país"
           value={form.logoUrl}
-          onChange={(value) =>
-            setForm((current) => ({ ...current, logoUrl: value }))
-          }
+          uploading={uploadingField === "country-logo"}
+          onUpload={async (file) => {
+            const url = await onUploadImage(file, "country-logo");
+            if (url) {
+              setForm((current) => ({ ...current, logoUrl: url }));
+            }
+          }}
+          onClear={() => setForm((current) => ({ ...current, logoUrl: "" }))}
         />
-        <TextInput
-          label="Foto principal / URL"
+        <ImageUploadField
+          label="Foto principal del país"
           value={form.imageUrl}
-          onChange={(value) =>
-            setForm((current) => ({ ...current, imageUrl: value }))
-          }
+          uploading={uploadingField === "country-main-image"}
+          onUpload={async (file) => {
+            const url = await onUploadImage(file, "country-main-image");
+            if (url) {
+              setForm((current) => ({ ...current, imageUrl: url }));
+            }
+          }}
+          onClear={() => setForm((current) => ({ ...current, imageUrl: "" }))}
         />
         <FormButtons
           saving={saving}
@@ -963,6 +1030,8 @@ function DojoFormView({
   setForm,
   countries,
   saving,
+  uploadingField,
+  onUploadImage,
   onSave,
   onReset,
 }: {
@@ -970,6 +1039,8 @@ function DojoFormView({
   setForm: React.Dispatch<React.SetStateAction<DojoForm>>;
   countries: CountryRow[];
   saving: boolean;
+  uploadingField: string | null;
+  onUploadImage: UploadImageFn;
   onSave: () => void;
   onReset: () => void;
 }) {
@@ -1099,12 +1170,17 @@ function DojoFormView({
             setForm((current) => ({ ...current, website: value }))
           }
         />
-        <TextInput
-          label="Foto dojo / URL"
+        <ImageUploadField
+          label="Foto del dojo"
           value={form.imageUrl}
-          onChange={(value) =>
-            setForm((current) => ({ ...current, imageUrl: value }))
-          }
+          uploading={uploadingField === "dojo-main-image"}
+          onUpload={async (file) => {
+            const url = await onUploadImage(file, "dojo-main-image");
+            if (url) {
+              setForm((current) => ({ ...current, imageUrl: url }));
+            }
+          }}
+          onClear={() => setForm((current) => ({ ...current, imageUrl: "" }))}
         />
         <FormButtons
           saving={saving}
@@ -1245,6 +1321,72 @@ function TextArea({
         className="resize-y border border-[var(--line)] px-3 py-2 font-normal"
       />
     </label>
+  );
+}
+
+function ImageUploadField({
+  label,
+  value,
+  uploading,
+  onUpload,
+  onClear,
+}: {
+  label: string;
+  value: string;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="grid gap-2 text-sm font-semibold">
+      <span>{label}</span>
+      <div className="border border-[var(--line)] bg-[var(--paper)] p-3">
+        {value ? (
+          <div
+            className="mb-3 h-36 border border-[var(--line)] bg-white bg-contain bg-center bg-no-repeat"
+            style={{ backgroundImage: `url("${value}")` }}
+            aria-label={`Vista previa: ${label}`}
+          />
+        ) : (
+          <div className="mb-3 flex h-28 items-center justify-center border border-dashed border-[var(--line)] bg-white text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+            Sin imagen
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white">
+            {uploading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <ImagePlus size={16} />
+            )}
+            {value ? "Cambiar imagen" : "Subir imagen"}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploading}
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) {
+                  onUpload(file);
+                }
+              }}
+            />
+          </label>
+          {value ? (
+            <button
+              type="button"
+              onClick={onClear}
+              className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+            >
+              <X size={16} />
+              Quitar imagen
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
