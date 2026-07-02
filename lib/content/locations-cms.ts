@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Locale } from "@/lib/i18n/config";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { createPublicSupabaseClient } from "@/lib/supabase/public-client";
 
 type MediaRow = {
@@ -82,7 +82,6 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
     )
     .eq("status", "published")
     .eq("is_public", true)
-    .eq("country_translations.language_code", locale)
     .order("code", { ascending: true });
 
   const countries = ((countriesData ?? []) as CountryRow[]).filter(
@@ -101,7 +100,6 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
           .in("country_id", countryIds)
           .eq("status", "published")
           .eq("is_public", true)
-          .eq("dojo_translations.language_code", locale)
           .order("city", { ascending: true })
       : { data: [] };
 
@@ -117,7 +115,10 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   const mediaById = await getMediaById(supabase, mediaIds);
 
   const publicCountries = countries.map((country) => {
-    const translation = country.country_translations[0];
+    const translation = getPreferredTranslation(
+      country.country_translations,
+      locale,
+    );
     const logo = country.flag_media_id
       ? mediaById.get(country.flag_media_id)
       : undefined;
@@ -139,7 +140,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   );
 
   const publicDojos = dojos.map((dojo) => {
-    const translation = dojo.dojo_translations[0];
+    const translation = getPreferredTranslation(dojo.dojo_translations, locale);
     const image = dojo.main_image_media_id
       ? mediaById.get(dojo.main_image_media_id)
       : undefined;
@@ -163,6 +164,19 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   });
 
   return { countries: publicCountries, dojos: publicDojos };
+}
+
+function getPreferredTranslation<
+  T extends { language_code: Locale; name: string; slug: string; description: string | null },
+>(translations: T[], locale: Locale) {
+  return (
+    translations.find((translation) => translation.language_code === locale) ??
+    translations.find((translation) => translation.language_code === "es") ??
+    translations.find(
+      (translation) => translation.language_code === defaultLocale,
+    ) ??
+    translations[0]
+  );
 }
 
 async function getMediaById(

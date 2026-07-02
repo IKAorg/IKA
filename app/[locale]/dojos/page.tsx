@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { isLocale } from "@/lib/i18n/config";
+import { isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getPublicCountriesAndDojos } from "@/lib/content/locations-cms";
 import { PublicContentBlocks } from "@/components/public/public-content-blocks";
@@ -15,6 +15,7 @@ export default async function DojosPage({ params }: DojosPageProps) {
   const safeLocale = isLocale(locale) ? locale : "en";
   const content = await getEditablePublicPageContent(safeLocale, "dojos");
   const { countries, dojos } = await getPublicCountriesAndDojos(safeLocale);
+  const labels = dojoPageLabels[safeLocale];
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">
@@ -38,10 +39,10 @@ export default async function DojosPage({ params }: DojosPageProps) {
                   {country.logoUrl ? (
                     <Image
                       src={country.logoUrl}
-                      alt={`${country.name} logo`}
-                      width={52}
-                      height={52}
-                      className="size-12 object-contain"
+                      alt={`${country.name} flag`}
+                      width={44}
+                      height={32}
+                      className="h-8 w-11 object-contain"
                     />
                   ) : null}
                   <h2 className="text-2xl font-semibold">{country.name}</h2>
@@ -73,55 +74,110 @@ export default async function DojosPage({ params }: DojosPageProps) {
                             </h3>
                           </div>
                         </div>
-                        <div>
-                          {dojo.description ? (
-                            <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-                              {dojo.description}
-                            </p>
+                        {dojo.description ? (
+                          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                            {dojo.description}
+                          </p>
+                        ) : null}
+                        <dl className="mt-5 grid gap-3 text-sm leading-6 text-[var(--muted)] sm:grid-cols-2">
+                          {dojo.address ? (
+                            <InfoLine label={labels.address} value={dojo.address} />
                           ) : null}
-                          <dl className="mt-5 grid gap-3 text-sm leading-6 text-[var(--muted)]">
-                            {dojo.address ? (
-                              <InfoLine label="Dirección" value={dojo.address} />
-                            ) : null}
-                            {dojo.responsibleInstructor ? (
-                              <InfoLine
-                                label="Instructor"
-                                value={dojo.responsibleInstructor}
-                              />
-                            ) : null}
-                            {dojo.phone ? (
-                              <InfoLine label="Teléfono" value={dojo.phone} />
-                            ) : null}
-                            {dojo.email ? (
-                              <InfoLine label="Email" value={dojo.email} />
-                            ) : null}
-                            {dojo.website ? (
-                              <div>
-                                <dt className="font-semibold text-black">Web</dt>
-                                <dd>
-                                  <a
-                                    href={dojo.website}
-                                    className="font-semibold text-[var(--accent)]"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    {dojo.website}
-                                  </a>
-                                </dd>
-                              </div>
-                            ) : null}
-                          </dl>
-                        </div>
+                          {dojo.responsibleInstructor ? (
+                            <InfoLine
+                              label={labels.instructor}
+                              value={dojo.responsibleInstructor}
+                            />
+                          ) : null}
+                          {dojo.phone ? (
+                            <InfoLine label={labels.phone} value={dojo.phone} />
+                          ) : null}
+                          {dojo.email ? (
+                            <InfoLine label="Email" value={dojo.email} />
+                          ) : null}
+                          {dojo.website ? (
+                            <div>
+                              <dt className="font-semibold text-black">Web</dt>
+                              <dd>
+                                <a
+                                  href={normalizeUrl(dojo.website)}
+                                  className="font-semibold text-[var(--accent)]"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {dojo.website}
+                                </a>
+                              </dd>
+                            </div>
+                          ) : null}
+                        </dl>
                       </article>
                     ))}
                 </div>
               </section>
             ))}
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-10 border border-[var(--line)] bg-white p-6 text-sm leading-7 text-[var(--muted)]">
+          {labels.empty}
+        </div>
+      )}
     </section>
   );
 }
+
+const dojoPageLabels: Record<
+  Locale,
+  {
+    empty: string;
+    address: string;
+    instructor: string;
+    phone: string;
+  }
+> = {
+  en: {
+    empty: "There are no public dojos yet.",
+    address: "Address",
+    instructor: "Instructor",
+    phone: "Phone",
+  },
+  es: {
+    empty: "Aun no hay dojos publicos.",
+    address: "Direccion",
+    instructor: "Instructor",
+    phone: "Telefono",
+  },
+  it: {
+    empty: "Non ci sono ancora dojo pubblici.",
+    address: "Indirizzo",
+    instructor: "Istruttore",
+    phone: "Telefono",
+  },
+  fr: {
+    empty: "Aucun dojo public pour le moment.",
+    address: "Adresse",
+    instructor: "Instructeur",
+    phone: "Telephone",
+  },
+  ja: {
+    empty: "There are no public dojos yet.",
+    address: "Address",
+    instructor: "Instructor",
+    phone: "Phone",
+  },
+  zh: {
+    empty: "There are no public dojos yet.",
+    address: "Address",
+    instructor: "Instructor",
+    phone: "Phone",
+  },
+  cs: {
+    empty: "Zatim nejsou zverejnena zadna dojo.",
+    address: "Adresa",
+    instructor: "Instruktor",
+    phone: "Telefon",
+  },
+};
 
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
@@ -130,4 +186,8 @@ function InfoLine({ label, value }: { label: string; value: string }) {
       <dd>{value}</dd>
     </div>
   );
+}
+
+function normalizeUrl(value: string) {
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
 }
