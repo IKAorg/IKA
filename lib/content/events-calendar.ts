@@ -1,6 +1,5 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
-import { createClient } from "@supabase/supabase-js";
-import { getSupabaseProjectUrl } from "@/lib/supabase/url";
+import { createPublicSupabaseClient } from "@/lib/supabase/public-client";
 
 export type PublicEvent = {
   id: string;
@@ -167,16 +166,11 @@ type SupabaseEventRow = {
 export async function getPublicEvents(
   locale: Locale,
 ): Promise<LocalizedPublicEvent[]> {
-  const url = getSupabaseProjectUrl();
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabase = createPublicSupabaseClient();
 
-  if (!url || !key) {
+  if (!supabase) {
     return getFallbackPublicEvents(locale);
   }
-
-  const supabase = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   const { data, error } = await supabase
     .from("events")

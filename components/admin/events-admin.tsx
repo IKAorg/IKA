@@ -46,7 +46,7 @@ type EventForm = {
 
 function createEmptyForm(locale: Locale): EventForm {
   return {
-    status: "draft",
+    status: "published",
     startsAt: "",
     endsAt: "",
     locale,
