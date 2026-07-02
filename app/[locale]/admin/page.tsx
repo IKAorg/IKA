@@ -16,8 +16,6 @@ const adminContent: Record<
     intro: string;
     authTitle: string;
     authText: string;
-    cmsTitle: string;
-    cmsText: string;
     rolesTitle: string;
     rolesText: string;
   }
@@ -26,102 +24,71 @@ const adminContent: Record<
     eyebrow: "Admin",
     title: "IKA Administration",
     intro:
-      "This area will host CMS editing, countries, dojos, members, roles, audit logs, and scoped administration.",
+      "Open only the module you need to work with. Everything else stays folded away.",
     authTitle: "Supabase Auth",
-    authText:
-      "Admin access will be protected through Supabase sessions and RLS.",
-    cmsTitle: "CMS",
-    cmsText:
-      "Pages, translations, content blocks, media, news, and events.",
+    authText: "Admin access is protected through Supabase sessions and RLS.",
     rolesTitle: "Scoped Roles",
-    rolesText:
-      "Country and dojo admins operate only within assigned scopes.",
+    rolesText: "Country and dojo admins operate only within assigned scopes.",
   },
   es: {
     eyebrow: "Admin",
-    title: "Administración IKA",
+    title: "Administracion IKA",
     intro:
-      "Esta área alojará la edición del CMS, países, dojos, miembros, roles, registros de auditoría y administración por alcance.",
+      "Abre solo el modulo con el que vas a trabajar. Lo demas queda recogido para no molestar.",
     authTitle: "Supabase Auth",
-    authText:
-      "El acceso admin estará protegido mediante sesiones de Supabase y RLS.",
-    cmsTitle: "CMS",
-    cmsText:
-      "Páginas, traducciones, bloques de contenido, medios, noticias y eventos.",
+    authText: "El acceso admin esta protegido con sesiones de Supabase y RLS.",
     rolesTitle: "Roles con alcance",
     rolesText:
-      "Los administradores de país y dojo operan solo dentro de sus ámbitos asignados.",
+      "Los administradores de pais y dojo operan solo dentro de sus ambitos asignados.",
   },
   it: {
     eyebrow: "Admin",
     title: "Amministrazione IKA",
     intro:
-      "Quest'area ospiterà la modifica CMS, paesi, dojo, membri, ruoli, log di audit e amministrazione per ambito.",
+      "Apri solo il modulo su cui devi lavorare. Il resto rimane chiuso.",
     authTitle: "Supabase Auth",
-    authText:
-      "L'accesso admin sarà protetto tramite sessioni Supabase e RLS.",
-    cmsTitle: "CMS",
-    cmsText:
-      "Pagine, traduzioni, blocchi di contenuto, media, notizie ed eventi.",
+    authText: "L'accesso admin e protetto da sessioni Supabase e RLS.",
     rolesTitle: "Ruoli con ambito",
-    rolesText:
-      "Gli admin di paese e dojo operano solo negli ambiti assegnati.",
+    rolesText: "Gli admin di paese e dojo operano solo negli ambiti assegnati.",
   },
   fr: {
     eyebrow: "Admin",
     title: "Administration IKA",
     intro:
-      "Cette zone accueillera l'édition CMS, les pays, les dojos, les membres, les rôles, les journaux d'audit et l'administration par périmètre.",
+      "Ouvrez uniquement le module a modifier. Le reste reste replie.",
     authTitle: "Supabase Auth",
-    authText:
-      "L'accès admin sera protégé par les sessions Supabase et RLS.",
-    cmsTitle: "CMS",
-    cmsText:
-      "Pages, traductions, blocs de contenu, médias, actualités et événements.",
-    rolesTitle: "Rôles par périmètre",
+    authText: "L'acces admin est protege par Supabase et RLS.",
+    rolesTitle: "Roles par perimetre",
     rolesText:
-      "Les admins de pays et de dojo opèrent uniquement dans leurs périmètres assignés.",
+      "Les admins de pays et de dojo operent uniquement dans leurs perimetres.",
   },
   ja: {
-    eyebrow: "管理",
-    title: "IKA管理",
-    intro:
-      "この領域ではCMS編集、国、道場、会員、役割、監査ログ、範囲付き管理を扱います。",
-    authTitle: "Supabase認証",
-    authText:
-      "管理者アクセスはSupabaseセッションとRLSによって保護されます。",
-    cmsTitle: "CMS",
-    cmsText: "ページ、翻訳、コンテンツブロック、メディア、ニュース、イベント。",
-    rolesTitle: "範囲付き役割",
-    rolesText:
-      "国管理者と道場管理者は割り当てられた範囲内でのみ操作します。",
+    eyebrow: "Admin",
+    title: "IKA Admin",
+    intro: "Work modules stay closed until you open the one you need.",
+    authTitle: "Supabase Auth",
+    authText: "Admin access is protected through Supabase sessions and RLS.",
+    rolesTitle: "Scoped Roles",
+    rolesText: "Country and dojo admins operate only within assigned scopes.",
   },
   zh: {
-    eyebrow: "管理",
-    title: "IKA 管理",
-    intro:
-      "该区域将用于 CMS 编辑、国家、道场、成员、角色、审计日志和范围化管理。",
-    authTitle: "Supabase 认证",
-    authText: "管理员访问将通过 Supabase 会话和 RLS 保护。",
-    cmsTitle: "CMS",
-    cmsText: "页面、翻译、内容块、媒体、新闻和活动。",
-    rolesTitle: "范围化角色",
-    rolesText: "国家和道场管理员只能在分配的范围内操作。",
+    eyebrow: "Admin",
+    title: "IKA Admin",
+    intro: "Work modules stay closed until you open the one you need.",
+    authTitle: "Supabase Auth",
+    authText: "Admin access is protected through Supabase sessions and RLS.",
+    rolesTitle: "Scoped Roles",
+    rolesText: "Country and dojo admins operate only within assigned scopes.",
   },
   cs: {
     eyebrow: "Admin",
     title: "Administrace IKA",
     intro:
-      "Tato oblast bude obsahovat úpravy CMS, země, dódžó, členy, role, auditní logy a správu podle rozsahu.",
+      "Otevrete jen modul, se kterym pracujete. Ostatni zustane zavrene.",
     authTitle: "Supabase Auth",
-    authText:
-      "Admin přístup bude chráněn pomocí Supabase relací a RLS.",
-    cmsTitle: "CMS",
-    cmsText:
-      "Stránky, překlady, obsahové bloky, média, novinky a události.",
+    authText: "Admin pristup je chranen Supabase relacemi a RLS.",
     rolesTitle: "Role podle rozsahu",
-    rolesText:
-      "Administrátoři zemí a dódžó pracují pouze ve svých přidělených rozsazích.",
+    rolesText: "Spravci zemi a dojo pracuji jen ve svem prirazenem rozsahu.",
   },
 };
 
@@ -141,28 +108,55 @@ export default async function AdminPage({ params }: AdminPageProps) {
         </p>
       </div>
 
-      <div className="mt-10 grid gap-4 md:grid-cols-3">
-        <AdminCapability
-          icon={<LockKeyhole size={22} />}
-          title={copy.authTitle}
-          text={copy.authText}
-        />
-        <AdminCapability
-          icon={<PanelsTopLeft size={22} />}
-          title="Eventos CMS"
-          text="Primer módulo operativo: crear, editar y publicar eventos del calendario."
-        />
-        <AdminCapability
-          icon={<ShieldCheck size={22} />}
-          title={copy.rolesTitle}
-          text={copy.rolesText}
-        />
-      </div>
+      <div className="mt-8 grid gap-4">
+        <AdminModule title="Estado y permisos">
+          <div className="grid gap-4 md:grid-cols-3">
+            <AdminCapability
+              icon={<LockKeyhole size={22} />}
+              title={copy.authTitle}
+              text={copy.authText}
+            />
+            <AdminCapability
+              icon={<PanelsTopLeft size={22} />}
+              title="CMS"
+              text="Modulos de eventos, paises, dojos y paginas publicas."
+            />
+            <AdminCapability
+              icon={<ShieldCheck size={22} />}
+              title={copy.rolesTitle}
+              text={copy.rolesText}
+            />
+          </div>
+        </AdminModule>
 
-      <EventsAdmin />
-      <LocationsAdmin />
-      <PagesAdmin />
+        <AdminModule title="Eventos y calendario">
+          <EventsAdmin />
+        </AdminModule>
+
+        <AdminModule title="Paises y dojos">
+          <LocationsAdmin />
+        </AdminModule>
+
+        <AdminModule title="Paginas publicas">
+          <PagesAdmin />
+        </AdminModule>
+      </div>
     </section>
+  );
+}
+
+function AdminModule({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="border border-[var(--line)] bg-white p-5">
+      <summary className="cursor-pointer text-xl font-semibold">{title}</summary>
+      <div className="mt-5">{children}</div>
+    </details>
   );
 }
 
