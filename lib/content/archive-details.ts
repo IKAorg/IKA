@@ -182,12 +182,12 @@ export function getArchiveDetailHtml(detail: ArchiveDetail, locale: Locale = def
   }
 
   if (copy.bodyHtml) {
-    return copy.bodyHtml.replaceAll("/__LOCALE__/", `/${locale}/`);
+    return `${copy.bodyHtml.replaceAll("/__LOCALE__/", `/${locale}/`)}${getArchiveMediaHtml(originalHtml)}`;
   }
 
   const labels = getArchiveDetailLabels(locale);
 
-  return `<div class="archive-translated-summary"><h2>${labels.summary}</h2><p>${copy.excerpt}</p></div><details class="archive-original-report"><summary>${labels.original}</summary>${originalHtml}</details>`;
+  return `<div class="archive-translated-summary"><h2>${labels.summary}</h2><p>${copy.excerpt}</p></div>${getArchiveMediaHtml(originalHtml)}`;
 }
 
 const archiveDetailLabels: Record<Locale, { summary: string; original: string }> = {
@@ -220,6 +220,36 @@ const archiveDetailLabels: Record<Locale, { summary: string; original: string }>
     original: "Úplná historická zpráva",
   },
 };
+
+function getArchiveMediaHtml(contentHtml: string) {
+  const imageSources = Array.from(
+    new Set(
+      [...contentHtml.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/g)]
+        .map((match) => match[1])
+        .filter((src) => src.startsWith("/images/")),
+    ),
+  );
+  const iframes = [...contentHtml.matchAll(/<iframe[\s\S]*?<\/iframe>/g)].map(
+    (match) => match[0],
+  );
+
+  const galleryHtml =
+    imageSources.length > 0
+      ? `<div class="archive-translated-gallery">${imageSources
+          .map(
+            (src) =>
+              `<a href="${src}"><img src="${src}" alt="" loading="lazy" /></a>`,
+          )
+          .join("")}</div>`
+      : "";
+
+  const videoHtml =
+    iframes.length > 0
+      ? `<div class="archive-translated-video">${iframes.join("")}</div>`
+      : "";
+
+  return `${galleryHtml}${videoHtml}`;
+}
 
 function getArchiveDetailLabels(locale: Locale) {
   switch (locale) {

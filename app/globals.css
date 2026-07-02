@@ -170,6 +170,28 @@ select {
   margin-bottom: 1rem;
 }
 
+.archive-detail-content .archive-translated-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 2rem;
+}
+
+.archive-detail-content .archive-translated-gallery a {
+  display: block;
+}
+
+.archive-detail-content .archive-translated-gallery img {
+  aspect-ratio: 4 / 3;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.archive-detail-content .archive-translated-video {
+  margin-top: 2rem;
+}
+
 .archive-detail-content iframe {
   aspect-ratio: 16 / 9;
   height: auto;
