@@ -185,9 +185,9 @@ export function getArchiveDetailHtml(detail: ArchiveDetail, locale: Locale = def
     return copy.bodyHtml.replaceAll("/__LOCALE__/", `/${locale}/`);
   }
 
-  const labels = archiveDetailLabels[locale] ?? archiveDetailLabels[defaultLocale];
+  const labels = getArchiveDetailLabels(locale);
 
-  return `<div class="archive-translated-summary"><h2>${labels.summary}</h2><p>${copy.excerpt}</p></div><div class="archive-original-report"><h2>${labels.original}</h2>${originalHtml}</div>`;
+  return `<div class="archive-translated-summary"><h2>${labels.summary}</h2><p>${copy.excerpt}</p></div><details class="archive-original-report"><summary>${labels.original}</summary>${originalHtml}</details>`;
 }
 
 const archiveDetailLabels: Record<Locale, { summary: string; original: string }> = {
@@ -220,3 +220,40 @@ const archiveDetailLabels: Record<Locale, { summary: string; original: string }>
     original: "Úplná historická zpráva",
   },
 };
+
+function getArchiveDetailLabels(locale: Locale) {
+  switch (locale) {
+    case "es":
+      return {
+        summary: "Resumen traducido",
+        original: "Ver informe historico original completo",
+      };
+    case "it":
+      return {
+        summary: "Riepilogo tradotto",
+        original: "Vedi il report storico originale completo",
+      };
+    case "fr":
+      return {
+        summary: "Resume traduit",
+        original: "Voir le rapport historique original complet",
+      };
+    case "ja":
+      return {
+        summary: "翻訳概要",
+        original: "元の完全なアーカイブ記事を表示",
+      };
+    case "zh":
+      return {
+        summary: "翻译摘要",
+        original: "查看完整原始历史报道",
+      };
+    case "cs":
+      return {
+        summary: "Prelozene shrnuti",
+        original: "Zobrazit uplnou puvodni historickou zpravu",
+      };
+    default:
+      return archiveDetailLabels[defaultLocale];
+  }
+}
