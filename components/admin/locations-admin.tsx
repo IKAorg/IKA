@@ -6,6 +6,7 @@ import { Building2, Flag, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import type { Locale } from "@/lib/i18n/config";
+import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
 type ContentStatus = "draft" | "published" | "archived";
 
@@ -129,6 +130,19 @@ const emptyDojoForm: DojoForm = {
   website: "",
   imageUrl: "",
 };
+
+const legacyCountrySeeds = [
+  { code: "CR", index: 0 },
+  { code: "CZ", index: 1 },
+  { code: "ID-MY", index: 2 },
+  { code: "IE", index: 3 },
+  { code: "IT", index: 4 },
+  { code: "HK", index: 5 },
+  { code: "JP", index: 6 },
+  { code: "ES", index: 7 },
+  { code: "CH", index: 8 },
+  { code: "GB", index: 9 },
+];
 
 export function LocationsAdmin() {
   const supabase = useMemo(() => createClient(), []);
@@ -397,6 +411,76 @@ export function LocationsAdmin() {
     setSaving(false);
   }
 
+  async function importExistingCountries() {
+    setSaving(true);
+    setMessage("");
+
+    const existingCodes = new Set(countries.map((country) => country.code));
+    const seeds = legacyCountrySeeds.filter(
+      (country) => !existingCodes.has(country.code),
+    );
+
+    if (seeds.length === 0) {
+      setMessage("Los países existentes ya están importados.");
+      setSaving(false);
+      return;
+    }
+
+    for (const seed of seeds) {
+      const spanishName =
+        getPublicPageContent("es", "countries").countries?.[seed.index] ??
+        seed.code;
+      const countryResult = await supabase
+        .from("countries")
+        .insert({
+          code: seed.code,
+          status: "published",
+          is_public: true,
+        })
+        .select("id")
+        .single();
+
+      if (countryResult.error || !countryResult.data) {
+        setMessage(
+          countryResult.error?.message ??
+            `No se pudo importar ${spanishName}.`,
+        );
+        setSaving(false);
+        return;
+      }
+
+      const countryId = countryResult.data.id as string;
+      const translations = locales.map((locale) => {
+        const name =
+          getPublicPageContent(locale.key, "countries").countries?.[
+            seed.index
+          ] ?? spanishName;
+
+        return {
+          country_id: countryId,
+          language_code: locale.key,
+          name,
+          slug: slugify(name),
+          description: null,
+        };
+      });
+
+      const { error } = await supabase
+        .from("country_translations")
+        .insert(translations);
+
+      if (error) {
+        setMessage(error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    setMessage("Países existentes importados al CMS.");
+    await loadLocations();
+    setSaving(false);
+  }
+
   async function deleteCountry(id: string) {
     const { error } = await supabase.from("countries").delete().eq("id", id);
 
@@ -482,6 +566,8 @@ export function LocationsAdmin() {
             countries={countries}
             mediaById={mediaById}
             loading={loading}
+            saving={saving}
+            onImportExisting={importExistingCountries}
             onEdit={editCountry}
             onDelete={deleteCountry}
           />
@@ -526,23 +612,42 @@ function CountryList({
   countries,
   mediaById,
   loading,
+  saving,
+  onImportExisting,
   onEdit,
   onDelete,
 }: {
   countries: CountryRow[];
   mediaById: Map<string, MediaRow>;
   loading: boolean;
+  saving: boolean;
+  onImportExisting: () => void;
   onEdit: (country: CountryRow) => void;
   onDelete: (id: string) => void;
 }) {
   return (
-    <section className="border border-[var(--line)] p-4">
-      <h3 className="text-xl font-semibold">Países</h3>
+    <details className="border border-[var(--line)] p-4">
+      <summary className="cursor-pointer text-xl font-semibold">
+        Países ({countries.length})
+      </summary>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          onClick={onImportExisting}
+          disabled={saving || loading}
+          className="inline-flex items-center gap-2 bg-[var(--ink-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+          Importar países existentes
+        </button>
+      </div>
       <div className="mt-4 grid gap-3">
         {loading ? (
           <p className="text-sm text-[var(--muted)]">Cargando países...</p>
         ) : countries.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">Aún no hay países.</p>
+          <p className="text-sm text-[var(--muted)]">
+            Aún no hay países en Supabase. Importa los existentes para empezar
+            a editarlos.
+          </p>
         ) : (
           countries.map((country) => {
             const name =
@@ -593,7 +698,7 @@ function CountryList({
           })
         )}
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -618,8 +723,10 @@ function DojoList({
   );
 
   return (
-    <section className="border border-[var(--line)] p-4">
-      <h3 className="text-xl font-semibold">Dojos</h3>
+    <details className="border border-[var(--line)] p-4">
+      <summary className="cursor-pointer text-xl font-semibold">
+        Dojos ({dojos.length})
+      </summary>
       <div className="mt-4 grid gap-3">
         {loading ? (
           <p className="text-sm text-[var(--muted)]">Cargando dojos...</p>
@@ -661,7 +768,7 @@ function DojoList({
           })
         )}
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -679,13 +786,13 @@ function CountryFormView({
   onReset: () => void;
 }) {
   return (
-    <section className="border border-[var(--line)] p-4">
-      <div className="flex items-center gap-2">
+    <details className="border border-[var(--line)] p-4">
+      <summary className="cursor-pointer">
+        <span className="inline-flex items-center gap-2 text-xl font-semibold">
         <Flag size={20} className="text-[var(--accent)]" />
-        <h3 className="text-xl font-semibold">
           {form.id ? "Editar país" : "Nuevo país"}
-        </h3>
-      </div>
+        </span>
+      </summary>
       <div className="mt-4 grid gap-3">
         <AdminSelect
           label="Idioma"
@@ -787,7 +894,7 @@ function CountryFormView({
           onReset={onReset}
         />
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -807,13 +914,13 @@ function DojoFormView({
   onReset: () => void;
 }) {
   return (
-    <section className="border border-[var(--line)] p-4">
-      <div className="flex items-center gap-2">
+    <details className="border border-[var(--line)] p-4">
+      <summary className="cursor-pointer">
+        <span className="inline-flex items-center gap-2 text-xl font-semibold">
         <Building2 size={20} className="text-[var(--accent)]" />
-        <h3 className="text-xl font-semibold">
           {form.id ? "Editar dojo" : "Nuevo dojo"}
-        </h3>
-      </div>
+        </span>
+      </summary>
       <div className="mt-4 grid gap-3">
         <AdminSelect
           label="País"
@@ -946,7 +1053,7 @@ function DojoFormView({
           onReset={onReset}
         />
       </div>
-    </section>
+    </details>
   );
 }
 
