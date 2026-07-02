@@ -5,7 +5,7 @@ import Image from "next/image";
 import { FilePenLine, Languages, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
-import type { Locale } from "@/lib/i18n/config";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import {
   getAboutSections,
   getPublicPageContent,
@@ -82,22 +82,30 @@ type PageForm = {
   seoDescription: string;
 };
 
-const defaultForm: PageForm = {
-  status: "published",
-  pageKey: "about",
-  locale: "es",
-  title: "",
-  slug: "about",
-  summary: "",
-  seoTitle: "",
-  seoDescription: "",
-};
+function createDefaultForm(locale: Locale): PageForm {
+  return {
+    status: "published",
+    pageKey: "about",
+    locale,
+    title: "",
+    slug: "about",
+    summary: "",
+    seoTitle: "",
+    seoDescription: "",
+  };
+}
 
-export function PagesAdmin() {
+export function PagesAdmin({
+  initialLocale = defaultLocale,
+}: {
+  initialLocale?: Locale;
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [pages, setPages] = useState<PageRow[]>([]);
-  const [form, setForm] = useState<PageForm>(defaultForm);
+  const [form, setForm] = useState<PageForm>(() =>
+    createDefaultForm(initialLocale),
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [translating, setTranslating] = useState(false);

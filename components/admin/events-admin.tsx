@@ -4,17 +4,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarPlus, Loader2, LogOut, Save, Trash2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
+import {
+  defaultLocale,
+  localeLabels,
+  locales,
+  type Locale,
+} from "@/lib/i18n/config";
 
 type EventStatus = "draft" | "published" | "archived";
 
 type AdminEventTranslation = {
   id?: string;
-  language_code: "en" | "es";
+  language_code: Locale;
   title: string;
   slug: string;
-  excerpt: string;
-  body: string;
-  location_label: string;
+  excerpt: string | null;
+  body: string | null;
+  location_label: string | null;
 };
 
 type AdminEvent = {
@@ -30,41 +36,41 @@ type EventForm = {
   status: EventStatus;
   startsAt: string;
   endsAt: string;
-  titleEs: string;
-  slugEs: string;
-  excerptEs: string;
-  bodyEs: string;
-  locationEs: string;
-  titleEn: string;
-  slugEn: string;
-  excerptEn: string;
-  bodyEn: string;
-  locationEn: string;
+  locale: Locale;
+  title: string;
+  slug: string;
+  excerpt: string;
+  body: string;
+  location: string;
 };
 
-const emptyForm: EventForm = {
-  status: "draft",
-  startsAt: "",
-  endsAt: "",
-  titleEs: "",
-  slugEs: "",
-  excerptEs: "",
-  bodyEs: "",
-  locationEs: "",
-  titleEn: "",
-  slugEn: "",
-  excerptEn: "",
-  bodyEn: "",
-  locationEn: "",
-};
+function createEmptyForm(locale: Locale): EventForm {
+  return {
+    status: "draft",
+    startsAt: "",
+    endsAt: "",
+    locale,
+    title: "",
+    slug: "",
+    excerpt: "",
+    body: "",
+    location: "",
+  };
+}
 
-export function EventsAdmin() {
+export function EventsAdmin({
+  initialLocale = defaultLocale,
+}: {
+  initialLocale?: Locale;
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [events, setEvents] = useState<AdminEvent[]>([]);
-  const [form, setForm] = useState<EventForm>(emptyForm);
+  const [form, setForm] = useState<EventForm>(() =>
+    createEmptyForm(initialLocale),
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -122,7 +128,7 @@ export function EventsAdmin() {
             emailRedirectTo:
               typeof window === "undefined"
                 ? undefined
-                : `${window.location.origin}/es/admin`,
+                : `${window.location.origin}/${form.locale}/admin`,
           },
         });
 
@@ -141,29 +147,19 @@ export function EventsAdmin() {
     setEvents([]);
   }
 
-  function editEvent(event: AdminEvent) {
-    const es = event.event_translations.find(
-      (translation) => translation.language_code === "es",
-    );
-    const en = event.event_translations.find(
-      (translation) => translation.language_code === "en",
-    );
+  function editEvent(event: AdminEvent, locale = form.locale) {
+    setForm(hydrateEventForm(form, event, locale));
+  }
 
-    setForm({
-      id: event.id,
-      status: event.status,
-      startsAt: toDateTimeInput(event.starts_at),
-      endsAt: toDateTimeInput(event.ends_at),
-      titleEs: es?.title ?? "",
-      slugEs: es?.slug ?? "",
-      excerptEs: es?.excerpt ?? "",
-      bodyEs: es?.body ?? "",
-      locationEs: es?.location_label ?? "",
-      titleEn: en?.title ?? "",
-      slugEn: en?.slug ?? "",
-      excerptEn: en?.excerpt ?? "",
-      bodyEn: en?.body ?? "",
-      locationEn: en?.location_label ?? "",
+  function changeFormLocale(locale: Locale) {
+    setForm((current) => {
+      const event = current.id
+        ? events.find((item) => item.id === current.id)
+        : undefined;
+
+      return event
+        ? hydrateEventForm(current, event, locale)
+        : { ...current, locale };
     });
   }
 
@@ -197,21 +193,26 @@ export function EventsAdmin() {
     }
 
     const eventId = eventResult.data.id as string;
-    const translations = buildTranslations(eventId, form);
+    const { error } = await supabase.from("event_translations").upsert(
+      {
+        event_id: eventId,
+        language_code: form.locale,
+        title: form.title,
+        slug: form.slug || slugify(form.title),
+        excerpt: form.excerpt || null,
+        body: form.body || null,
+        location_label: form.location || null,
+      },
+      { onConflict: "event_id,language_code" },
+    );
 
-    if (translations.length > 0) {
-      const { error } = await supabase
-        .from("event_translations")
-        .upsert(translations, { onConflict: "event_id,language_code" });
-
-      if (error) {
-        setMessage(error.message);
-        setSaving(false);
-        return;
-      }
+    if (error) {
+      setMessage(error.message);
+      setSaving(false);
+      return;
     }
 
-    setForm(emptyForm);
+    setForm(createEmptyForm(form.locale));
     setMessage("Evento guardado.");
     await loadEvents();
     setSaving(false);
@@ -226,7 +227,7 @@ export function EventsAdmin() {
     }
 
     if (form.id === id) {
-      setForm(emptyForm);
+      setForm(createEmptyForm(form.locale));
     }
 
     setMessage("Evento eliminado.");
@@ -239,8 +240,8 @@ export function EventsAdmin() {
         <div>
           <h2 className="text-2xl font-semibold">Acceso admin</h2>
           <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-            Entra con un usuario de Supabase que tenga rol de administración.
-            Si dejas la contraseña vacía, Supabase enviará un enlace mágico.
+            Entra con un usuario de Supabase que tenga rol de administracion.
+            Si dejas la contrasena vacia, Supabase enviara un enlace magico.
           </p>
         </div>
         <div className="grid gap-3">
@@ -254,7 +255,7 @@ export function EventsAdmin() {
           <input
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Contraseña opcional"
+            placeholder="Contrasena opcional"
             type="password"
             className="border border-[var(--line)] px-3 py-2"
           />
@@ -295,6 +296,14 @@ export function EventsAdmin() {
           </button>
         </div>
 
+        <div className="mt-4">
+          <LocaleSelect
+            label="Idioma de trabajo"
+            value={form.locale}
+            onChange={changeFormLocale}
+          />
+        </div>
+
         <div className="mt-5 grid gap-3">
           {loading ? (
             <p className="text-sm text-[var(--muted)]">Cargando eventos...</p>
@@ -304,10 +313,10 @@ export function EventsAdmin() {
             </p>
           ) : (
             events.map((event) => {
-              const translation =
-                event.event_translations.find(
-                  (item) => item.language_code === "es",
-                ) ?? event.event_translations[0];
+              const translation = getEventTranslation(
+                event.event_translations,
+                form.locale,
+              );
 
               return (
                 <article
@@ -320,10 +329,10 @@ export function EventsAdmin() {
                         {event.status}
                       </p>
                       <h3 className="mt-2 text-lg font-semibold">
-                        {translation?.title ?? "Evento sin título"}
+                        {translation?.title ?? "Evento sin titulo"}
                       </h3>
                       <p className="mt-1 text-sm text-[var(--muted)]">
-                        {formatDate(event.starts_at)}
+                        {formatDate(event.starts_at, form.locale)}
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -358,6 +367,12 @@ export function EventsAdmin() {
         </div>
 
         <div className="mt-5 grid gap-4">
+          <LocaleSelect
+            label="Idioma editado"
+            value={form.locale}
+            onChange={changeFormLocale}
+          />
+
           <label className="grid gap-2 text-sm font-semibold">
             Estado
             <select
@@ -395,101 +410,57 @@ export function EventsAdmin() {
             />
           </div>
 
-          <Fieldset title="Español">
-            <TextInput
-              label="Título"
-              value={form.titleEs}
-              onChange={(value) =>
-                setForm((current) => ({
-                  ...current,
-                  titleEs: value,
-                  slugEs: current.slugEs || slugify(value),
-                }))
-              }
-            />
-            <TextInput
-              label="Slug"
-              value={form.slugEs}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, slugEs: slugify(value) }))
-              }
-            />
-            <TextInput
-              label="Lugar"
-              value={form.locationEs}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, locationEs: value }))
-              }
-            />
-            <TextArea
-              label="Resumen"
-              value={form.excerptEs}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, excerptEs: value }))
-              }
-            />
-            <TextArea
-              label="Cuerpo"
-              value={form.bodyEs}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, bodyEs: value }))
-              }
-            />
-          </Fieldset>
-
-          <Fieldset title="English">
-            <TextInput
-              label="Title"
-              value={form.titleEn}
-              onChange={(value) =>
-                setForm((current) => ({
-                  ...current,
-                  titleEn: value,
-                  slugEn: current.slugEn || slugify(value),
-                }))
-              }
-            />
-            <TextInput
-              label="Slug"
-              value={form.slugEn}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, slugEn: slugify(value) }))
-              }
-            />
-            <TextInput
-              label="Location"
-              value={form.locationEn}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, locationEn: value }))
-              }
-            />
-            <TextArea
-              label="Excerpt"
-              value={form.excerptEn}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, excerptEn: value }))
-              }
-            />
-            <TextArea
-              label="Body"
-              value={form.bodyEn}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, bodyEn: value }))
-              }
-            />
-          </Fieldset>
+          <TextInput
+            label="Titulo"
+            value={form.title}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                title: value,
+                slug: current.slug || slugify(value),
+              }))
+            }
+          />
+          <TextInput
+            label="Slug"
+            value={form.slug}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, slug: slugify(value) }))
+            }
+          />
+          <TextInput
+            label="Lugar"
+            value={form.location}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, location: value }))
+            }
+          />
+          <TextArea
+            label="Resumen"
+            value={form.excerpt}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, excerpt: value }))
+            }
+          />
+          <TextArea
+            label="Cuerpo"
+            value={form.body}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, body: value }))
+            }
+          />
 
           <div className="flex flex-wrap gap-3">
             <button
               onClick={saveEvent}
-              disabled={saving || !form.startsAt || !form.titleEs || !form.slugEs}
+              disabled={saving || !form.startsAt || !form.title}
               className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Guardar evento
             </button>
             <button
-              onClick={() => setForm(emptyForm)}
+              onClick={() => setForm(createEmptyForm(form.locale))}
               className="border border-[var(--line)] px-4 py-2 font-semibold"
             >
               Limpiar
@@ -507,20 +478,30 @@ export function EventsAdmin() {
   );
 }
 
-function Fieldset({
-  title,
-  children,
+function LocaleSelect({
+  label,
+  value,
+  onChange,
 }: {
-  title: string;
-  children: React.ReactNode;
+  label: string;
+  value: Locale;
+  onChange: (value: Locale) => void;
 }) {
   return (
-    <fieldset className="grid gap-3 border border-[var(--line)] p-4">
-      <legend className="px-2 text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
-        {title}
-      </legend>
-      {children}
-    </fieldset>
+    <label className="grid gap-2 text-sm font-semibold">
+      {label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as Locale)}
+        className="border border-[var(--line)] px-3 py-2 font-normal"
+      >
+        {locales.map((locale) => (
+          <option key={locale} value={locale}>
+            {localeLabels[locale]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -570,34 +551,38 @@ function TextArea({
   );
 }
 
-function buildTranslations(eventId: string, form: EventForm) {
-  const translations = [];
+function hydrateEventForm(
+  current: EventForm,
+  event: AdminEvent,
+  locale: Locale,
+): EventForm {
+  const translation = event.event_translations.find(
+    (item) => item.language_code === locale,
+  );
 
-  if (form.titleEs && form.slugEs) {
-    translations.push({
-      event_id: eventId,
-      language_code: "es",
-      title: form.titleEs,
-      slug: form.slugEs,
-      excerpt: form.excerptEs || null,
-      body: form.bodyEs || null,
-      location_label: form.locationEs || null,
-    });
-  }
+  return {
+    ...current,
+    id: event.id,
+    status: event.status,
+    startsAt: toDateTimeInput(event.starts_at),
+    endsAt: toDateTimeInput(event.ends_at),
+    locale,
+    title: translation?.title ?? "",
+    slug: translation?.slug ?? "",
+    excerpt: translation?.excerpt ?? "",
+    body: translation?.body ?? "",
+    location: translation?.location_label ?? "",
+  };
+}
 
-  if (form.titleEn && form.slugEn) {
-    translations.push({
-      event_id: eventId,
-      language_code: "en",
-      title: form.titleEn,
-      slug: form.slugEn,
-      excerpt: form.excerptEn || null,
-      body: form.bodyEn || null,
-      location_label: form.locationEn || null,
-    });
-  }
-
-  return translations;
+function getEventTranslation(
+  translations: AdminEventTranslation[],
+  locale: Locale,
+) {
+  return (
+    translations.find((translation) => translation.language_code === locale) ??
+    translations[0]
+  );
 }
 
 function toDateTimeInput(value: string | null) {
@@ -608,12 +593,12 @@ function toDateTimeInput(value: string | null) {
   return value.slice(0, 16);
 }
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, locale: Locale) {
   if (!value) {
     return "Sin fecha";
   }
 
-  return new Intl.DateTimeFormat("es", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));

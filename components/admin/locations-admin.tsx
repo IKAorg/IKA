@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
-import type { Locale } from "@/lib/i18n/config";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
 type ContentStatus = "draft" | "published" | "archived";
@@ -111,36 +111,40 @@ const locales: Array<{ key: Locale; label: string }> = [
   { key: "cs", label: "Čeština" },
 ];
 
-const emptyCountryForm: CountryForm = {
-  locale: "es",
-  code: "",
-  status: "published",
-  isPublic: true,
-  name: "",
-  slug: "",
-  description: "",
-  responsiblePerson: "",
-  responsibleEmail: "",
-  logoUrl: "",
-  imageUrl: "",
-};
+function createEmptyCountryForm(locale: Locale): CountryForm {
+  return {
+    locale,
+    code: "",
+    status: "published",
+    isPublic: true,
+    name: "",
+    slug: "",
+    description: "",
+    responsiblePerson: "",
+    responsibleEmail: "",
+    logoUrl: "",
+    imageUrl: "",
+  };
+}
 
-const emptyDojoForm: DojoForm = {
-  locale: "es",
-  countryId: "",
-  status: "published",
-  isPublic: true,
-  name: "",
-  slug: "",
-  description: "",
-  city: "",
-  address: "",
-  responsibleInstructor: "",
-  email: "",
-  phone: "",
-  website: "",
-  imageUrl: "",
-};
+function createEmptyDojoForm(locale: Locale): DojoForm {
+  return {
+    locale,
+    countryId: "",
+    status: "published",
+    isPublic: true,
+    name: "",
+    slug: "",
+    description: "",
+    city: "",
+    address: "",
+    responsibleInstructor: "",
+    email: "",
+    phone: "",
+    website: "",
+    imageUrl: "",
+  };
+}
 
 const legacyCountrySeeds = [
   { code: "CR", index: 0 },
@@ -155,14 +159,22 @@ const legacyCountrySeeds = [
   { code: "GB", index: 9 },
 ];
 
-export function LocationsAdmin() {
+export function LocationsAdmin({
+  initialLocale = defaultLocale,
+}: {
+  initialLocale?: Locale;
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [countries, setCountries] = useState<CountryRow[]>([]);
   const [dojos, setDojos] = useState<DojoRow[]>([]);
   const [mediaById, setMediaById] = useState<Map<string, MediaRow>>(new Map());
-  const [countryForm, setCountryForm] = useState<CountryForm>(emptyCountryForm);
-  const [dojoForm, setDojoForm] = useState<DojoForm>(emptyDojoForm);
+  const [countryForm, setCountryForm] = useState<CountryForm>(() =>
+    createEmptyCountryForm(initialLocale),
+  );
+  const [dojoForm, setDojoForm] = useState<DojoForm>(() =>
+    createEmptyDojoForm(initialLocale),
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
@@ -258,49 +270,32 @@ export function LocationsAdmin() {
   }, [loadLocations, supabase]);
 
   function editCountry(country: CountryRow) {
-    const translation =
-      country.country_translations.find(
-        (item) => item.language_code === countryForm.locale,
-      ) ?? country.country_translations[0];
-
-    setCountryForm({
-      id: country.id,
-      locale: (translation?.language_code ?? countryForm.locale) as Locale,
-      code: country.code,
-      status: country.status,
-      isPublic: country.is_public,
-      name: translation?.name ?? "",
-      slug: translation?.slug ?? "",
-      description: translation?.description ?? "",
-      responsiblePerson: country.responsible_person ?? "",
-      responsibleEmail: country.responsible_email ?? "",
-      logoUrl: getMediaUrl(country.flag_media_id, mediaById),
-      imageUrl: getMediaUrl(country.main_image_media_id, mediaById),
-    });
+    setCountryForm(hydrateCountryForm(country, countryForm.locale, mediaById));
   }
 
   function editDojo(dojo: DojoRow) {
-    const translation =
-      dojo.dojo_translations.find(
-        (item) => item.language_code === dojoForm.locale,
-      ) ?? dojo.dojo_translations[0];
+    setDojoForm(hydrateDojoForm(dojo, dojoForm.locale, mediaById));
+  }
 
-    setDojoForm({
-      id: dojo.id,
-      locale: (translation?.language_code ?? dojoForm.locale) as Locale,
-      countryId: dojo.country_id,
-      status: dojo.status,
-      isPublic: dojo.is_public,
-      name: translation?.name ?? "",
-      slug: translation?.slug ?? "",
-      description: translation?.description ?? "",
-      city: dojo.city,
-      address: dojo.address ?? "",
-      responsibleInstructor: dojo.responsible_instructor ?? "",
-      email: dojo.email ?? "",
-      phone: dojo.phone ?? "",
-      website: dojo.website ?? "",
-      imageUrl: getMediaUrl(dojo.main_image_media_id, mediaById),
+  function changeCountryFormLocale(locale: Locale) {
+    setCountryForm((current) => {
+      const country = current.id
+        ? countries.find((item) => item.id === current.id)
+        : undefined;
+
+      return country
+        ? hydrateCountryForm(country, locale, mediaById)
+        : { ...current, locale };
+    });
+  }
+
+  function changeDojoFormLocale(locale: Locale) {
+    setDojoForm((current) => {
+      const dojo = current.id
+        ? dojos.find((item) => item.id === current.id)
+        : undefined;
+
+      return dojo ? hydrateDojoForm(dojo, locale, mediaById) : { ...current, locale };
     });
   }
 
@@ -360,7 +355,7 @@ export function LocationsAdmin() {
       return;
     }
 
-    setCountryForm(emptyCountryForm);
+    setCountryForm(createEmptyCountryForm(countryForm.locale));
     setMessage("País guardado.");
     await loadLocations();
     setSaving(false);
@@ -417,7 +412,7 @@ export function LocationsAdmin() {
       return;
     }
 
-    setDojoForm(emptyDojoForm);
+    setDojoForm(createEmptyDojoForm(dojoForm.locale));
     setMessage("Dojo guardado.");
     await loadLocations();
     setSaving(false);
@@ -674,6 +669,7 @@ export function LocationsAdmin() {
           <CountryList
             countries={countries}
             mediaById={mediaById}
+            displayLocale={countryForm.locale}
             loading={loading}
             saving={saving}
             onImportExisting={importExistingCountries}
@@ -683,6 +679,7 @@ export function LocationsAdmin() {
           <DojoList
             dojos={dojos}
             countries={countries}
+            displayLocale={dojoForm.locale}
             loading={loading}
             onEdit={editDojo}
             onDelete={deleteDojo}
@@ -693,21 +690,25 @@ export function LocationsAdmin() {
           <CountryFormView
             form={countryForm}
             setForm={setCountryForm}
+            onLocaleChange={changeCountryFormLocale}
             saving={saving}
             uploadingField={uploadingField}
             onUploadImage={uploadPublicImage}
             onSave={saveCountry}
-            onReset={() => setCountryForm(emptyCountryForm)}
+            onReset={() =>
+              setCountryForm(createEmptyCountryForm(countryForm.locale))
+            }
           />
           <DojoFormView
             form={dojoForm}
             setForm={setDojoForm}
+            onLocaleChange={changeDojoFormLocale}
             countries={countries}
             saving={saving}
             uploadingField={uploadingField}
             onUploadImage={uploadPublicImage}
             onSave={saveDojo}
-            onReset={() => setDojoForm(emptyDojoForm)}
+            onReset={() => setDojoForm(createEmptyDojoForm(dojoForm.locale))}
           />
         </div>
       </div>
@@ -724,6 +725,7 @@ export function LocationsAdmin() {
 function CountryList({
   countries,
   mediaById,
+  displayLocale,
   loading,
   saving,
   onImportExisting,
@@ -732,6 +734,7 @@ function CountryList({
 }: {
   countries: CountryRow[];
   mediaById: Map<string, MediaRow>;
+  displayLocale: Locale;
   loading: boolean;
   saving: boolean;
   onImportExisting: () => void;
@@ -765,7 +768,7 @@ function CountryList({
           countries.map((country) => {
             const name =
               country.country_translations.find(
-                (translation) => translation.language_code === "es",
+                (translation) => translation.language_code === displayLocale,
               )?.name ??
               country.country_translations[0]?.name ??
               country.code;
@@ -818,12 +821,14 @@ function CountryList({
 function DojoList({
   dojos,
   countries,
+  displayLocale,
   loading,
   onEdit,
   onDelete,
 }: {
   dojos: DojoRow[];
   countries: CountryRow[];
+  displayLocale: Locale;
   loading: boolean;
   onEdit: (dojo: DojoRow) => void;
   onDelete: (id: string) => void;
@@ -831,7 +836,11 @@ function DojoList({
   const countryNameById = new Map(
     countries.map((country) => [
       country.id,
-      country.country_translations[0]?.name ?? country.code,
+      country.country_translations.find(
+        (translation) => translation.language_code === displayLocale,
+      )?.name ??
+        country.country_translations[0]?.name ??
+        country.code,
     ]),
   );
 
@@ -849,7 +858,7 @@ function DojoList({
           dojos.map((dojo) => {
             const name =
               dojo.dojo_translations.find(
-                (translation) => translation.language_code === "es",
+                (translation) => translation.language_code === displayLocale,
               )?.name ??
               dojo.dojo_translations[0]?.name ??
               dojo.city;
@@ -888,6 +897,7 @@ function DojoList({
 function CountryFormView({
   form,
   setForm,
+  onLocaleChange,
   saving,
   uploadingField,
   onUploadImage,
@@ -896,6 +906,7 @@ function CountryFormView({
 }: {
   form: CountryForm;
   setForm: React.Dispatch<React.SetStateAction<CountryForm>>;
+  onLocaleChange: (locale: Locale) => void;
   saving: boolean;
   uploadingField: string | null;
   onUploadImage: UploadImageFn;
@@ -914,9 +925,7 @@ function CountryFormView({
         <AdminSelect
           label="Idioma"
           value={form.locale}
-          onChange={(value) =>
-            setForm((current) => ({ ...current, locale: value as Locale }))
-          }
+          onChange={(value) => onLocaleChange(value as Locale)}
           options={locales.map((locale) => ({
             value: locale.key,
             label: locale.label,
@@ -1028,6 +1037,7 @@ function CountryFormView({
 function DojoFormView({
   form,
   setForm,
+  onLocaleChange,
   countries,
   saving,
   uploadingField,
@@ -1037,6 +1047,7 @@ function DojoFormView({
 }: {
   form: DojoForm;
   setForm: React.Dispatch<React.SetStateAction<DojoForm>>;
+  onLocaleChange: (locale: Locale) => void;
   countries: CountryRow[];
   saving: boolean;
   uploadingField: string | null;
@@ -1063,16 +1074,19 @@ function DojoFormView({
             { value: "", label: "Selecciona país" },
             ...countries.map((country) => ({
               value: country.id,
-              label: country.country_translations[0]?.name ?? country.code,
+              label:
+                country.country_translations.find(
+                  (translation) => translation.language_code === form.locale,
+                )?.name ??
+                country.country_translations[0]?.name ??
+                country.code,
             })),
           ]}
         />
         <AdminSelect
           label="Idioma"
           value={form.locale}
-          onChange={(value) =>
-            setForm((current) => ({ ...current, locale: value as Locale }))
-          }
+          onChange={(value) => onLocaleChange(value as Locale)}
           options={locales.map((locale) => ({
             value: locale.key,
             label: locale.label,
@@ -1388,6 +1402,59 @@ function ImageUploadField({
       </div>
     </div>
   );
+}
+
+function hydrateCountryForm(
+  country: CountryRow,
+  locale: Locale,
+  mediaById: Map<string, MediaRow>,
+): CountryForm {
+  const translation = country.country_translations.find(
+    (item) => item.language_code === locale,
+  );
+
+  return {
+    id: country.id,
+    locale,
+    code: country.code,
+    status: country.status,
+    isPublic: country.is_public,
+    name: translation?.name ?? "",
+    slug: translation?.slug ?? "",
+    description: translation?.description ?? "",
+    responsiblePerson: country.responsible_person ?? "",
+    responsibleEmail: country.responsible_email ?? "",
+    logoUrl: getMediaUrl(country.flag_media_id, mediaById),
+    imageUrl: getMediaUrl(country.main_image_media_id, mediaById),
+  };
+}
+
+function hydrateDojoForm(
+  dojo: DojoRow,
+  locale: Locale,
+  mediaById: Map<string, MediaRow>,
+): DojoForm {
+  const translation = dojo.dojo_translations.find(
+    (item) => item.language_code === locale,
+  );
+
+  return {
+    id: dojo.id,
+    locale,
+    countryId: dojo.country_id,
+    status: dojo.status,
+    isPublic: dojo.is_public,
+    name: translation?.name ?? "",
+    slug: translation?.slug ?? "",
+    description: translation?.description ?? "",
+    city: dojo.city,
+    address: dojo.address ?? "",
+    responsibleInstructor: dojo.responsible_instructor ?? "",
+    email: dojo.email ?? "",
+    phone: dojo.phone ?? "",
+    website: dojo.website ?? "",
+    imageUrl: getMediaUrl(dojo.main_image_media_id, mediaById),
+  };
 }
 
 function getMediaUrl(id: string | null, mediaById: Map<string, MediaRow>) {

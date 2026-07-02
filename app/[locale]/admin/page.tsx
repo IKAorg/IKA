@@ -94,7 +94,8 @@ const adminContent: Record<
 
 export default async function AdminPage({ params }: AdminPageProps) {
   const { locale } = await params;
-  const copy = adminContent[isLocale(locale) ? locale : "en"];
+  const safeLocale = isLocale(locale) ? locale : "en";
+  const copy = adminContent[safeLocale];
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">
@@ -130,15 +131,15 @@ export default async function AdminPage({ params }: AdminPageProps) {
         </AdminModule>
 
         <AdminModule title="Eventos y calendario">
-          <EventsAdmin />
+          <EventsAdmin initialLocale={safeLocale} />
         </AdminModule>
 
         <AdminModule title="Paises y dojos">
-          <LocationsAdmin />
+          <LocationsAdmin initialLocale={safeLocale} />
         </AdminModule>
 
         <AdminModule title="Paginas publicas">
-          <PagesAdmin />
+          <PagesAdmin initialLocale={safeLocale} />
         </AdminModule>
       </div>
     </section>
