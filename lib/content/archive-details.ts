@@ -1,4 +1,5 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { getArchiveCopy } from "./archive-translations";
 
 export type ArchiveDetail = {
   slug: string;
@@ -148,8 +149,19 @@ export const archiveDetails: ArchiveDetail[] = [
   }
 ];
 
-export function getArchiveDetail(_locale: Locale, slug: string) {
-  return archiveDetails.find((item) => item.slug === slug);
+export function getArchiveDetail(locale: Locale, slug: string) {
+  const detail = archiveDetails.find((item) => item.slug === slug);
+  const copy = getArchiveCopy(locale, slug);
+
+  if (!detail || !copy) {
+    return detail;
+  }
+
+  return {
+    ...detail,
+    title: copy.title,
+    excerpt: copy.excerpt,
+  };
 }
 
 export function getDefaultArchiveDetails() {
@@ -157,5 +169,47 @@ export function getDefaultArchiveDetails() {
 }
 
 export function getArchiveDetailHtml(detail: ArchiveDetail, locale: Locale = defaultLocale) {
-  return detail.contentHtml.replaceAll("/__LOCALE__/", `/${locale}/`);
+  const originalHtml = detail.contentHtml.replaceAll("/__LOCALE__/", `/${locale}/`);
+
+  if (locale === defaultLocale) {
+    return originalHtml;
+  }
+
+  const copy = getArchiveCopy(locale, detail.slug);
+
+  if (!copy) {
+    return originalHtml;
+  }
+
+  return `<div><p>${copy.excerpt}</p></div>${getArchiveMediaHtml(originalHtml)}`;
+}
+
+function getArchiveMediaHtml(contentHtml: string) {
+  const imageSources = Array.from(
+    new Set(
+      [...contentHtml.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/g)]
+        .map((match) => match[1])
+        .filter((src) => src.startsWith("/images/")),
+    ),
+  );
+  const iframes = [...contentHtml.matchAll(/<iframe[\s\S]*?<\/iframe>/g)].map(
+    (match) => match[0],
+  );
+
+  const galleryHtml =
+    imageSources.length > 0
+      ? `<div class="archive-translated-gallery">${imageSources
+          .map(
+            (src) =>
+              `<a href="${src}"><img src="${src}" alt="" loading="lazy" /></a>`,
+          )
+          .join("")}</div>`
+      : "";
+
+  const videoHtml =
+    iframes.length > 0
+      ? `<div class="archive-translated-video">${iframes.join("")}</div>`
+      : "";
+
+  return `${galleryHtml}${videoHtml}`;
 }

@@ -172,6 +172,7 @@ export function getArchiveNews(locale: Locale): ArchiveNewsItem[] {
 
     return {
       ...item,
+      title: detail?.title || item.title,
       image: detail?.heroImage || item.image,
       excerpt: detail?.excerpt || item.excerpt,
     };
