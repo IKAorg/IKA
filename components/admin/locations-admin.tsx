@@ -1047,7 +1047,7 @@ function CountryFormView({
         </div>
         <ImageUploadField
           label="Bandera del país"
-          helperText="Solo bandera oficial del país. Si no se sube una imagen, la web usará una bandera automática por código de país cuando sea posible."
+          helperText="Normalmente no hace falta subir nada: la web pone la bandera automáticamente según el código del país. Usa esta subida solo si necesitas sustituirla manualmente."
           value={form.logoUrl}
           uploading={uploadingField === "country-logo"}
           onUpload={async (file) => {

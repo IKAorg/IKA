@@ -42,14 +42,19 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 marker:hidden">
                   <span className="flex min-w-0 items-center gap-4">
-                    {country.logoUrl ? (
-                      <Image
-                        src={country.logoUrl}
-                        alt={`${country.name} flag`}
-                        width={44}
-                        height={32}
-                        className="mt-1 h-8 w-11 object-contain"
-                      />
+                    {country.flagUrls.length > 0 ? (
+                      <span className="flex shrink-0 items-center gap-1">
+                        {country.flagUrls.map((flagUrl) => (
+                          <Image
+                            key={flagUrl}
+                            src={flagUrl}
+                            alt={`${country.name} flag`}
+                            width={44}
+                            height={32}
+                            className="mt-1 h-8 w-11 object-contain"
+                          />
+                        ))}
+                      </span>
                     ) : (
                       <span className="flex h-8 w-11 items-center justify-center border border-[var(--line)] bg-[var(--paper)] text-lg">
                         {getFlagFallback(country.code)}

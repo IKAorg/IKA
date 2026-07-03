@@ -36,14 +36,19 @@ export default async function DojosPage({ params }: DojosPageProps) {
             .map((country) => (
               <section key={country.id}>
                 <div className="mb-4 flex items-center gap-3">
-                  {country.logoUrl ? (
-                    <Image
-                      src={country.logoUrl}
-                      alt={`${country.name} flag`}
-                      width={44}
-                      height={32}
-                      className="h-8 w-11 object-contain"
-                    />
+                  {country.flagUrls.length > 0 ? (
+                    <span className="flex items-center gap-1">
+                      {country.flagUrls.map((flagUrl) => (
+                        <Image
+                          key={flagUrl}
+                          src={flagUrl}
+                          alt={`${country.name} flag`}
+                          width={44}
+                          height={32}
+                          className="h-8 w-11 object-contain"
+                        />
+                      ))}
+                    </span>
                   ) : (
                     <span className="flex h-8 w-11 items-center justify-center border border-[var(--line)] bg-white text-lg">
                       {getFlagFallback(country.code)}

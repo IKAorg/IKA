@@ -49,6 +49,7 @@ export type PublicCountry = {
   responsiblePerson: string;
   responsibleEmail: string;
   logoUrl: string;
+  flagUrls: string[];
 };
 
 export type PublicDojo = {
@@ -132,6 +133,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       responsiblePerson: country.responsible_person ?? "",
       responsibleEmail: country.responsible_email ?? "",
       logoUrl: logo?.storage_path ?? "",
+      flagUrls: getCountryFlagUrls(country.code, logo?.storage_path),
     };
   });
 
@@ -164,6 +166,31 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   });
 
   return { countries: publicCountries, dojos: publicDojos };
+}
+
+function getCountryFlagUrls(code: string, uploadedFlagUrl?: string) {
+  const flagCodeByCountryCode: Record<string, string[]> = {
+    CH: ["ch"],
+    CR: ["cr"],
+    CZ: ["cz"],
+    ES: ["es"],
+    GB: ["gb"],
+    HK: ["hk"],
+    IE: ["ie"],
+    IT: ["it"],
+    JP: ["jp"],
+    "ID-MY": ["id", "my"],
+  };
+
+  const automaticFlags = flagCodeByCountryCode[code]?.map(
+    (flagCode) => `https://flagcdn.com/w80/${flagCode}.png`,
+  );
+
+  if (automaticFlags?.length) {
+    return automaticFlags;
+  }
+
+  return uploadedFlagUrl ? [uploadedFlagUrl] : [];
 }
 
 function getPreferredTranslation<
