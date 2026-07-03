@@ -1,17 +1,45 @@
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { locales, type Locale } from "@/lib/i18n/config";
+import { getPublicPageContent } from "@/lib/i18n/public-pages";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
 
 type RoleKey = "global_admin" | "country_admin" | "dojo_admin";
+type UntypedTable = {
+  Row: Record<string, unknown>;
+  Insert: Record<string, unknown>;
+  Update: Record<string, unknown>;
+  Relationships: [];
+};
+type UntypedDatabase = {
+  public: {
+    Tables: Record<string, UntypedTable>;
+    Views: Record<string, UntypedTable>;
+    Functions: Record<string, never>;
+  };
+};
 type SupabaseAdminClient = ReturnType<
-  typeof createServiceClient<Record<string, never>>
+  typeof createServiceClient<UntypedDatabase, "public", "public">
 >;
 
 const assignableRoles: RoleKey[] = [
   "global_admin",
   "country_admin",
   "dojo_admin",
+];
+
+const legacyCountrySeeds = [
+  { code: "CR", index: 0 },
+  { code: "CZ", index: 1 },
+  { code: "ID-MY", index: 2 },
+  { code: "IE", index: 3 },
+  { code: "IT", index: 4 },
+  { code: "HK", index: 5 },
+  { code: "JP", index: 6 },
+  { code: "ES", index: 7 },
+  { code: "CH", index: 8 },
+  { code: "GB", index: 9 },
 ];
 
 export async function GET() {
@@ -76,6 +104,21 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
+
+  if (body?.action === "seed_countries") {
+    const result = await seedBaseCountries(guard.admin);
+
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      importedCount: result.importedCount,
+      updatedCount: result.updatedCount,
+    });
+  }
+
   const email = normalizeEmail(body?.email);
   const displayName = normalizeText(body?.displayName);
   const roleKey = body?.roleKey as RoleKey;
@@ -183,6 +226,99 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+async function seedBaseCountries(supabase: SupabaseAdminClient) {
+  let importedCount = 0;
+  let updatedCount = 0;
+
+  for (const seed of legacyCountrySeeds) {
+    const countryResult = await supabase
+      .from("countries")
+      .upsert(
+        {
+          code: seed.code,
+          status: "published",
+          is_public: true,
+        },
+        { onConflict: "code" },
+      )
+      .select("id")
+      .single<{ id: string }>();
+
+    if (countryResult.error || !countryResult.data) {
+      return {
+        error:
+          countryResult.error?.message ??
+          `No se pudo cargar el pais ${seed.code}.`,
+      };
+    }
+
+    const countryId = countryResult.data.id;
+    updatedCount += 1;
+
+    for (const locale of locales) {
+      const name = getSeedCountryName(locale, seed.index, seed.code);
+      const slug = await getUniqueCountrySlug(
+        supabase,
+        locale,
+        countryId,
+        name,
+        seed.code,
+      );
+
+      const translationResult = await supabase
+        .from("country_translations")
+        .upsert(
+          {
+            country_id: countryId,
+            language_code: locale,
+            name,
+            slug,
+            description: null,
+          },
+          { onConflict: "country_id,language_code" },
+        );
+
+      if (translationResult.error) {
+        return { error: translationResult.error.message };
+      }
+    }
+
+    importedCount += 1;
+  }
+
+  return { importedCount, updatedCount };
+}
+
+async function getUniqueCountrySlug(
+  supabase: SupabaseAdminClient,
+  locale: Locale,
+  countryId: string,
+  name: string,
+  code: string,
+) {
+  const baseSlug = slugify(name) || slugify(code) || "country";
+  const candidates = [baseSlug, `${baseSlug}-${slugify(code)}`];
+
+  for (const candidate of candidates) {
+    const { data } = await supabase
+      .from("country_translations")
+      .select("country_id")
+      .eq("language_code", locale)
+      .eq("slug", candidate)
+      .maybeSingle<{ country_id: string }>();
+
+    if (!data || data.country_id === countryId) {
+      return candidate;
+    }
+  }
+
+  return `${baseSlug}-${slugify(code)}-${countryId.slice(0, 8)}`;
+}
+
+function getSeedCountryName(locale: Locale, index: number, fallback: string) {
+  return getPublicPageContent(locale, "countries").countries?.[index] ?? fallback;
 }
 
 export async function DELETE(request: NextRequest) {
@@ -348,4 +484,14 @@ function normalizeText(value: unknown) {
 function normalizeOptionalId(value: unknown) {
   const text = normalizeText(value);
   return text || null;
+}
+
+function slugify(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }

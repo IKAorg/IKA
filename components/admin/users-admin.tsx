@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { Database, Loader2, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
@@ -85,6 +85,7 @@ export function UsersAdmin({
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [seedingCountries, setSeedingCountries] = useState(false);
   const [message, setMessage] = useState("");
 
   const loadUsers = useCallback(async () => {
@@ -194,6 +195,28 @@ export function UsersAdmin({
     setMessage("Usuario y rol guardados.");
     await loadUsers();
     setSaving(false);
+  }
+
+  async function seedCountries() {
+    setSeedingCountries(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "seed_countries" }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudieron cargar los paises base.");
+      setSeedingCountries(false);
+      return;
+    }
+
+    setMessage("Paises base cargados. Ya puedes asignar administradores.");
+    await loadUsers();
+    setSeedingCountries(false);
   }
 
   async function deleteAssignment(id: string) {
@@ -309,27 +332,52 @@ export function UsersAdmin({
           </label>
 
           {form.roleKey === "country_admin" || form.roleKey === "dojo_admin" ? (
-            <label className="grid gap-2 text-sm font-semibold">
-              Pais
-              <select
-                value={form.countryId}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    countryId: event.target.value,
-                    dojoId: "",
-                  }))
-                }
-                className="border border-[var(--line)] px-3 py-2 font-normal"
-              >
-                <option value="">Selecciona pais</option>
-                {payload.countries.map((country) => (
-                  <option key={country.id} value={country.id}>
-                    {countryLabel(country, initialLocale)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="grid gap-2">
+              <label className="grid gap-2 text-sm font-semibold">
+                Pais
+                <select
+                  value={form.countryId}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      countryId: event.target.value,
+                      dojoId: "",
+                    }))
+                  }
+                  className="border border-[var(--line)] px-3 py-2 font-normal"
+                >
+                  <option value="">Selecciona pais</option>
+                  {payload.countries.map((country) => (
+                    <option key={country.id} value={country.id}>
+                      {countryLabel(country, initialLocale)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {!loading && payload.countries.length === 0 ? (
+                <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-3 text-sm">
+                  <p className="text-[var(--muted)]">
+                    No hay paises reales en Supabase. La web publica puede
+                    mostrar paises de respaldo, pero para permisos hacen falta
+                    registros con ID.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={seedCountries}
+                    disabled={seedingCountries}
+                    className="inline-flex items-center justify-center gap-2 border border-[var(--line)] bg-white px-3 py-2 font-semibold disabled:opacity-50"
+                  >
+                    {seedingCountries ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Database size={16} />
+                    )}
+                    Cargar paises base
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           {form.roleKey === "dojo_admin" ? (
@@ -388,6 +436,18 @@ export function UsersAdmin({
               {message}
             </p>
           ) : null}
+
+          <div className="border border-[var(--line)] bg-[var(--paper)] p-3 text-sm leading-6 text-[var(--muted)]">
+            <p className="font-semibold text-[var(--ink)]">
+              Credenciales Kenshi
+            </p>
+            <p>
+              Para estudiantes, el flujo correcto sera crear la ficha Kenshi y
+              enviar una invitacion segura por email. El Kenshi activara su
+              cuenta y podra cambiar su usuario/contraseña desde su portal; no
+              se deben enviar contraseñas fijas por correo.
+            </p>
+          </div>
         </div>
       </section>
 
