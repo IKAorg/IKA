@@ -81,7 +81,14 @@ export async function GET() {
     countriesResult.data ?? [],
     guard.scope,
   );
-  const dojos = filterDojosByScope(dojosResult.data ?? [], guard.scope);
+  const readiness = await getAdminReadiness(guard.admin);
+  const dojos = filterDojosByScope(dojosResult.data ?? [], guard.scope).map(
+    (dojo) => ({
+      ...dojo,
+      has_country_admin: readiness.countryIdsWithAdmin.has(dojo.country_id),
+      has_dojo_admin: readiness.dojoIdsWithAdmin.has(dojo.id),
+    }),
+  );
   const members = filterMembersByScope(membersResult.data ?? [], guard.scope);
 
   return NextResponse.json({
@@ -140,6 +147,7 @@ export async function POST(request: NextRequest) {
 
   const countries = countriesResult.data ?? [];
   const dojos = dojosResult.data ?? [];
+  const readiness = await getAdminReadiness(guard.admin);
   const result = {
     imported: 0,
     invited: 0,
@@ -165,11 +173,21 @@ export async function POST(request: NextRequest) {
     const countryId = country?.id ?? dojo?.country_id ?? null;
     const dojoId = dojo?.id ?? null;
 
-    if (!countryId && !dojoId) {
+    if (!dojoId) {
       result.skipped += 1;
       result.errors.push({
         row: rowNumber,
-        error: "Indica un pais o dojo existente.",
+        error:
+          "El volcado masivo debe estar asignado a un dojo existente.",
+      });
+      continue;
+    }
+
+    if (!countryId) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: "El dojo debe pertenecer a un pais existente.",
       });
       continue;
     }
@@ -179,6 +197,26 @@ export async function POST(request: NextRequest) {
       result.errors.push({
         row: rowNumber,
         error: "No tienes permisos para ese pais o dojo.",
+      });
+      continue;
+    }
+
+    if (!readiness.countryIdsWithAdmin.has(countryId)) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error:
+          "Antes de importar Kenshi debe existir un administrador de pais.",
+      });
+      continue;
+    }
+
+    if (!readiness.dojoIdsWithAdmin.has(dojoId)) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error:
+          "Antes de importar Kenshi debe existir un administrador de dojo.",
       });
       continue;
     }
@@ -519,6 +557,33 @@ function canManageTarget(
     (countryId ? scope.countryIds.includes(countryId) : false) ||
     (dojoId ? scope.dojoIds.includes(dojoId) : false)
   );
+}
+
+async function getAdminReadiness(supabase: SupabaseAdminClient) {
+  const assignments = await supabase
+    .from("user_roles")
+    .select("country_id,dojo_id,roles(key)");
+
+  const countryIdsWithAdmin = new Set<string>();
+  const dojoIdsWithAdmin = new Set<string>();
+
+  if (assignments.error) {
+    return { countryIdsWithAdmin, dojoIdsWithAdmin };
+  }
+
+  for (const assignment of (assignments.data ?? []) as ScopeRole[]) {
+    const roleKey = getRoleKey(assignment.roles);
+
+    if (roleKey === "country_admin" && assignment.country_id) {
+      countryIdsWithAdmin.add(assignment.country_id);
+    }
+
+    if (roleKey === "dojo_admin" && assignment.dojo_id) {
+      dojoIdsWithAdmin.add(assignment.dojo_id);
+    }
+  }
+
+  return { countryIdsWithAdmin, dojoIdsWithAdmin };
 }
 
 function filterCountriesByScope<T extends { id: string }>(

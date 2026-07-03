@@ -14,6 +14,8 @@ type DojoOption = {
   id: string;
   country_id: string;
   city: string;
+  has_country_admin?: boolean;
+  has_dojo_admin?: boolean;
   dojo_translations?: Array<{ language_code: string; name: string }>;
 };
 
@@ -67,12 +69,13 @@ const emptyPayload: MembersPayload = {
 };
 
 const csvTemplate =
-  "first_name,last_name,email,country_code,dojo,current_grade,joined_date,phone\n" +
-  "Ane,Gonzalez,ane@example.com,ES,Dojo Tolosa,3 kyu,2026-01-10,+34 600 000 000\n";
+  "first_name,last_name,email,current_grade,joined_date,phone\n" +
+  "Ane,Gonzalez,ane@example.com,3 kyu,2026-01-10,+34 600 000 000\n";
 
 export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [payload, setPayload] = useState<MembersPayload>(emptyPayload);
   const [csvText, setCsvText] = useState(csvTemplate);
+  const [selectedDojoId, setSelectedDojoId] = useState("");
   const [sendInvites, setSendInvites] = useState(true);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -131,6 +134,18 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   }, []);
 
   const rows = useMemo(() => parseCsvRows(csvText, payload), [csvText, payload]);
+  const eligibleDojos = useMemo(
+    () =>
+      payload.dojos.filter(
+        (dojo) => dojo.has_country_admin && dojo.has_dojo_admin,
+      ),
+    [payload.dojos],
+  );
+  const selectedDojo =
+    payload.dojos.find((dojo) => dojo.id === selectedDojoId) ?? null;
+  const selectedDojoReady =
+    selectedDojo?.has_country_admin === true &&
+    selectedDojo?.has_dojo_admin === true;
 
   const validRows = useMemo(
     () => rows.filter((row) => row.firstName && row.lastName),
@@ -145,7 +160,14 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        rows: validRows,
+        rows: validRows.map((row) => ({
+          ...row,
+          countryId: selectedDojo?.country_id ?? "",
+          countryCode: "",
+          countryName: "",
+          dojoId: selectedDojo?.id ?? "",
+          dojoName: "",
+        })),
         sendInvites,
         locale: initialLocale,
       }),
@@ -189,9 +211,9 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               <h2 className="text-2xl font-semibold">Importacion Kenshi</h2>
             </div>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              Importa muchos practicantes a la vez desde Excel exportado como
-              CSV. Cada fila crea una ficha Kenshi; si hay email y activas las
-              invitaciones, el Kenshi recibe enlace para activar su cuenta.
+              Selecciona primero el dojo y despues importa muchos practicantes
+              a la vez desde Excel exportado como CSV. Solo se puede importar
+              cuando el pais tiene admin de pais y el dojo tiene admin de dojo.
             </p>
           </div>
 
@@ -211,6 +233,38 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             />
           </label>
         </div>
+
+        <label className="grid gap-2 text-sm font-semibold">
+          Dojo destino
+          <select
+            value={selectedDojoId}
+            onChange={(event) => setSelectedDojoId(event.target.value)}
+            className="border border-[var(--line)] px-3 py-2 font-normal"
+          >
+            <option value="">Selecciona dojo</option>
+            {payload.dojos.map((dojo) => {
+              const ready = dojo.has_country_admin && dojo.has_dojo_admin;
+
+              return (
+                <option key={dojo.id} value={dojo.id} disabled={!ready}>
+                  {dojoLabel(dojo, initialLocale)} ·{" "}
+                  {countryLabelById(payload, dojo.country_id, initialLocale)}
+                  {ready ? "" : " · falta admin pais o dojo"}
+                </option>
+              );
+            })}
+          </select>
+          {payload.dojos.length === 0 ? (
+            <span className="text-sm text-[var(--accent)]">
+              No hay dojos disponibles para tu rol.
+            </span>
+          ) : eligibleDojos.length === 0 ? (
+            <span className="text-sm text-[var(--accent)]">
+              Primero crea el admin de pais y el admin de dojo antes de importar
+              Kenshi.
+            </span>
+          ) : null}
+        </label>
 
         <textarea
           value={csvText}
@@ -232,7 +286,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           <button
             type="button"
             onClick={importRows}
-            disabled={importing || validRows.length === 0}
+            disabled={importing || validRows.length === 0 || !selectedDojoReady}
             className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
             {importing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
@@ -266,10 +320,23 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                   </td>
                   <td className="py-2 pr-4">{row.email || "-"}</td>
                   <td className="py-2 pr-4">
-                    {row.countryName || row.countryCode || countryLabelById(payload, row.countryId, initialLocale) || "-"}
+                    {selectedDojo
+                      ? countryLabelById(
+                          payload,
+                          selectedDojo.country_id,
+                          initialLocale,
+                        )
+                      : row.countryName ||
+                        row.countryCode ||
+                        countryLabelById(payload, row.countryId, initialLocale) ||
+                        "-"}
                   </td>
                   <td className="py-2 pr-4">
-                    {row.dojoName || dojoLabelById(payload, row.dojoId, initialLocale) || "-"}
+                    {selectedDojo
+                      ? dojoLabel(selectedDojo, initialLocale)
+                      : row.dojoName ||
+                        dojoLabelById(payload, row.dojoId, initialLocale) ||
+                        "-"}
                   </td>
                   <td className="py-2 pr-4">{row.currentGrade || "-"}</td>
                 </tr>

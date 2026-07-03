@@ -51,6 +51,14 @@ type UsersPayload = {
   assignments: Assignment[];
   countries: CountryOption[];
   dojos: DojoOption[];
+  assignableRoles?: RoleKey[];
+  scope?: {
+    isSuperAdmin: boolean;
+    isGlobal: boolean;
+    countryIds: string[];
+    dojoIds: string[];
+    roleKeys: string[];
+  };
 };
 
 const roleLabels: Record<RoleKey, string> = {
@@ -105,7 +113,23 @@ export function UsersAdmin({
         dojos: [],
       });
     } else {
-      setPayload(data as UsersPayload);
+      const nextPayload = data as UsersPayload;
+      const nextRoleKeys =
+        nextPayload.assignableRoles && nextPayload.assignableRoles.length > 0
+          ? nextPayload.assignableRoles
+          : nextPayload.roles.map((role) => role.key);
+
+      setPayload(nextPayload);
+      setForm((current) =>
+        nextRoleKeys.length > 0 && !nextRoleKeys.includes(current.roleKey)
+          ? {
+              ...current,
+              roleKey: nextRoleKeys[0],
+              countryId: "",
+              dojoId: "",
+            }
+          : current,
+      );
     }
 
     setLoading(false);
@@ -246,14 +270,21 @@ export function UsersAdmin({
     form.countryId && form.roleKey === "dojo_admin"
       ? payload.dojos.filter((dojo) => dojo.country_id === form.countryId)
       : payload.dojos;
+  const availableRoleKeys = useMemo(
+    () =>
+      payload.assignableRoles && payload.assignableRoles.length > 0
+        ? payload.assignableRoles
+        : payload.roles.map((role) => role.key),
+    [payload.assignableRoles, payload.roles],
+  );
 
   if (!session) {
     return (
       <div className="grid gap-4 border border-[var(--line)] bg-white p-5">
-        <h2 className="text-2xl font-semibold">Acceso super admin</h2>
+        <h2 className="text-2xl font-semibold">Acceso admin</h2>
         <p className="text-sm leading-6 text-[var(--muted)]">
-          Entra con tu usuario super_admin para invitar administradores y
-          asignarles paises o dojos.
+          Entra con tu usuario administrador para invitar y asignar permisos
+          segun tu nivel.
         </p>
         <input
           value={loginEmail}
@@ -325,9 +356,11 @@ export function UsersAdmin({
               }
               className="border border-[var(--line)] px-3 py-2 font-normal"
             >
-              <option value="global_admin">Admin global</option>
-              <option value="country_admin">Admin de pais</option>
-              <option value="dojo_admin">Admin de dojo</option>
+              {availableRoleKeys.map((roleKey) => (
+                <option key={roleKey} value={roleKey}>
+                  {roleLabels[roleKey]}
+                </option>
+              ))}
             </select>
           </label>
 
@@ -439,13 +472,14 @@ export function UsersAdmin({
 
           <div className="border border-[var(--line)] bg-[var(--paper)] p-3 text-sm leading-6 text-[var(--muted)]">
             <p className="font-semibold text-[var(--ink)]">
-              Credenciales Kenshi
+              Flujo correcto de inscripcion
             </p>
             <p>
-              Para estudiantes, el flujo correcto sera crear la ficha Kenshi y
-              enviar una invitacion segura por email. El Kenshi activara su
-              cuenta y podra cambiar su usuario/contraseña desde su portal; no
-              se deben enviar contraseñas fijas por correo.
+              Super admin crea paises, dojos y administradores. Admin de pais
+              crea administradores de dojo. Admin de dojo crea solo Kenshi de
+              su propio dojo. El Kenshi activa su cuenta y puede modificar sus
+              credenciales y datos personales permitidos, nunca grados ni datos
+              federativos protegidos.
             </p>
           </div>
         </div>
