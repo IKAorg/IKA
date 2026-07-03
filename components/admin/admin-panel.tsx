@@ -38,6 +38,15 @@ const UsersAdmin = dynamic(
   },
 );
 
+const MembersAdmin = dynamic(
+  () =>
+    import("@/components/admin/members-admin").then((mod) => mod.MembersAdmin),
+  {
+    ssr: false,
+    loading: () => <AdminLoading />,
+  },
+);
+
 const SettingsAdmin = dynamic(
   () =>
     import("@/components/admin/settings-admin").then((mod) => mod.SettingsAdmin),
@@ -56,6 +65,10 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     <>
       <AdminModule title="Usuarios y permisos">
         <UsersAdmin initialLocale={locale} />
+      </AdminModule>
+
+      <AdminModule title="Kenshi e importacion masiva">
+        <MembersAdmin initialLocale={locale} />
       </AdminModule>
 
       <AdminModule title="Ajustes globales">

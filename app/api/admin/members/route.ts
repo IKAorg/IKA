@@ -1,0 +1,620 @@
+import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { NextResponse, type NextRequest } from "next/server";
+import { createClient as createSessionClient } from "@/lib/supabase/server";
+import { getSupabaseProjectUrl } from "@/lib/supabase/url";
+
+type ScopeRole = {
+  country_id: string | null;
+  dojo_id: string | null;
+  roles: { key: string } | Array<{ key: string }> | null;
+};
+type UntypedTable = {
+  Row: Record<string, unknown>;
+  Insert: Record<string, unknown>;
+  Update: Record<string, unknown>;
+  Relationships: [];
+};
+type UntypedDatabase = {
+  public: {
+    Tables: Record<string, UntypedTable>;
+    Views: Record<string, UntypedTable>;
+    Functions: Record<string, never>;
+  };
+};
+type SupabaseAdminClient = ReturnType<
+  typeof createServiceClient<UntypedDatabase, "public", "public">
+>;
+
+type ImportRow = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  countryId?: string;
+  countryCode?: string;
+  countryName?: string;
+  dojoId?: string;
+  dojoName?: string;
+  birthDate?: string;
+  joinedDate?: string;
+  currentGrade?: string;
+  mainInstructor?: string;
+  guardianName?: string;
+  guardianEmail?: string;
+  isMinor?: boolean | string;
+  notes?: string;
+};
+
+export async function GET() {
+  const guard = await requireMembersAdmin();
+
+  if (guard.error) {
+    return guard.error;
+  }
+
+  const [countriesResult, dojosResult, membersResult] = await Promise.all([
+    guard.admin
+      .from("countries")
+      .select("id,code,country_translations(language_code,name)")
+      .order("code", { ascending: true }),
+    guard.admin
+      .from("dojos")
+      .select("id,country_id,city,dojo_translations(language_code,name)")
+      .order("city", { ascending: true }),
+    guard.admin
+      .from("members")
+      .select(
+        "id,ika_number,first_name,last_name,email,phone,status,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
+      )
+      .order("created_at", { ascending: false })
+      .limit(80),
+  ]);
+
+  const firstError =
+    countriesResult.error ?? dojosResult.error ?? membersResult.error;
+
+  if (firstError) {
+    return NextResponse.json({ error: firstError.message }, { status: 500 });
+  }
+
+  const countries = filterCountriesByScope(
+    countriesResult.data ?? [],
+    guard.scope,
+  );
+  const dojos = filterDojosByScope(dojosResult.data ?? [], guard.scope);
+  const members = filterMembersByScope(membersResult.data ?? [], guard.scope);
+
+  return NextResponse.json({
+    countries,
+    dojos,
+    members,
+    scope: guard.scope,
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const guard = await requireMembersAdmin();
+
+  if (guard.error) {
+    return guard.error;
+  }
+
+  const body = await request.json().catch(() => null);
+  const rows = Array.isArray(body?.rows) ? (body.rows as ImportRow[]) : [];
+  const sendInvites = body?.sendInvites === true;
+  const locale = normalizeText(body?.locale) || "es";
+
+  if (rows.length === 0) {
+    return NextResponse.json(
+      { error: "No hay filas Kenshi para importar." },
+      { status: 400 },
+    );
+  }
+
+  if (rows.length > 500) {
+    return NextResponse.json(
+      { error: "Importa como maximo 500 Kenshi por lote." },
+      { status: 400 },
+    );
+  }
+
+  const [countriesResult, dojosResult, kenshiRoleResult] = await Promise.all([
+    guard.admin
+      .from("countries")
+      .select("id,code,country_translations(language_code,name)"),
+    guard.admin
+      .from("dojos")
+      .select("id,country_id,city,dojo_translations(language_code,name)"),
+    guard.admin.from("roles").select("id").eq("key", "kenshi").single(),
+  ]);
+
+  const firstError =
+    countriesResult.error ?? dojosResult.error ?? kenshiRoleResult.error;
+
+  if (firstError || !kenshiRoleResult.data) {
+    return NextResponse.json(
+      { error: firstError?.message ?? "No se encontro el rol Kenshi." },
+      { status: 500 },
+    );
+  }
+
+  const countries = countriesResult.data ?? [];
+  const dojos = dojosResult.data ?? [];
+  const result = {
+    imported: 0,
+    invited: 0,
+    skipped: 0,
+    errors: [] as Array<{ row: number; error: string }>,
+  };
+
+  for (const [index, rawRow] of rows.entries()) {
+    const rowNumber = index + 1;
+    const row = normalizeImportRow(rawRow);
+
+    if (!row.firstName || !row.lastName) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: "Nombre y apellido son obligatorios.",
+      });
+      continue;
+    }
+
+    const country = resolveCountry(countries, row);
+    const dojo = resolveDojo(dojos, row, country?.id ?? null);
+    const countryId = country?.id ?? dojo?.country_id ?? null;
+    const dojoId = dojo?.id ?? null;
+
+    if (!countryId && !dojoId) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: "Indica un pais o dojo existente.",
+      });
+      continue;
+    }
+
+    if (!canManageTarget(guard.scope, countryId, dojoId)) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: "No tienes permisos para ese pais o dojo.",
+      });
+      continue;
+    }
+
+    const duplicate = row.email
+      ? await guard.admin
+          .from("members")
+          .select("id")
+          .ilike("email", row.email)
+          .maybeSingle<{ id: string }>()
+      : { data: null, error: null };
+
+    if (duplicate.error) {
+      result.skipped += 1;
+      result.errors.push({ row: rowNumber, error: duplicate.error.message });
+      continue;
+    }
+
+    if (duplicate.data) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: "Ya existe un Kenshi con ese email.",
+      });
+      continue;
+    }
+
+    let authUserId: string | null = null;
+    let profileId: string | null = null;
+
+    if (row.email) {
+      authUserId = await findAuthUserIdByEmail(guard.admin, row.email);
+
+      if (!authUserId && sendInvites) {
+        const invite = await guard.admin.auth.admin.inviteUserByEmail(row.email, {
+          redirectTo: `${request.nextUrl.origin}/${locale}/portal`,
+        });
+
+        if (invite.error) {
+          result.skipped += 1;
+          result.errors.push({ row: rowNumber, error: invite.error.message });
+          continue;
+        }
+
+        authUserId = invite.data.user?.id ?? null;
+        result.invited += authUserId ? 1 : 0;
+      }
+
+      const profile = await guard.admin
+        .from("users_profiles")
+        .upsert(
+          {
+            email: row.email,
+            display_name: `${row.firstName} ${row.lastName}`,
+            auth_user_id: authUserId,
+            status: authUserId ? "invited" : "active",
+          },
+          { onConflict: "email" },
+        )
+        .select("id")
+        .single<{ id: string }>();
+
+      if (profile.error || !profile.data) {
+        result.skipped += 1;
+        result.errors.push({
+          row: rowNumber,
+          error: profile.error?.message ?? "No se pudo crear el perfil.",
+        });
+        continue;
+      }
+
+      profileId = profile.data.id;
+
+      const role = await guard.admin.from("user_roles").upsert(
+        {
+          profile_id: profileId,
+          role_id: kenshiRoleResult.data.id,
+          country_id: countryId,
+          dojo_id: dojoId,
+          created_by: guard.profileId,
+        },
+        {
+          onConflict: "profile_id,role_id,country_id,dojo_id",
+          ignoreDuplicates: true,
+        },
+      );
+
+      if (role.error) {
+        result.skipped += 1;
+        result.errors.push({ row: rowNumber, error: role.error.message });
+        continue;
+      }
+    }
+
+    const member = await guard.admin.from("members").insert({
+      profile_id: profileId,
+      first_name: row.firstName,
+      last_name: row.lastName,
+      birth_date: normalizeDate(row.birthDate),
+      country_id: countryId,
+      dojo_id: dojoId,
+      main_instructor: row.mainInstructor || null,
+      email: row.email || null,
+      phone: row.phone || null,
+      is_minor: normalizeBoolean(row.isMinor),
+      guardian_name: row.guardianName || null,
+      guardian_email: row.guardianEmail || null,
+      joined_date: normalizeDate(row.joinedDate),
+      status: "active",
+      current_grade: row.currentGrade || null,
+      internal_notes: row.notes || null,
+      created_by: guard.profileId,
+      updated_by: guard.profileId,
+    });
+
+    if (member.error) {
+      result.skipped += 1;
+      result.errors.push({ row: rowNumber, error: member.error.message });
+      continue;
+    }
+
+    result.imported += 1;
+  }
+
+  return NextResponse.json(result);
+}
+
+async function requireMembersAdmin() {
+  const sessionClient = await createSessionClient();
+  const {
+    data: { user },
+  } = await sessionClient.auth.getUser();
+
+  if (!user) {
+    return {
+      error: NextResponse.json({ error: "No autenticado." }, { status: 401 }),
+    } as const;
+  }
+
+  const url = getSupabaseProjectUrl();
+  const serviceRoleKey = getServiceRoleKey();
+
+  if (!url || !serviceRoleKey) {
+    return {
+      error: NextResponse.json(
+        {
+          error:
+            "Falta configuracion de Vercel para gestionar Kenshi.",
+          detectedSupabaseVariables: getDetectedSupabaseEnvNames(),
+        },
+        { status: 500 },
+      ),
+    } as const;
+  }
+
+  const admin = createServiceClient(url, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: profile, error } = await admin
+    .from("users_profiles")
+    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .eq("auth_user_id", user.id)
+    .single<{ id: string; user_roles: ScopeRole[] | null }>();
+
+  if (error || !profile) {
+    return {
+      error: NextResponse.json(
+        { error: "No se encontro el perfil del administrador." },
+        { status: 403 },
+      ),
+    } as const;
+  }
+
+  const roles = profile.user_roles ?? [];
+  const roleKeys = roles.map((role) => getRoleKey(role.roles)).filter(Boolean);
+  const isAllowed = roleKeys.some((role) =>
+    ["super_admin", "global_admin", "country_admin", "dojo_admin"].includes(
+      role ?? "",
+    ),
+  );
+
+  if (!isAllowed) {
+    return {
+      error: NextResponse.json(
+        { error: "No tienes permisos para gestionar Kenshi." },
+        { status: 403 },
+      ),
+    } as const;
+  }
+
+  const scope = {
+    isGlobal: roleKeys.includes("super_admin") || roleKeys.includes("global_admin"),
+    countryIds: roles
+      .filter((role) => getRoleKey(role.roles) === "country_admin")
+      .map((role) => role.country_id)
+      .filter(Boolean) as string[],
+    dojoIds: roles
+      .filter((role) => getRoleKey(role.roles) === "dojo_admin")
+      .map((role) => role.dojo_id)
+      .filter(Boolean) as string[],
+  };
+
+  return { admin, profileId: profile.id, scope } as const;
+}
+
+async function findAuthUserIdByEmail(
+  supabase: SupabaseAdminClient,
+  email: string,
+) {
+  let page = 1;
+
+  while (page <= 10) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 100,
+    });
+
+    if (error) {
+      return null;
+    }
+
+    const user = data.users.find(
+      (item) => item.email?.toLowerCase() === email,
+    );
+
+    if (user) {
+      return user.id;
+    }
+
+    if (data.users.length < 100) {
+      return null;
+    }
+
+    page += 1;
+  }
+
+  return null;
+}
+
+function normalizeImportRow(row: ImportRow) {
+  return {
+    firstName: normalizeText(row.firstName),
+    lastName: normalizeText(row.lastName),
+    email: normalizeEmail(row.email),
+    phone: normalizeText(row.phone),
+    countryId: normalizeText(row.countryId),
+    countryCode: normalizeText(row.countryCode).toUpperCase(),
+    countryName: normalizeText(row.countryName),
+    dojoId: normalizeText(row.dojoId),
+    dojoName: normalizeText(row.dojoName),
+    birthDate: normalizeText(row.birthDate),
+    joinedDate: normalizeText(row.joinedDate),
+    currentGrade: normalizeText(row.currentGrade),
+    mainInstructor: normalizeText(row.mainInstructor),
+    guardianName: normalizeText(row.guardianName),
+    guardianEmail: normalizeEmail(row.guardianEmail),
+    isMinor: row.isMinor,
+    notes: normalizeText(row.notes),
+  };
+}
+
+function resolveCountry(
+  countries: Array<{
+    id: string;
+    code: string;
+    country_translations?: Array<{ name: string }>;
+  }>,
+  row: ReturnType<typeof normalizeImportRow>,
+) {
+  if (row.countryId) {
+    return countries.find((country) => country.id === row.countryId) ?? null;
+  }
+
+  if (row.countryCode) {
+    return (
+      countries.find(
+        (country) => country.code.toUpperCase() === row.countryCode,
+      ) ?? null
+    );
+  }
+
+  const wanted = normalizeComparable(row.countryName);
+
+  if (!wanted) {
+    return null;
+  }
+
+  return (
+    countries.find((country) =>
+      country.country_translations?.some(
+        (translation) => normalizeComparable(translation.name) === wanted,
+      ),
+    ) ?? null
+  );
+}
+
+function resolveDojo(
+  dojos: Array<{
+    id: string;
+    country_id: string;
+    city: string;
+    dojo_translations?: Array<{ name: string }>;
+  }>,
+  row: ReturnType<typeof normalizeImportRow>,
+  countryId: string | null,
+) {
+  if (row.dojoId) {
+    return dojos.find((dojo) => dojo.id === row.dojoId) ?? null;
+  }
+
+  const wanted = normalizeComparable(row.dojoName);
+
+  if (!wanted) {
+    return null;
+  }
+
+  return (
+    dojos.find((dojo) => {
+      const matchesName =
+        normalizeComparable(dojo.city) === wanted ||
+        dojo.dojo_translations?.some(
+          (translation) => normalizeComparable(translation.name) === wanted,
+        );
+
+      return matchesName && (!countryId || dojo.country_id === countryId);
+    }) ?? null
+  );
+}
+
+function canManageTarget(
+  scope: { isGlobal: boolean; countryIds: string[]; dojoIds: string[] },
+  countryId: string | null,
+  dojoId: string | null,
+) {
+  return (
+    scope.isGlobal ||
+    (countryId ? scope.countryIds.includes(countryId) : false) ||
+    (dojoId ? scope.dojoIds.includes(dojoId) : false)
+  );
+}
+
+function filterCountriesByScope<T extends { id: string }>(
+  countries: T[],
+  scope: { isGlobal: boolean; countryIds: string[]; dojoIds: string[] },
+) {
+  if (scope.isGlobal) {
+    return countries;
+  }
+
+  return countries.filter((country) => scope.countryIds.includes(country.id));
+}
+
+function filterDojosByScope<T extends { id: string; country_id: string }>(
+  dojos: T[],
+  scope: { isGlobal: boolean; countryIds: string[]; dojoIds: string[] },
+) {
+  if (scope.isGlobal) {
+    return dojos;
+  }
+
+  return dojos.filter(
+    (dojo) =>
+      scope.dojoIds.includes(dojo.id) || scope.countryIds.includes(dojo.country_id),
+  );
+}
+
+function filterMembersByScope<
+  T extends { country_id: string | null; dojo_id: string | null },
+>(
+  members: T[],
+  scope: { isGlobal: boolean; countryIds: string[]; dojoIds: string[] },
+) {
+  if (scope.isGlobal) {
+    return members;
+  }
+
+  return members.filter(
+    (member) =>
+      (member.country_id ? scope.countryIds.includes(member.country_id) : false) ||
+      (member.dojo_id ? scope.dojoIds.includes(member.dojo_id) : false),
+  );
+}
+
+function getRoleKey(role: { key: string } | Array<{ key: string }> | null) {
+  return Array.isArray(role) ? role[0]?.key : role?.key;
+}
+
+function getServiceRoleKey() {
+  return (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    ""
+  ).trim();
+}
+
+function getDetectedSupabaseEnvNames() {
+  return Object.keys(process.env)
+    .filter(
+      (key) =>
+        key.startsWith("SUPABASE_") || key.startsWith("NEXT_PUBLIC_SUPABASE_"),
+    )
+    .sort();
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeEmail(value: unknown) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function normalizeComparable(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function normalizeDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function normalizeBoolean(value: unknown) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return ["true", "1", "yes", "si", "sí"].includes(
+    value.trim().toLowerCase(),
+  );
+}
