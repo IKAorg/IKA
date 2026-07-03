@@ -208,21 +208,6 @@ export async function DELETE(request: NextRequest) {
 }
 
 async function requireSuperAdmin() {
-  const url = getSupabaseProjectUrl();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceRoleKey) {
-    return {
-      error: NextResponse.json(
-        {
-          error:
-            "Falta SUPABASE_SERVICE_ROLE_KEY en Vercel para gestionar usuarios.",
-        },
-        { status: 500 },
-      ),
-    } as const;
-  }
-
   const sessionClient = await createSessionClient();
   const {
     data: { user },
@@ -231,6 +216,28 @@ async function requireSuperAdmin() {
   if (!user) {
     return {
       error: NextResponse.json({ error: "No autenticado." }, { status: 401 }),
+    } as const;
+  }
+
+  const url = getSupabaseProjectUrl();
+  const serviceRoleKey = getServiceRoleKey();
+
+  if (!url || !serviceRoleKey) {
+    const missing = [
+      !url ? "NEXT_PUBLIC_SUPABASE_URL" : null,
+      !serviceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
+    ].filter(Boolean);
+
+    return {
+      error: NextResponse.json(
+        {
+          error: `Falta configuracion de Vercel para gestionar usuarios: ${missing.join(
+            ", ",
+          )}.`,
+          detectedSupabaseVariables: getDetectedSupabaseEnvNames(),
+        },
+        { status: 500 },
+      ),
     } as const;
   }
 
@@ -310,6 +317,24 @@ async function findAuthUserIdByEmail(
 
 function getRoleKey(role: { key: string } | Array<{ key: string }> | null) {
   return Array.isArray(role) ? role[0]?.key : role?.key;
+}
+
+function getServiceRoleKey() {
+  return (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    ""
+  ).trim();
+}
+
+function getDetectedSupabaseEnvNames() {
+  return Object.keys(process.env)
+    .filter(
+      (key) =>
+        key.startsWith("SUPABASE_") || key.startsWith("NEXT_PUBLIC_SUPABASE_"),
+    )
+    .sort();
 }
 
 function normalizeEmail(value: unknown) {
