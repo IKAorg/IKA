@@ -40,6 +40,8 @@ type UserAdminScope = {
   roleKeys: string[];
 };
 
+const bootstrapSuperAdminEmail = "internationalkempoassociation@gmail.com";
+
 const legacyCountrySeeds = [
   { code: "CR", index: 0 },
   { code: "CZ", index: 1 },
@@ -485,13 +487,30 @@ async function requireUserAdmin() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data: profile, error } = await admin
+  const { data: profileByAuthUser, error } = await admin
     .from("users_profiles")
     .select("id,user_roles(country_id,dojo_id,roles(key))")
     .eq("auth_user_id", user.id)
-    .single<{ id: string; user_roles: ScopeRole[] | null }>();
+    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
 
-  if (error || !profile) {
+  if (error) {
+    return {
+      error: NextResponse.json(
+        { error: "No se encontro el perfil del administrador." },
+        { status: 403 },
+      ),
+    } as const;
+  }
+
+  const profile =
+    profileByAuthUser ??
+    (await ensureBootstrapSuperAdminProfile(
+      admin,
+      user.id,
+      user.email ?? "",
+    ));
+
+  if (!profile) {
     return {
       error: NextResponse.json(
         { error: "No se encontro el perfil del administrador." },
@@ -528,6 +547,75 @@ async function requireUserAdmin() {
   }
 
   return { admin, profileId: profile.id, scope } as const;
+}
+
+async function ensureBootstrapSuperAdminProfile(
+  supabase: SupabaseAdminClient,
+  authUserId: string,
+  email: string,
+) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (normalizedEmail !== bootstrapSuperAdminEmail) {
+    return null;
+  }
+
+  const roleResult = await supabase
+    .from("roles")
+    .select("id")
+    .eq("key", "super_admin")
+    .maybeSingle<{ id: string }>();
+
+  if (roleResult.error || !roleResult.data) {
+    return null;
+  }
+
+  const profileResult = await supabase
+    .from("users_profiles")
+    .upsert(
+      {
+        auth_user_id: authUserId,
+        email: normalizedEmail,
+        display_name: "IKA org",
+        status: "active",
+      },
+      { onConflict: "email" },
+    )
+    .select("id")
+    .single<{ id: string }>();
+
+  if (profileResult.error || !profileResult.data) {
+    return null;
+  }
+
+  const assignment = await supabase.from("user_roles").upsert(
+    {
+      profile_id: profileResult.data.id,
+      role_id: roleResult.data.id,
+      country_id: null,
+      dojo_id: null,
+      created_by: profileResult.data.id,
+    },
+    {
+      onConflict: "profile_id,role_id,country_id,dojo_id",
+      ignoreDuplicates: true,
+    },
+  );
+
+  if (assignment.error) {
+    return null;
+  }
+
+  return {
+    id: profileResult.data.id,
+    user_roles: [
+      {
+        country_id: null,
+        dojo_id: null,
+        roles: { key: "super_admin" },
+      },
+    ],
+  };
 }
 
 function getAssignableRoles(scope: UserAdminScope): RoleKey[] {
