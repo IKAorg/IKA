@@ -1,12 +1,12 @@
 import { LockKeyhole, PanelsTopLeft, ShieldCheck } from "lucide-react";
-import { EventsAdmin } from "@/components/admin/events-admin";
-import { LocationsAdmin } from "@/components/admin/locations-admin";
-import { PagesAdmin } from "@/components/admin/pages-admin";
+import { AdminPanel } from "@/components/admin/admin-panel";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 
 type AdminPageProps = {
   params: Promise<{ locale: string }>;
 };
+
+export const dynamic = "force-dynamic";
 
 const adminContent: Record<
   Locale,
@@ -130,17 +130,7 @@ export default async function AdminPage({ params }: AdminPageProps) {
           </div>
         </AdminModule>
 
-        <AdminModule title="Eventos y calendario">
-          <EventsAdmin initialLocale={safeLocale} />
-        </AdminModule>
-
-        <AdminModule title="Paises y dojos">
-          <LocationsAdmin initialLocale={safeLocale} />
-        </AdminModule>
-
-        <AdminModule title="Paginas publicas">
-          <PagesAdmin initialLocale={safeLocale} />
-        </AdminModule>
+        <AdminPanel locale={safeLocale} />
       </div>
     </section>
   );
