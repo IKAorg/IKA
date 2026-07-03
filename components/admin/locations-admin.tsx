@@ -390,12 +390,18 @@ export function LocationsAdmin({
     }
 
     const dojoId = dojoResult.data.id as string;
+    const dojoSlug = await getUniqueDojoSlug(
+      dojoForm.slug || slugify(dojoForm.name),
+      dojoForm.locale,
+      dojoId,
+      dojoForm.city,
+    );
     const { error } = await supabase.from("dojo_translations").upsert(
       {
         dojo_id: dojoId,
         language_code: dojoForm.locale,
         name: dojoForm.name,
-        slug: dojoForm.slug || slugify(dojoForm.name),
+        slug: dojoSlug,
         description: dojoForm.description || null,
       },
       { onConflict: "dojo_id,language_code" },
@@ -630,6 +636,51 @@ export function LocationsAdmin({
     }
 
     return data.id as string;
+  }
+
+  async function getUniqueDojoSlug(
+    rawSlug: string,
+    locale: Locale,
+    dojoId: string,
+    city: string,
+  ) {
+    const baseSlug = slugify(rawSlug) || slugify(city) || "dojo";
+    const citySlug = slugify(city);
+    const { data, error } = await supabase
+      .from("dojo_translations")
+      .select("dojo_id,slug")
+      .eq("language_code", locale)
+      .like("slug", `${baseSlug}%`);
+
+    if (error) {
+      return baseSlug;
+    }
+
+    const taken = new Set(
+      ((data ?? []) as Array<{ dojo_id: string; slug: string }>)
+        .filter((translation) => translation.dojo_id !== dojoId)
+        .map((translation) => translation.slug),
+    );
+
+    if (!taken.has(baseSlug)) {
+      return baseSlug;
+    }
+
+    if (citySlug) {
+      const cityCandidate = `${baseSlug}-${citySlug}`;
+      if (!taken.has(cityCandidate)) {
+        return cityCandidate;
+      }
+    }
+
+    for (let index = 2; index < 100; index += 1) {
+      const numberedCandidate = `${baseSlug}-${index}`;
+      if (!taken.has(numberedCandidate)) {
+        return numberedCandidate;
+      }
+    }
+
+    return `${baseSlug}-${Date.now()}`;
   }
 
   if (!session) {
