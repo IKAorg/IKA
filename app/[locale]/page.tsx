@@ -3,6 +3,10 @@ import { ArrowRight, Globe2, Handshake, MapPin, ShieldCheck } from "lucide-react
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { getLatestReports } from "@/lib/content/latest-reports";
+import {
+  getHomeMarqueeSettings,
+  getMarqueeDuration,
+} from "@/lib/content/home-settings";
 
 type HomePageProps = {
   params: Promise<{ locale: string }>;
@@ -22,6 +26,7 @@ export default async function HomePage({ params }: HomePageProps) {
 
   const dictionary = getDictionary(locale);
   const latestReports = getLatestReports(locale);
+  const marqueeSettings = await getHomeMarqueeSettings();
 
   return (
     <div>
@@ -121,7 +126,15 @@ export default async function HomePage({ params }: HomePageProps) {
           </div>
         </div>
         <div className="home-marquee py-10">
-          <div className="home-marquee-track home-marquee-track-slow">
+          <div
+            className="home-marquee-track home-marquee-track-slow"
+            style={{
+              animationDuration: getMarqueeDuration(
+                marqueeSettings,
+                "reports",
+              ),
+            }}
+          >
             {[...latestReports, ...latestReports].map((report, index) => (
               <ReportCard
                 key={`${report.title}-${index}`}
@@ -147,7 +160,15 @@ export default async function HomePage({ params }: HomePageProps) {
           </h2>
         </div>
         <div className="home-marquee py-10">
-          <div className="home-marquee-track">
+          <div
+            className="home-marquee-track"
+            style={{
+              animationDuration: getMarqueeDuration(
+                marqueeSettings,
+                "articles",
+              ),
+            }}
+          >
             <ArticleLink
               href={`/${locale}/about`}
               image={featureImage}

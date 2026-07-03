@@ -30,6 +30,23 @@ const PagesAdmin = dynamic(
   },
 );
 
+const UsersAdmin = dynamic(
+  () => import("@/components/admin/users-admin").then((mod) => mod.UsersAdmin),
+  {
+    ssr: false,
+    loading: () => <AdminLoading />,
+  },
+);
+
+const SettingsAdmin = dynamic(
+  () =>
+    import("@/components/admin/settings-admin").then((mod) => mod.SettingsAdmin),
+  {
+    ssr: false,
+    loading: () => <AdminLoading />,
+  },
+);
+
 type AdminPanelProps = {
   locale: Locale;
 };
@@ -37,6 +54,14 @@ type AdminPanelProps = {
 export function AdminPanel({ locale }: AdminPanelProps) {
   return (
     <>
+      <AdminModule title="Usuarios y permisos">
+        <UsersAdmin initialLocale={locale} />
+      </AdminModule>
+
+      <AdminModule title="Ajustes globales">
+        <SettingsAdmin />
+      </AdminModule>
+
       <AdminModule title="Eventos y calendario">
         <EventsAdmin initialLocale={locale} />
       </AdminModule>
