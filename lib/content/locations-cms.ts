@@ -11,6 +11,7 @@ type MediaRow = {
 type CountryRow = {
   id: string;
   code: string;
+  ika_country_id: string | null;
   responsible_person: string | null;
   responsible_email: string | null;
   flag_media_id: string | null;
@@ -25,6 +26,7 @@ type CountryRow = {
 type DojoRow = {
   id: string;
   country_id: string;
+  ika_dojo_id: string | null;
   city: string;
   address: string | null;
   responsible_instructor: string | null;
@@ -43,6 +45,7 @@ type DojoRow = {
 export type PublicCountry = {
   id: string;
   code: string;
+  memberId: string;
   name: string;
   slug: string;
   description: string;
@@ -55,6 +58,7 @@ export type PublicCountry = {
 export type PublicDojo = {
   id: string;
   countryId: string;
+  memberId: string;
   countryName: string;
   name: string;
   slug: string;
@@ -79,7 +83,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   const { data: countriesData } = await supabase
     .from("countries")
     .select(
-      "id,code,responsible_person,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,ika_country_id,responsible_person,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
     )
     .eq("status", "published")
     .eq("is_public", true)
@@ -96,7 +100,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       ? await supabase
           .from("dojos")
           .select(
-            "id,country_id,city,address,responsible_instructor,email,phone,website,main_image_media_id,dojo_translations(language_code,name,slug,description)",
+            "id,country_id,ika_dojo_id,city,address,responsible_instructor,email,phone,website,main_image_media_id,dojo_translations(language_code,name,slug,description)",
           )
           .in("country_id", countryIds)
           .eq("status", "published")
@@ -127,6 +131,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
     return {
       id: country.id,
       code: country.code,
+      memberId: country.ika_country_id ?? "",
       name: translation.name,
       slug: translation.slug,
       description: translation.description ?? "",
@@ -150,6 +155,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
     return {
       id: dojo.id,
       countryId: dojo.country_id,
+      memberId: dojo.ika_dojo_id ?? "",
       countryName: countryNameById.get(dojo.country_id) ?? "",
       name: translation.name,
       slug: translation.slug,

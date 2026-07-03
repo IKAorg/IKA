@@ -62,7 +62,7 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                     )}
                     <span className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
-                        {country.code}
+                        {country.memberId || country.code}
                       </p>
                       <span className="mt-1 block truncate text-xl font-semibold">
                         {country.name}
@@ -133,7 +133,7 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                               ) : null}
                               <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
-                                  {dojo.city}
+                                  {dojo.memberId || dojo.city}
                                 </p>
                                 <h4 className="mt-1 text-lg font-semibold">
                                   {dojo.name}
@@ -150,6 +150,12 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                                 <InfoLine
                                   label={labels.address}
                                   value={dojo.address}
+                                />
+                              ) : null}
+                              {dojo.memberId ? (
+                                <InfoLine
+                                  label={labels.memberId}
+                                  value={dojo.memberId}
                                 />
                               ) : null}
                               {dojo.responsibleInstructor ? (
@@ -221,6 +227,7 @@ const countryPageLabels: Record<
     address: string;
     instructor: string;
     phone: string;
+    memberId: string;
   }
 > = {
   en: {
@@ -235,6 +242,7 @@ const countryPageLabels: Record<
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
+    memberId: "IKA ID",
   },
   es: {
     countryContact: "Responsable del pais",
@@ -248,6 +256,7 @@ const countryPageLabels: Record<
     address: "Direccion",
     instructor: "Instructor",
     phone: "Telefono",
+    memberId: "ID IKA",
   },
   it: {
     countryContact: "Responsabile del paese",
@@ -261,6 +270,7 @@ const countryPageLabels: Record<
     address: "Indirizzo",
     instructor: "Istruttore",
     phone: "Telefono",
+    memberId: "ID IKA",
   },
   fr: {
     countryContact: "Responsable du pays",
@@ -274,6 +284,7 @@ const countryPageLabels: Record<
     address: "Adresse",
     instructor: "Instructeur",
     phone: "Telephone",
+    memberId: "ID IKA",
   },
   ja: {
     countryContact: "Country contact",
@@ -287,6 +298,7 @@ const countryPageLabels: Record<
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
+    memberId: "IKA ID",
   },
   zh: {
     countryContact: "Country contact",
@@ -300,6 +312,7 @@ const countryPageLabels: Record<
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
+    memberId: "IKA ID",
   },
   cs: {
     countryContact: "Kontakt v zemi",
@@ -313,6 +326,7 @@ const countryPageLabels: Record<
     address: "Adresa",
     instructor: "Instruktor",
     phone: "Telefon",
+    memberId: "IKA ID",
   },
 };
 

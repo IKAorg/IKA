@@ -35,6 +35,7 @@ type CountryTranslationRow = {
 type CountryRow = {
   id: string;
   code: string;
+  ika_country_id?: string | null;
   status: ContentStatus;
   is_public: boolean;
   responsible_person: string | null;
@@ -54,6 +55,7 @@ type DojoTranslationRow = {
 type DojoRow = {
   id: string;
   country_id: string;
+  ika_dojo_id?: string | null;
   city: string;
   address: string | null;
   responsible_instructor: string | null;
@@ -213,13 +215,13 @@ export function LocationsAdmin({
       supabase
         .from("countries")
         .select(
-          "id,code,status,is_public,responsible_person,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
+          "id,code,ika_country_id,status,is_public,responsible_person,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
         )
         .order("code", { ascending: true }),
       supabase
         .from("dojos")
         .select(
-          "id,country_id,city,address,responsible_instructor,email,phone,website,status,is_public,main_image_media_id,dojo_translations(language_code,name,slug,description)",
+          "id,country_id,ika_dojo_id,city,address,responsible_instructor,email,phone,website,status,is_public,main_image_media_id,dojo_translations(language_code,name,slug,description)",
         )
         .order("city", { ascending: true }),
     ]);
@@ -837,7 +839,9 @@ function CountryList({
                       {country.status} · {country.is_public ? "Público" : "Oculto"}
                     </p>
                     <h4 className="mt-1 text-lg font-semibold">{name}</h4>
-                    <p className="text-sm text-[var(--muted)]">{country.code}</p>
+                    <p className="text-sm text-[var(--muted)]">
+                      {country.ika_country_id ?? "ID pendiente"} · {country.code}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -915,7 +919,9 @@ function DojoList({
                   {dojo.status} · {countryNameById.get(dojo.country_id) ?? ""}
                 </p>
                 <h4 className="mt-1 text-lg font-semibold">{name}</h4>
-                <p className="text-sm text-[var(--muted)]">{dojo.city}</p>
+                <p className="text-sm text-[var(--muted)]">
+                  {dojo.ika_dojo_id ?? "ID pendiente"} · {dojo.city}
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     onClick={() => onEdit(dojo)}
