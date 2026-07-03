@@ -1,12 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Database, Loader2, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import {
+  ChevronDown,
+  Database,
+  Loader2,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 
-type RoleKey = "global_admin" | "country_admin" | "dojo_admin";
+type RoleKey =
+  | "super_admin"
+  | "global_admin"
+  | "country_admin"
+  | "dojo_admin"
+  | "kenshi";
+type AssignableRoleKey = Extract<
+  RoleKey,
+  "global_admin" | "country_admin" | "dojo_admin"
+>;
 
 type Profile = {
   id: string;
@@ -17,7 +33,7 @@ type Profile = {
 
 type Role = {
   id: string;
-  key: RoleKey;
+  key: AssignableRoleKey;
   name: string;
 };
 
@@ -51,7 +67,7 @@ type UsersPayload = {
   assignments: Assignment[];
   countries: CountryOption[];
   dojos: DojoOption[];
-  assignableRoles?: RoleKey[];
+  assignableRoles?: AssignableRoleKey[];
   scope?: {
     isSuperAdmin: boolean;
     isGlobal: boolean;
@@ -62,10 +78,15 @@ type UsersPayload = {
 };
 
 const roleLabels: Record<RoleKey, string> = {
+  super_admin: "Super admin",
   global_admin: "Admin global",
   country_admin: "Admin de pais",
   dojo_admin: "Admin de dojo",
+  kenshi: "Kenshi",
 };
+
+const selectClassName =
+  "h-11 w-full min-w-0 appearance-none border border-[var(--line)] bg-white px-3 py-2 pr-10 font-normal text-[var(--foreground)]";
 
 export function UsersAdmin({
   initialLocale = defaultLocale,
@@ -86,7 +107,7 @@ export function UsersAdmin({
   const [form, setForm] = useState({
     email: "",
     displayName: "",
-    roleKey: "country_admin" as RoleKey,
+    roleKey: "country_admin" as AssignableRoleKey,
     countryId: "",
     dojoId: "",
     sendInvite: true,
@@ -344,48 +365,62 @@ export function UsersAdmin({
 
           <label className="grid gap-2 text-sm font-semibold">
             Rol
-            <select
-              value={form.roleKey}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  roleKey: event.target.value as RoleKey,
-                  countryId: "",
-                  dojoId: "",
-                }))
-              }
-              className="border border-[var(--line)] px-3 py-2 font-normal"
-            >
-              {availableRoleKeys.map((roleKey) => (
-                <option key={roleKey} value={roleKey}>
-                  {roleLabels[roleKey]}
-                </option>
-              ))}
-            </select>
+            <span className="relative block">
+              <select
+                value={form.roleKey}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    roleKey: event.target.value as AssignableRoleKey,
+                    countryId: "",
+                    dojoId: "",
+                  }))
+                }
+                className={selectClassName}
+              >
+                {availableRoleKeys.map((roleKey) => (
+                  <option key={roleKey} value={roleKey}>
+                    {roleLabels[roleKey]}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                size={16}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+              />
+            </span>
           </label>
 
           {form.roleKey === "country_admin" || form.roleKey === "dojo_admin" ? (
             <div className="grid gap-2">
               <label className="grid gap-2 text-sm font-semibold">
                 Pais
-                <select
-                  value={form.countryId}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      countryId: event.target.value,
-                      dojoId: "",
-                    }))
-                  }
-                  className="border border-[var(--line)] px-3 py-2 font-normal"
-                >
-                  <option value="">Selecciona pais</option>
-                  {payload.countries.map((country) => (
-                    <option key={country.id} value={country.id}>
-                      {countryLabel(country, initialLocale)}
-                    </option>
-                  ))}
-                </select>
+                <span className="relative block">
+                  <select
+                    value={form.countryId}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        countryId: event.target.value,
+                        dojoId: "",
+                      }))
+                    }
+                    className={selectClassName}
+                  >
+                    <option value="">Selecciona pais</option>
+                    {payload.countries.map((country) => (
+                      <option key={country.id} value={country.id}>
+                        {countryLabel(country, initialLocale)}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    aria-hidden="true"
+                    size={16}
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                  />
+                </span>
               </label>
 
               {!loading && payload.countries.length === 0 ? (
@@ -416,23 +451,30 @@ export function UsersAdmin({
           {form.roleKey === "dojo_admin" ? (
             <label className="grid gap-2 text-sm font-semibold">
               Dojo
-              <select
-                value={form.dojoId}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    dojoId: event.target.value,
-                  }))
-                }
-                className="border border-[var(--line)] px-3 py-2 font-normal"
-              >
-                <option value="">Selecciona dojo</option>
-                {scopedDojos.map((dojo) => (
-                  <option key={dojo.id} value={dojo.id}>
-                    {dojoLabel(dojo, initialLocale)}
-                  </option>
-                ))}
-              </select>
+              <span className="relative block">
+                <select
+                  value={form.dojoId}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      dojoId: event.target.value,
+                    }))
+                  }
+                  className={selectClassName}
+                >
+                  <option value="">Selecciona dojo</option>
+                  {scopedDojos.map((dojo) => (
+                    <option key={dojo.id} value={dojo.id}>
+                      {dojoLabel(dojo, initialLocale)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  aria-hidden="true"
+                  size={16}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                />
+              </span>
             </label>
           ) : null}
 
@@ -524,7 +566,9 @@ export function UsersAdmin({
                         >
                           <span>
                             <strong>
-                              {roleLabels[assignment.roles?.key ?? "dojo_admin"]}
+                              {assignment.roles?.key
+                                ? roleLabels[assignment.roles.key]
+                                : "Rol"}
                             </strong>
                             {assignment.countries
                               ? ` · ${countryLabel(

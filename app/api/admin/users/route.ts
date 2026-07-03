@@ -6,6 +6,11 @@ import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
 
 type RoleKey = "global_admin" | "country_admin" | "dojo_admin";
+type CountryWithTranslations = {
+  id: string;
+  code: string;
+  country_translations?: Array<{ language_code: string; name: string }>;
+};
 type UntypedTable = {
   Row: Record<string, unknown>;
   Insert: Record<string, unknown>;
@@ -64,7 +69,7 @@ export async function GET() {
 
   if (
     !countriesResult.error &&
-    (countriesResult.data ?? []).length === 0 &&
+    shouldSeedBaseCountries((countriesResult.data ?? []) as CountryWithTranslations[]) &&
     guard.scope.isSuperAdmin
   ) {
     await seedBaseCountries(supabase);
@@ -373,6 +378,31 @@ async function getUniqueCountrySlug(
 
 function getSeedCountryName(locale: Locale, index: number, fallback: string) {
   return getPublicPageContent(locale, "countries").countries?.[index] ?? fallback;
+}
+
+function shouldSeedBaseCountries(countries: CountryWithTranslations[]) {
+  if (countries.length === 0) {
+    return true;
+  }
+
+  const existingCodes = new Set(countries.map((country) => country.code));
+  const missingSeedCountry = legacyCountrySeeds.some(
+    (seed) => !existingCodes.has(seed.code),
+  );
+
+  if (missingSeedCountry) {
+    return true;
+  }
+
+  return countries.some((country) =>
+    locales.some(
+      (locale) =>
+        !country.country_translations?.some(
+          (translation) =>
+            translation.language_code === locale && translation.name.trim(),
+        ),
+    ),
+  );
 }
 
 export async function DELETE(request: NextRequest) {
