@@ -26,40 +26,65 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-[var(--line)] bg-[var(--background)]/95">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <Link href={`/${locale}`} className="flex items-center gap-3">
+      <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--background)]/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center gap-5 px-5 py-3">
+          <Link
+            href={`/${locale}`}
+            className="flex min-w-fit items-center gap-3"
+            aria-label="International Kempo Association"
+          >
             <Image
               src="/images/ika-logo.webp"
               alt="International Kempo Association"
-              width={44}
-              height={44}
-              className="size-11 object-contain"
+              width={48}
+              height={48}
+              className="size-12 object-contain"
               priority
             />
-            <span className="text-sm font-semibold uppercase tracking-[0.18em]">
-              International Kempo Association
+            <span className="hidden leading-tight sm:grid">
+              <span className="text-lg font-semibold uppercase text-[var(--foreground)]">
+                IKA
+              </span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                International Kempo Association
+              </span>
             </span>
           </Link>
 
-          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[var(--muted)]">
+          <nav className="hidden flex-1 flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-medium text-[var(--muted)] xl:flex">
             {publicLinks.map((item) => (
-              <Link key={item.href} href={item.href}>
+              <Link
+                key={item.href}
+                href={item.href}
+                className="transition hover:text-[var(--foreground)]"
+              >
                 {item.label}
               </Link>
             ))}
           </nav>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="ml-auto flex items-center gap-3">
             <LanguageSwitcher locale={locale} />
             <Link
               href={`/${locale}/portal`}
-              className="border border-[var(--line)] px-3 py-2 text-center text-sm text-[var(--ink-blue)]"
+              className="inline-flex h-11 items-center border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--accent-dark)]"
             >
               {nav.portal}
             </Link>
           </div>
         </div>
+
+        <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-2 border-t border-[var(--line)] px-5 py-3 text-sm font-medium text-[var(--muted)] xl:hidden">
+          {publicLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="transition hover:text-[var(--foreground)]"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
       </header>
 
       <main>{children}</main>
