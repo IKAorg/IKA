@@ -117,11 +117,21 @@ export function UsersAdmin({
   const [seedingCountries, setSeedingCountries] = useState(false);
   const [message, setMessage] = useState("");
 
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [supabase]);
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setMessage("");
 
-    const response = await fetch("/api/admin/users", { cache: "no-store" });
+    const response = await fetch("/api/admin/users", {
+      cache: "no-store",
+      headers: await getAuthHeaders(),
+    });
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -154,7 +164,7 @@ export function UsersAdmin({
     }
 
     setLoading(false);
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -219,7 +229,10 @@ export function UsersAdmin({
 
     const response = await fetch("/api/admin/users", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
       body: JSON.stringify({ ...form, locale: initialLocale }),
     });
     const data = await response.json().catch(() => ({}));
@@ -248,7 +261,10 @@ export function UsersAdmin({
 
     const response = await fetch("/api/admin/users", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
       body: JSON.stringify({ action: "seed_countries" }),
     });
     const data = await response.json().catch(() => ({}));
@@ -268,6 +284,7 @@ export function UsersAdmin({
     setMessage("");
     const response = await fetch(`/api/admin/users?id=${id}`, {
       method: "DELETE",
+      headers: await getAuthHeaders(),
     });
     const data = await response.json().catch(() => ({}));
 

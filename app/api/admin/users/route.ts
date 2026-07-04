@@ -55,8 +55,8 @@ const legacyCountrySeeds = [
   { code: "GB", index: 9 },
 ];
 
-export async function GET() {
-  const guard = await requireUserAdmin();
+export async function GET(request: NextRequest) {
+  const guard = await requireUserAdmin(request);
 
   if (guard.error) {
     return guard.error;
@@ -145,7 +145,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireUserAdmin();
+  const guard = await requireUserAdmin(request);
 
   if (guard.error) {
     return guard.error;
@@ -408,7 +408,7 @@ function shouldSeedBaseCountries(countries: CountryWithTranslations[]) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const guard = await requireUserAdmin();
+  const guard = await requireUserAdmin(request);
 
   if (guard.error) {
     return guard.error;
@@ -449,17 +449,11 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-async function requireUserAdmin() {
+async function requireUserAdmin(request: NextRequest) {
   const sessionClient = await createSessionClient();
   const {
     data: { user },
   } = await sessionClient.auth.getUser();
-
-  if (!user) {
-    return {
-      error: NextResponse.json({ error: "No autenticado." }, { status: 401 }),
-    } as const;
-  }
 
   const url = getSupabaseProjectUrl();
   const serviceRoleKey = getServiceRoleKey();
@@ -486,11 +480,27 @@ async function requireUserAdmin() {
   const admin = createServiceClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  let authenticatedUser = user;
+
+  if (!authenticatedUser) {
+    const token = getBearerToken(request);
+
+    if (token) {
+      const tokenUser = await admin.auth.getUser(token);
+      authenticatedUser = tokenUser.data.user;
+    }
+  }
+
+  if (!authenticatedUser) {
+    return {
+      error: NextResponse.json({ error: "No autenticado." }, { status: 401 }),
+    } as const;
+  }
 
   const { data: profileByAuthUser, error } = await admin
     .from("users_profiles")
     .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .eq("auth_user_id", user.id)
+    .eq("auth_user_id", authenticatedUser.id)
     .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
 
   if (error) {
@@ -506,13 +516,13 @@ async function requireUserAdmin() {
     profileByAuthUser ??
     (await linkExistingAdminProfileByEmail(
       admin,
-      user.id,
-      user.email ?? "",
+      authenticatedUser.id,
+      authenticatedUser.email ?? "",
     )) ??
     (await ensureBootstrapSuperAdminProfile(
       admin,
-      user.id,
-      user.email ?? "",
+      authenticatedUser.id,
+      authenticatedUser.email ?? "",
     ));
 
   if (!profile) {
@@ -878,6 +888,13 @@ function getServiceRoleKey() {
     process.env.SUPABASE_SERVICE_ROLE ||
     ""
   ).trim();
+}
+
+function getBearerToken(request: NextRequest) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const [scheme, token] = authorization.split(" ");
+
+  return scheme.toLowerCase() === "bearer" && token ? token.trim() : "";
 }
 
 function getDetectedSupabaseEnvNames() {
