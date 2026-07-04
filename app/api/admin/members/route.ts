@@ -25,6 +25,8 @@ type SupabaseAdminClient = ReturnType<
   typeof createServiceClient<UntypedDatabase, "public", "public">
 >;
 
+const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
+
 type ImportRow = {
   firstName?: string;
   lastName?: string;
@@ -391,9 +393,18 @@ async function requireMembersAdmin(request: NextRequest) {
   );
 
   if (!profile) {
+    const diagnostics = await getMissingProfileDiagnostics(
+      admin,
+      authenticatedUser.id,
+      authenticatedUser.email ?? "",
+    );
+
     return {
       error: NextResponse.json(
-        { error: "No se encontro el perfil del administrador." },
+        {
+          error: "No se encontro el perfil del administrador.",
+          diagnostics,
+        },
         { status: 403 },
       ),
     } as const;
@@ -484,7 +495,9 @@ async function getMembersAdminProfile(
     .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
 
   if (!byEmail.data) {
-    return null;
+    return normalizedEmail === officialSuperAdminEmail
+      ? ensureOfficialSuperAdmin(admin, authUserId, normalizedEmail)
+      : null;
   }
 
   const linked = await admin
@@ -495,6 +508,92 @@ async function getMembersAdminProfile(
     .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
 
   return linked.data ?? byEmail.data;
+}
+
+async function ensureOfficialSuperAdmin(
+  admin: SupabaseAdminClient,
+  authUserId: string,
+  email: string,
+) {
+  const role = await admin
+    .from("roles")
+    .select("id")
+    .eq("key", "super_admin")
+    .maybeSingle<{ id: string }>();
+
+  if (role.error || !role.data) {
+    return null;
+  }
+
+  const profile = await admin
+    .from("users_profiles")
+    .upsert(
+      {
+        auth_user_id: authUserId,
+        email,
+        display_name: "IKA org",
+        status: "active",
+      },
+      { onConflict: "email" },
+    )
+    .select("id")
+    .limit(1);
+
+  const profileId = (profile.data?.[0]?.id as string | undefined) ?? "";
+
+  if (profile.error || !profileId) {
+    return null;
+  }
+
+  await admin.from("user_roles").upsert(
+    {
+      profile_id: profileId,
+      role_id: role.data.id,
+      country_id: null,
+      dojo_id: null,
+      created_by: profileId,
+    },
+    {
+      onConflict: "profile_id,role_id,country_id,dojo_id",
+      ignoreDuplicates: true,
+    },
+  );
+
+  return {
+    id: profileId,
+    user_roles: [{ country_id: null, dojo_id: null, roles: { key: "super_admin" } }],
+  };
+}
+
+async function getMissingProfileDiagnostics(
+  admin: SupabaseAdminClient,
+  authUserId: string,
+  email: string,
+) {
+  const normalizedEmail = normalizeEmail(email);
+  const [byAuth, byEmail] = await Promise.all([
+    admin
+      .from("users_profiles")
+      .select("id,email,status")
+      .eq("auth_user_id", authUserId)
+      .limit(3),
+    normalizedEmail
+      ? admin
+          .from("users_profiles")
+          .select("id,email,status,auth_user_id")
+          .eq("email", normalizedEmail)
+          .limit(3)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  return {
+    authUserId,
+    authEmail: normalizedEmail || null,
+    profilesByAuth: byAuth.data ?? [],
+    profilesByEmail: byEmail.data ?? [],
+    byAuthError: byAuth.error?.message ?? null,
+    byEmailError: byEmail.error?.message ?? null,
+  };
 }
 
 async function getCountryIdsForDojos(
