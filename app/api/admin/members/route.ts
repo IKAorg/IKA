@@ -386,13 +386,13 @@ async function requireMembersAdmin(request: NextRequest) {
     } as const;
   }
 
-  const { data: profile, error } = await admin
-    .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .eq("auth_user_id", authenticatedUser.id)
-    .single<{ id: string; user_roles: ScopeRole[] | null }>();
+  const profile = await getMembersAdminProfile(
+    admin,
+    authenticatedUser.id,
+    authenticatedUser.email ?? "",
+  );
 
-  if (error || !profile) {
+  if (!profile) {
     return {
       error: NextResponse.json(
         { error: "No se encontro el perfil del administrador." },
@@ -418,19 +418,85 @@ async function requireMembersAdmin(request: NextRequest) {
     } as const;
   }
 
+  const explicitCountryIds = roles
+    .filter((role) => getRoleKey(role.roles) === "country_admin")
+    .map((role) => role.country_id)
+    .filter(Boolean) as string[];
+  const dojoIds = roles
+    .filter((role) => getRoleKey(role.roles) === "dojo_admin")
+    .map((role) => role.dojo_id)
+    .filter(Boolean) as string[];
+  const dojoCountryIds = await getCountryIdsForDojos(admin, dojoIds);
   const scope = {
     isGlobal: roleKeys.includes("super_admin") || roleKeys.includes("global_admin"),
-    countryIds: roles
-      .filter((role) => getRoleKey(role.roles) === "country_admin")
-      .map((role) => role.country_id)
-      .filter(Boolean) as string[],
-    dojoIds: roles
-      .filter((role) => getRoleKey(role.roles) === "dojo_admin")
-      .map((role) => role.dojo_id)
-      .filter(Boolean) as string[],
+    countryIds: Array.from(new Set([...explicitCountryIds, ...dojoCountryIds])),
+    dojoIds,
   };
 
   return { admin, profileId: profile.id, scope } as const;
+}
+
+async function getMembersAdminProfile(
+  admin: SupabaseAdminClient,
+  authUserId: string,
+  email: string,
+) {
+  const byAuth = await admin
+    .from("users_profiles")
+    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+
+  if (byAuth.data) {
+    return byAuth.data;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const byEmail = await admin
+    .from("users_profiles")
+    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .eq("email", normalizedEmail)
+    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+
+  if (!byEmail.data) {
+    return null;
+  }
+
+  const linked = await admin
+    .from("users_profiles")
+    .update({ auth_user_id: authUserId, status: "active" })
+    .eq("id", byEmail.data.id)
+    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+
+  return linked.data ?? byEmail.data;
+}
+
+async function getCountryIdsForDojos(
+  admin: SupabaseAdminClient,
+  dojoIds: string[],
+) {
+  if (dojoIds.length === 0) {
+    return [];
+  }
+
+  const dojos = await admin
+    .from("dojos")
+    .select("country_id")
+    .in("id", dojoIds);
+
+  if (dojos.error) {
+    return [];
+  }
+
+  return (dojos.data ?? [])
+    .map((dojo) => dojo.country_id as string | null)
+    .filter(Boolean) as string[];
 }
 
 async function findAuthUserIdByEmail(
