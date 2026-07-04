@@ -82,7 +82,19 @@ export async function GET(request: NextRequest) {
     guard.scope,
   );
   const readiness = await getAdminReadiness(guard.admin);
-  const dojos = filterDojosByScope(dojosResult.data ?? [], guard.scope).map(
+  let dojosData = dojosResult.data ?? [];
+
+  if (guard.scope.isGlobal && dojosData.length === 0) {
+    const fallbackDojos = await guard.admin
+      .from("dojos")
+      .select("id,country_id,city,dojo_translations(language_code,name)");
+
+    if (!fallbackDojos.error) {
+      dojosData = fallbackDojos.data ?? [];
+    }
+  }
+
+  const dojos = filterDojosByScope(dojosData, guard.scope).map(
     (dojo) => ({
       ...dojo,
       has_country_admin: readiness.countryIdsWithAdmin.has(dojo.country_id),

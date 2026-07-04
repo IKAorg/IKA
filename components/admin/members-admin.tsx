@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileUp, Loader2, Send, UsersRound } from "lucide-react";
+import type { Session } from "@supabase/supabase-js";
 import type { Locale } from "@/lib/i18n/config";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -76,6 +77,7 @@ const csvTemplate =
 export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const supabase = useMemo(() => createClient(), []);
   const [payload, setPayload] = useState<MembersPayload>(emptyPayload);
+  const [session, setSession] = useState<Session | null>(null);
   const [csvText, setCsvText] = useState(csvTemplate);
   const [selectedDojoId, setSelectedDojoId] = useState("");
   const [sendInvites, setSendInvites] = useState(true);
@@ -108,6 +110,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   }, [getAuthHeaders]);
 
   const loadMembers = useCallback(async () => {
+    setLoading(true);
     setMessage("");
 
     const result = await fetchMembersPayload();
@@ -125,25 +128,42 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   useEffect(() => {
     let ignore = false;
 
-    fetchMembersPayload().then((result) => {
+    supabase.auth.getSession().then(({ data }) => {
       if (ignore) {
         return;
       }
 
-      if (!result.ok) {
-        setPayload(emptyPayload);
-        setMessage(result.error);
-      } else {
-        setPayload(result.payload);
-      }
+      setSession(data.session);
 
-      setLoading(false);
+      if (data.session) {
+        void loadMembers();
+      } else {
+        setPayload(emptyPayload);
+        setMessage("Inicia sesion como administrador para cargar dojos.");
+        setLoading(false);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setPayload(emptyPayload);
+      setSelectedDojoId("");
+
+      if (nextSession) {
+        void loadMembers();
+      } else {
+        setMessage("Inicia sesion como administrador para cargar dojos.");
+        setLoading(false);
+      }
     });
 
     return () => {
       ignore = true;
+      subscription.unsubscribe();
     };
-  }, [fetchMembersPayload]);
+  }, [loadMembers, supabase]);
 
   const rows = useMemo(() => parseCsvRows(csvText, payload), [csvText, payload]);
   const eligibleDojos = useMemo(
@@ -254,6 +274,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           <select
             value={selectedDojoId}
             onChange={(event) => setSelectedDojoId(event.target.value)}
+            disabled={loading || !session || payload.dojos.length === 0}
             className="border border-[var(--line)] px-3 py-2 font-normal"
           >
             <option value="">Selecciona dojo</option>
@@ -271,7 +292,9 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           </select>
           {payload.dojos.length === 0 ? (
             <span className="text-sm text-[var(--accent)]">
-              No hay dojos disponibles para tu rol.
+              {loading
+                ? "Cargando dojos..."
+                : message || "No hay dojos disponibles para tu rol."}
             </span>
           ) : eligibleDojos.length === 0 ? (
             <span className="text-sm text-[var(--accent)]">
@@ -279,6 +302,14 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               Kenshi.
             </span>
           ) : null}
+          <button
+            type="button"
+            onClick={loadMembers}
+            disabled={loading || !session}
+            className="w-fit border border-[var(--line)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            {loading ? "Cargando..." : "Recargar dojos"}
+          </button>
         </label>
 
         <textarea
