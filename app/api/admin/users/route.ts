@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
 
   if (!authUserId && sendInvite) {
     const invite = await guard.admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${request.nextUrl.origin}/${locale}/admin`,
+      redirectTo: buildPublicRedirectUrl(request, locale, "admin"),
     });
 
     if (invite.error) {
@@ -693,6 +693,33 @@ function getServiceRoleKey() {
     process.env.SUPABASE_SERVICE_ROLE ||
     ""
   ).trim();
+}
+
+function buildPublicRedirectUrl(
+  request: NextRequest,
+  locale: string,
+  path: "admin" | "portal",
+) {
+  const explicitUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.SITE_URL ||
+    process.env.APP_URL ||
+    "";
+  const vercelProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "";
+  const origin = request.nextUrl.origin;
+  const baseUrl =
+    explicitUrl ||
+    vercelProductionUrl ||
+    (isLocalOrigin(origin) ? "https://ika-po1s.vercel.app" : origin);
+
+  return `${baseUrl.replace(/\/$/, "")}/${locale}/${path}`;
+}
+
+function isLocalOrigin(origin: string) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
 }
 
 function normalizeEmail(value: unknown) {
