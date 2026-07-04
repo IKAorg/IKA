@@ -1,22 +1,17 @@
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { locales, type Locale } from "@/lib/i18n/config";
-import { getPublicPageContent } from "@/lib/i18n/public-pages";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
 
-type RoleKey = "global_admin" | "country_admin" | "dojo_admin";
-type CountryWithTranslations = {
-  id: string;
-  code: string;
-  country_translations?: Array<{ language_code: string; name: string }>;
-};
+type AssignableRoleKey = "global_admin" | "country_admin" | "dojo_admin";
+
 type UntypedTable = {
   Row: Record<string, unknown>;
   Insert: Record<string, unknown>;
   Update: Record<string, unknown>;
   Relationships: [];
 };
+
 type UntypedDatabase = {
   public: {
     Tables: Record<string, UntypedTable>;
@@ -24,257 +19,215 @@ type UntypedDatabase = {
     Functions: Record<string, never>;
   };
 };
+
 type SupabaseAdminClient = ReturnType<
   typeof createServiceClient<UntypedDatabase, "public", "public">
 >;
-type ScopeRole = {
+
+type ScopeAssignment = {
   country_id: string | null;
   dojo_id: string | null;
   roles: { key: string } | Array<{ key: string }> | null;
 };
-type UserAdminScope = {
+
+type AdminAssignment = {
+  id: string;
+  profile_id: string;
+  role_id: string;
+  country_id: string | null;
+  dojo_id: string | null;
+  roles: unknown;
+  countries: unknown;
+  dojos: unknown;
+};
+
+type AdminScope = {
+  profileId: string;
   isSuperAdmin: boolean;
-  isGlobal: boolean;
+  isGlobalAdmin: boolean;
   countryIds: string[];
   dojoIds: string[];
   roleKeys: string[];
 };
 
-const bootstrapSuperAdminEmail = "internationalkempoassociation@gmail.com";
+type GuardResult =
+  | { ok: true; admin: SupabaseAdminClient; scope: AdminScope }
+  | { ok: false; response: NextResponse };
 
-const legacyCountrySeeds = [
-  { code: "CR", index: 0 },
-  { code: "CZ", index: 1 },
-  { code: "ID-MY", index: 2 },
-  { code: "IE", index: 3 },
-  { code: "IT", index: 4 },
-  { code: "HK", index: 5 },
-  { code: "JP", index: 6 },
-  { code: "ES", index: 7 },
-  { code: "CH", index: 8 },
-  { code: "GB", index: 9 },
-];
+const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
+const adminRoleKeys = [
+  "super_admin",
+  "global_admin",
+  "country_admin",
+  "dojo_admin",
+] as const;
 
 export async function GET(request: NextRequest) {
-  const guard = await requireUserAdmin(request);
+  const guard = await requireAdmin(request);
 
-  if (guard.error) {
-    return guard.error;
+  if (!guard.ok) {
+    return guard.response;
   }
 
-  const supabase = guard.admin;
-  const assignableRoleKeys = getAssignableRoles(guard.scope);
-  let countriesResult = await supabase
-    .from("countries")
-    .select("id,code,country_translations(language_code,name)")
-    .order("code", { ascending: true });
-
-  if (
-    !countriesResult.error &&
-    shouldSeedBaseCountries((countriesResult.data ?? []) as CountryWithTranslations[]) &&
-    guard.scope.isSuperAdmin
-  ) {
-    await seedBaseCountries(supabase);
-    countriesResult = await supabase
+  const assignableRoles = getAssignableRoles(guard.scope);
+  const [roles, countries, dojos, profiles, assignments] = await Promise.all([
+    guard.admin
+      .from("roles")
+      .select("id,key,name")
+      .in("key", assignableRoles)
+      .order("name", { ascending: true }),
+    guard.admin
       .from("countries")
       .select("id,code,country_translations(language_code,name)")
-      .order("code", { ascending: true });
-  }
-
-  const [profiles, roles, assignments, dojos] = await Promise.all([
-    supabase
-      .from("users_profiles")
-      .select("id,email,display_name,status,created_at,updated_at")
-      .order("email", { ascending: true }),
-    supabase
-      .from("roles")
-      .select("id,key,name,description")
-      .in("key", assignableRoleKeys)
-      .order("name", { ascending: true }),
-    supabase
-      .from("user_roles")
-      .select(
-        "id,profile_id,role_id,country_id,dojo_id,created_at,roles(key,name),countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
-      )
-      .order("created_at", { ascending: false }),
-    supabase
+      .order("code", { ascending: true }),
+    guard.admin
       .from("dojos")
       .select("id,country_id,city,dojo_translations(language_code,name)")
       .order("city", { ascending: true }),
+    guard.admin
+      .from("users_profiles")
+      .select("id,email,display_name,status")
+      .order("email", { ascending: true }),
+    guard.admin
+      .from("user_roles")
+      .select(
+        "id,profile_id,role_id,country_id,dojo_id,roles(key,name),countries(id,code,country_translations(language_code,name)),dojos(id,country_id,city,dojo_translations(language_code,name))",
+      )
+      .order("created_at", { ascending: false }),
   ]);
 
-  const firstError =
-    profiles.error ??
+  const error =
     roles.error ??
-    assignments.error ??
-    countriesResult.error ??
-    dojos.error;
+    countries.error ??
+    dojos.error ??
+    profiles.error ??
+    assignments.error;
 
-  if (firstError) {
-    return NextResponse.json({ error: firstError.message }, { status: 500 });
+  if (error) {
+    return jsonError(error.message, 500);
   }
 
-  const scopedDojos = filterDojosByScope(dojos.data ?? [], guard.scope);
-  const scopedCountries = filterCountriesByScope(
-    countriesResult.data ?? [],
+  const scopedDojos = scopeDojos(dojos.data ?? [], guard.scope);
+  const scopedCountries = scopeCountries(
+    countries.data ?? [],
     guard.scope,
     scopedDojos,
   );
-  const scopedAssignments = filterAssignmentsByScope(
-    assignments.data ?? [],
+  const scopedAssignments = scopeAssignments(
+    normalizeAssignments(assignments.data ?? []),
     guard.scope,
     dojos.data ?? [],
   );
   const visibleProfileIds = new Set(
-    scopedAssignments.map((assignment) => assignment.profile_id as string),
+    scopedAssignments.map((assignment) => assignment.profile_id),
   );
 
   return NextResponse.json({
-    profiles: guard.scope.isGlobal
-      ? profiles.data ?? []
-      : (profiles.data ?? []).filter((profile) =>
-          visibleProfileIds.has(profile.id as string),
-        ),
+    profiles:
+      guard.scope.isSuperAdmin || guard.scope.isGlobalAdmin
+        ? profiles.data ?? []
+        : (profiles.data ?? []).filter((profile) =>
+            visibleProfileIds.has(profile.id as string),
+          ),
     roles: roles.data ?? [],
     assignments: scopedAssignments,
     countries: scopedCountries,
     dojos: scopedDojos,
-    assignableRoles: assignableRoleKeys,
+    assignableRoles,
     scope: guard.scope,
   });
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireUserAdmin(request);
+  const guard = await requireAdmin(request);
 
-  if (guard.error) {
-    return guard.error;
+  if (!guard.ok) {
+    return guard.response;
   }
 
   const body = await request.json().catch(() => null);
-
-  if (body?.action === "seed_countries") {
-    const result = await seedBaseCountries(guard.admin);
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      ok: true,
-      importedCount: result.importedCount,
-      updatedCount: result.updatedCount,
-    });
-  }
-
   const email = normalizeEmail(body?.email);
   const displayName = normalizeText(body?.displayName);
-  const roleKey = body?.roleKey as RoleKey;
+  const roleKey = normalizeText(body?.roleKey) as AssignableRoleKey;
   const countryId = normalizeOptionalId(body?.countryId);
   const dojoId = normalizeOptionalId(body?.dojoId);
   const locale = normalizeText(body?.locale) || "es";
   const sendInvite = body?.sendInvite !== false;
-  const assignableRoleKeys = getAssignableRoles(guard.scope);
+  const assignableRoles = getAssignableRoles(guard.scope);
 
-  if (!email || !assignableRoleKeys.includes(roleKey)) {
-    return NextResponse.json(
-      { error: "Email y rol valido son obligatorios para tu nivel." },
-      { status: 400 },
-    );
+  if (!email) {
+    return jsonError("El email es obligatorio.", 400);
   }
 
-  if (roleKey === "country_admin" && !countryId) {
-    return NextResponse.json(
-      { error: "El administrador de pais necesita un pais asignado." },
-      { status: 400 },
-    );
+  if (!assignableRoles.includes(roleKey)) {
+    return jsonError("No puedes asignar ese rol con tu nivel de permisos.", 403);
   }
 
-  if (roleKey === "dojo_admin" && !dojoId) {
-    return NextResponse.json(
-      { error: "El administrador de dojo necesita un dojo asignado." },
-      { status: 400 },
-    );
-  }
-
-  const supabase = guard.admin;
-  const targetCheck = await validateRoleTarget(
-    supabase,
+  const target = await validateTarget(
+    guard.admin,
     guard.scope,
     roleKey,
     countryId,
     dojoId,
   );
 
-  if (targetCheck.error) {
-    return NextResponse.json({ error: targetCheck.error }, { status: 403 });
+  if (!target.ok) {
+    return jsonError(target.error, 400);
   }
 
-  let authUserId = await findAuthUserIdByEmail(supabase, email);
+  let authUserId = await findAuthUserIdByEmail(guard.admin, email);
+  let invited = false;
 
   if (!authUserId && sendInvite) {
-    const invite = await supabase.auth.admin.inviteUserByEmail(email, {
+    const invite = await guard.admin.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${request.nextUrl.origin}/${locale}/admin`,
     });
 
     if (invite.error) {
-      return NextResponse.json({ error: invite.error.message }, { status: 400 });
+      return jsonError(invite.error.message, 400);
     }
 
     authUserId = invite.data.user?.id ?? null;
+    invited = Boolean(authUserId);
   }
 
-  if (!authUserId) {
-    return NextResponse.json(
-      {
-        error:
-          "No existe usuario Auth para ese email. Activa la invitacion o crea primero el usuario en Supabase Auth.",
-      },
-      { status: 400 },
-    );
+  const profilePayload: Record<string, string | null> = {
+    email,
+    display_name: displayName || email,
+    status: invited ? "invited" : "active",
+  };
+
+  if (authUserId) {
+    profilePayload.auth_user_id = authUserId;
   }
 
-  const profileResult = await supabase
+  const profile = await guard.admin
     .from("users_profiles")
-    .upsert(
-      {
-        email,
-        display_name: displayName || email,
-        auth_user_id: authUserId,
-        status: "invited",
-      },
-      { onConflict: "email" },
-    )
+    .upsert(profilePayload, { onConflict: "email" })
     .select("id")
-    .single();
+    .single<{ id: string }>();
 
-  if (profileResult.error || !profileResult.data) {
-    return NextResponse.json(
-      { error: profileResult.error?.message ?? "No se pudo crear el perfil." },
-      { status: 500 },
-    );
+  if (profile.error || !profile.data) {
+    return jsonError(profile.error?.message ?? "No se pudo crear el perfil.", 500);
   }
 
-  const roleResult = await supabase
+  const role = await guard.admin
     .from("roles")
     .select("id")
     .eq("key", roleKey)
-    .single();
+    .single<{ id: string }>();
 
-  if (roleResult.error || !roleResult.data) {
-    return NextResponse.json(
-      { error: roleResult.error?.message ?? "No se encontro el rol." },
-      { status: 500 },
-    );
+  if (role.error || !role.data) {
+    return jsonError(role.error?.message ?? "No se encontro el rol.", 500);
   }
 
-  const assignment = await supabase.from("user_roles").upsert(
+  const assignment = await guard.admin.from("user_roles").upsert(
     {
-      profile_id: profileResult.data.id,
-      role_id: roleResult.data.id,
-      country_id: roleKey === "country_admin" ? countryId : null,
-      dojo_id: roleKey === "dojo_admin" ? dojoId : null,
-      created_by: guard.profileId,
+      profile_id: profile.data.id,
+      role_id: role.data.id,
+      country_id: roleKey === "country_admin" ? target.countryId : null,
+      dojo_id: roleKey === "dojo_admin" ? target.dojoId : null,
+      created_by: guard.scope.profileId,
     },
     {
       onConflict: "profile_id,role_id,country_id,dojo_id",
@@ -283,369 +236,214 @@ export async function POST(request: NextRequest) {
   );
 
   if (assignment.error) {
-    return NextResponse.json({ error: assignment.error.message }, { status: 500 });
+    return jsonError(assignment.error.message, 500);
   }
 
-  return NextResponse.json({ ok: true });
-}
-
-async function seedBaseCountries(supabase: SupabaseAdminClient) {
-  let importedCount = 0;
-  let updatedCount = 0;
-
-  for (const seed of legacyCountrySeeds) {
-    const countryResult = await supabase
-      .from("countries")
-      .upsert(
-        {
-          code: seed.code,
-          status: "published",
-          is_public: true,
-        },
-        { onConflict: "code" },
-      )
-      .select("id")
-      .single<{ id: string }>();
-
-    if (countryResult.error || !countryResult.data) {
-      return {
-        error:
-          countryResult.error?.message ??
-          `No se pudo cargar el pais ${seed.code}.`,
-      };
-    }
-
-    const countryId = countryResult.data.id;
-    updatedCount += 1;
-
-    for (const locale of locales) {
-      const name = getSeedCountryName(locale, seed.index, seed.code);
-      const slug = await getUniqueCountrySlug(
-        supabase,
-        locale,
-        countryId,
-        name,
-        seed.code,
-      );
-
-      const translationResult = await supabase
-        .from("country_translations")
-        .upsert(
-          {
-            country_id: countryId,
-            language_code: locale,
-            name,
-            slug,
-            description: null,
-          },
-          { onConflict: "country_id,language_code" },
-        );
-
-      if (translationResult.error) {
-        return { error: translationResult.error.message };
-      }
-    }
-
-    importedCount += 1;
-  }
-
-  return { importedCount, updatedCount };
-}
-
-async function getUniqueCountrySlug(
-  supabase: SupabaseAdminClient,
-  locale: Locale,
-  countryId: string,
-  name: string,
-  code: string,
-) {
-  const baseSlug = slugify(name) || slugify(code) || "country";
-  const candidates = [baseSlug, `${baseSlug}-${slugify(code)}`];
-
-  for (const candidate of candidates) {
-    const { data } = await supabase
-      .from("country_translations")
-      .select("country_id")
-      .eq("language_code", locale)
-      .eq("slug", candidate)
-      .maybeSingle<{ country_id: string }>();
-
-    if (!data || data.country_id === countryId) {
-      return candidate;
-    }
-  }
-
-  return `${baseSlug}-${slugify(code)}-${countryId.slice(0, 8)}`;
-}
-
-function getSeedCountryName(locale: Locale, index: number, fallback: string) {
-  return getPublicPageContent(locale, "countries").countries?.[index] ?? fallback;
-}
-
-function shouldSeedBaseCountries(countries: CountryWithTranslations[]) {
-  if (countries.length === 0) {
-    return true;
-  }
-
-  const existingCodes = new Set(countries.map((country) => country.code));
-  const missingSeedCountry = legacyCountrySeeds.some(
-    (seed) => !existingCodes.has(seed.code),
-  );
-
-  if (missingSeedCountry) {
-    return true;
-  }
-
-  return countries.some((country) =>
-    locales.some(
-      (locale) =>
-        !country.country_translations?.some(
-          (translation) =>
-            translation.language_code === locale && translation.name.trim(),
-        ),
-    ),
-  );
+  return NextResponse.json({ ok: true, invited });
 }
 
 export async function DELETE(request: NextRequest) {
-  const guard = await requireUserAdmin(request);
+  const guard = await requireAdmin(request);
 
-  if (guard.error) {
-    return guard.error;
+  if (!guard.ok) {
+    return guard.response;
   }
 
-  const id = request.nextUrl.searchParams.get("id");
+  const assignmentId = request.nextUrl.searchParams.get("id");
 
-  if (!id) {
-    return NextResponse.json({ error: "Falta el rol asignado." }, { status: 400 });
+  if (!assignmentId) {
+    return jsonError("Falta el rol asignado.", 400);
   }
 
   const assignment = await guard.admin
     .from("user_roles")
     .select("id,country_id,dojo_id,roles(key)")
-    .eq("id", id)
-    .single<ScopeRole & { id: string }>();
+    .eq("id", assignmentId)
+    .single<ScopeAssignment & { id: string }>();
 
   if (assignment.error || !assignment.data) {
-    return NextResponse.json(
-      { error: assignment.error?.message ?? "No se encontro el rol." },
-      { status: 404 },
-    );
+    return jsonError(assignment.error?.message ?? "No se encontro el rol.", 404);
   }
 
-  if (!(await canManageAssignment(guard.admin, guard.scope, assignment.data))) {
-    return NextResponse.json(
-      { error: "No tienes permisos para quitar ese rol." },
-      { status: 403 },
-    );
+  if (!canManageAssignment(guard.scope, assignment.data)) {
+    return jsonError("No puedes quitar ese rol.", 403);
   }
 
-  const { error } = await guard.admin.from("user_roles").delete().eq("id", id);
+  const deleted = await guard.admin
+    .from("user_roles")
+    .delete()
+    .eq("id", assignmentId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (deleted.error) {
+    return jsonError(deleted.error.message, 500);
   }
 
   return NextResponse.json({ ok: true });
 }
 
-async function requireUserAdmin(request: NextRequest) {
-  const sessionClient = await createSessionClient();
-  const {
-    data: { user },
-  } = await sessionClient.auth.getUser();
-
+async function requireAdmin(request: NextRequest): Promise<GuardResult> {
   const url = getSupabaseProjectUrl();
   const serviceRoleKey = getServiceRoleKey();
 
   if (!url || !serviceRoleKey) {
-    const missing = [
-      !url ? "NEXT_PUBLIC_SUPABASE_URL" : null,
-      !serviceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
-    ].filter(Boolean);
-
     return {
-      error: NextResponse.json(
-        {
-          error: `Falta configuracion de Vercel para gestionar usuarios: ${missing.join(
-            ", ",
-          )}.`,
-          detectedSupabaseVariables: getDetectedSupabaseEnvNames(),
-        },
-        { status: 500 },
+      ok: false,
+      response: jsonError(
+        `Falta configuracion Supabase: ${[
+          !url ? "NEXT_PUBLIC_SUPABASE_URL" : null,
+          !serviceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
+        ]
+          .filter(Boolean)
+          .join(", ")}`,
+        500,
       ),
-    } as const;
+    };
   }
 
   const admin = createServiceClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  let authenticatedUser = user;
+  const user = await getAuthenticatedUser(admin, request);
 
-  if (!authenticatedUser) {
-    const token = getBearerToken(request);
-
-    if (token) {
-      const tokenUser = await admin.auth.getUser(token);
-      authenticatedUser = tokenUser.data.user;
-    }
+  if (!user) {
+    return { ok: false, response: jsonError("No autenticado.", 401) };
   }
 
-  if (!authenticatedUser) {
-    return {
-      error: NextResponse.json({ error: "No autenticado." }, { status: 401 }),
-    } as const;
-  }
-
-  const { data: profileByAuthUser, error } = await admin
-    .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .eq("auth_user_id", authenticatedUser.id)
-    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
-
-  if (error) {
-    return {
-      error: NextResponse.json(
-        { error: `Error leyendo perfil administrador: ${error.message}` },
-        { status: 403 },
-      ),
-    } as const;
-  }
-
-  const profile =
-    profileByAuthUser ??
-    (await linkExistingAdminProfileByEmail(
-      admin,
-      authenticatedUser.id,
-      authenticatedUser.email ?? "",
-    )) ??
-    (await ensureBootstrapSuperAdminProfile(
-      admin,
-      authenticatedUser.id,
-      authenticatedUser.email ?? "",
-    ));
+  const profile = await getOrRepairAdminProfile(admin, user.id, user.email ?? "");
 
   if (!profile) {
     return {
-      error: NextResponse.json(
-        {
-          error:
-            "No se encontro el perfil del administrador para el usuario autenticado. Cierra sesion y entra con el email super_admin.",
-        },
-        { status: 403 },
+      ok: false,
+      response: jsonError(
+        "No se encontro un perfil administrador para esta sesion.",
+        403,
       ),
-    } as const;
+    };
   }
 
-  const userRoles = profile.user_roles ?? [];
-  const roleKeys = userRoles.map((assignment) => getRoleKey(assignment.roles));
-  const isSuperAdmin = roleKeys.includes("super_admin");
-  const isGlobal = isSuperAdmin || roleKeys.includes("global_admin");
-  const scope: UserAdminScope = {
-    isSuperAdmin,
-    isGlobal,
-    roleKeys: roleKeys.filter(Boolean) as string[],
-    countryIds: userRoles
-      .filter((assignment) => getRoleKey(assignment.roles) === "country_admin")
-      .map((assignment) => assignment.country_id)
-      .filter(Boolean) as string[],
-    dojoIds: userRoles
-      .filter((assignment) => getRoleKey(assignment.roles) === "dojo_admin")
-      .map((assignment) => assignment.dojo_id)
-      .filter(Boolean) as string[],
-  };
+  const assignments = profile.user_roles ?? [];
+  const roleKeys = assignments
+    .map((assignment) => getRoleKey(assignment.roles))
+    .filter(Boolean) as string[];
+  const hasAdminRole = roleKeys.some((roleKey) =>
+    adminRoleKeys.includes(roleKey as (typeof adminRoleKeys)[number]),
+  );
 
-  if (!isGlobal && scope.countryIds.length === 0) {
+  if (!hasAdminRole) {
     return {
-      error: NextResponse.json(
-        { error: "No tienes permisos para gestionar administradores." },
-        { status: 403 },
-      ),
-    } as const;
+      ok: false,
+      response: jsonError("Tu usuario no tiene permisos de administracion.", 403),
+    };
   }
 
-  return { admin, profileId: profile.id, scope } as const;
+  return {
+    ok: true,
+    admin,
+    scope: {
+      profileId: profile.id,
+      isSuperAdmin: roleKeys.includes("super_admin"),
+      isGlobalAdmin: roleKeys.includes("global_admin"),
+      roleKeys,
+      countryIds: assignments
+        .filter((assignment) => getRoleKey(assignment.roles) === "country_admin")
+        .map((assignment) => assignment.country_id)
+        .filter(Boolean) as string[],
+      dojoIds: assignments
+        .filter((assignment) => getRoleKey(assignment.roles) === "dojo_admin")
+        .map((assignment) => assignment.dojo_id)
+        .filter(Boolean) as string[],
+    },
+  };
 }
 
-async function linkExistingAdminProfileByEmail(
-  supabase: SupabaseAdminClient,
+async function getAuthenticatedUser(
+  admin: SupabaseAdminClient,
+  request: NextRequest,
+) {
+  const token = getBearerToken(request);
+
+  if (token) {
+    const tokenUser = await admin.auth.getUser(token);
+
+    if (tokenUser.data.user) {
+      return tokenUser.data.user;
+    }
+  }
+
+  const sessionClient = await createSessionClient();
+  const {
+    data: { user },
+  } = await sessionClient.auth.getUser();
+
+  return user;
+}
+
+async function getOrRepairAdminProfile(
+  admin: SupabaseAdminClient,
   authUserId: string,
   email: string,
 ) {
+  const byAuth = await admin
+    .from("users_profiles")
+    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle<{ id: string; user_roles: ScopeAssignment[] | null }>();
+
+  if (byAuth.data) {
+    return byAuth.data;
+  }
+
   const normalizedEmail = normalizeEmail(email);
 
   if (!normalizedEmail) {
     return null;
   }
 
-  const profileResult = await supabase
+  const byEmail = await admin
     .from("users_profiles")
     .select("id,user_roles(country_id,dojo_id,roles(key))")
     .eq("email", normalizedEmail)
-    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+    .maybeSingle<{ id: string; user_roles: ScopeAssignment[] | null }>();
 
-  if (profileResult.error || !profileResult.data) {
-    return null;
+  if (byEmail.data && hasAnyAdminRole(byEmail.data.user_roles ?? [])) {
+    const linked = await admin
+      .from("users_profiles")
+      .update({ auth_user_id: authUserId, status: "active" })
+      .eq("id", byEmail.data.id)
+      .select("id,user_roles(country_id,dojo_id,roles(key))")
+      .single<{ id: string; user_roles: ScopeAssignment[] | null }>();
+
+    return linked.data ?? byEmail.data;
   }
 
-  const roleKeys = (profileResult.data.user_roles ?? [])
-    .map((assignment) => getRoleKey(assignment.roles))
-    .filter(Boolean);
-
-  if (
-    !roleKeys.some((roleKey) =>
-      ["super_admin", "global_admin", "country_admin", "dojo_admin"].includes(
-        roleKey ?? "",
-      ),
-    )
-  ) {
-    return null;
+  if (normalizedEmail === officialSuperAdminEmail) {
+    return ensureOfficialSuperAdmin(admin, authUserId, normalizedEmail);
   }
 
-  const linkedProfile = await supabase
-    .from("users_profiles")
-    .update({
-      auth_user_id: authUserId,
-      status: "active",
-    })
-    .eq("id", profileResult.data.id)
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .single<{ id: string; user_roles: ScopeRole[] | null }>();
-
-  if (linkedProfile.error || !linkedProfile.data) {
-    return null;
-  }
-
-  return linkedProfile.data;
+  return null;
 }
 
-async function ensureBootstrapSuperAdminProfile(
-  supabase: SupabaseAdminClient,
+async function ensureOfficialSuperAdmin(
+  admin: SupabaseAdminClient,
   authUserId: string,
   email: string,
 ) {
-  const normalizedEmail = normalizeEmail(email);
-
-  if (normalizedEmail !== bootstrapSuperAdminEmail) {
-    return null;
-  }
-
-  const roleResult = await supabase
+  const role = await admin
     .from("roles")
     .select("id")
     .eq("key", "super_admin")
-    .maybeSingle<{ id: string }>();
+    .single<{ id: string }>();
 
-  if (roleResult.error || !roleResult.data) {
+  if (role.error || !role.data) {
     return null;
   }
 
-  const profileResult = await supabase
+  const profile = await admin
     .from("users_profiles")
     .upsert(
       {
         auth_user_id: authUserId,
-        email: normalizedEmail,
+        email,
         display_name: "IKA org",
         status: "active",
       },
@@ -654,17 +452,17 @@ async function ensureBootstrapSuperAdminProfile(
     .select("id")
     .single<{ id: string }>();
 
-  if (profileResult.error || !profileResult.data) {
+  if (profile.error || !profile.data) {
     return null;
   }
 
-  const assignment = await supabase.from("user_roles").upsert(
+  await admin.from("user_roles").upsert(
     {
-      profile_id: profileResult.data.id,
-      role_id: roleResult.data.id,
+      profile_id: profile.data.id,
+      role_id: role.data.id,
       country_id: null,
       dojo_id: null,
-      created_by: profileResult.data.id,
+      created_by: profile.data.id,
     },
     {
       onConflict: "profile_id,role_id,country_id,dojo_id",
@@ -672,83 +470,87 @@ async function ensureBootstrapSuperAdminProfile(
     },
   );
 
-  if (assignment.error) {
-    return null;
-  }
-
   return {
-    id: profileResult.data.id,
-    user_roles: [
-      {
-        country_id: null,
-        dojo_id: null,
-        roles: { key: "super_admin" },
-      },
-    ],
+    id: profile.data.id,
+    user_roles: [{ country_id: null, dojo_id: null, roles: { key: "super_admin" } }],
   };
 }
 
-function getAssignableRoles(scope: UserAdminScope): RoleKey[] {
+function getAssignableRoles(scope: AdminScope): AssignableRoleKey[] {
   if (scope.isSuperAdmin) {
     return ["global_admin", "country_admin", "dojo_admin"];
   }
 
-  if (scope.isGlobal) {
+  if (scope.isGlobalAdmin) {
     return ["country_admin", "dojo_admin"];
   }
 
-  return ["dojo_admin"];
+  if (scope.countryIds.length > 0) {
+    return ["dojo_admin"];
+  }
+
+  return [];
 }
 
-async function validateRoleTarget(
-  supabase: SupabaseAdminClient,
-  scope: UserAdminScope,
-  roleKey: RoleKey,
+async function validateTarget(
+  admin: SupabaseAdminClient,
+  scope: AdminScope,
+  roleKey: AssignableRoleKey,
   countryId: string | null,
   dojoId: string | null,
-) {
-  if (roleKey === "global_admin" && !scope.isSuperAdmin) {
-    return { error: "Solo super_admin puede crear administradores globales." };
+): Promise<
+  | { ok: true; countryId: string | null; dojoId: string | null }
+  | { ok: false; error: string }
+> {
+  if (roleKey === "global_admin") {
+    return scope.isSuperAdmin
+      ? { ok: true, countryId: null, dojoId: null }
+      : { ok: false, error: "Solo super admin puede crear admin global." };
   }
 
   if (roleKey === "country_admin") {
     if (!countryId) {
-      return { error: "El administrador de pais necesita un pais." };
+      return { ok: false, error: "Selecciona un pais." };
     }
 
-    if (!scope.isGlobal && !scope.countryIds.includes(countryId)) {
-      return { error: "No puedes asignar administradores a ese pais." };
+    if (!scope.isSuperAdmin && !scope.isGlobalAdmin) {
+      return { ok: false, error: "No puedes crear admins de pais." };
     }
+
+    return { ok: true, countryId, dojoId: null };
   }
 
-  if (roleKey === "dojo_admin") {
-    if (!dojoId) {
-      return { error: "El administrador de dojo necesita un dojo." };
-    }
-
-    const dojo = await supabase
-      .from("dojos")
-      .select("id,country_id")
-      .eq("id", dojoId)
-      .single<{ id: string; country_id: string }>();
-
-    if (dojo.error || !dojo.data) {
-      return { error: dojo.error?.message ?? "No se encontro el dojo." };
-    }
-
-    if (!scope.isGlobal && !scope.countryIds.includes(dojo.data.country_id)) {
-      return { error: "No puedes asignar administradores a ese dojo." };
-    }
+  if (!dojoId) {
+    return { ok: false, error: "Selecciona un dojo." };
   }
 
-  return {};
+  const dojo = await admin
+    .from("dojos")
+    .select("id,country_id")
+    .eq("id", dojoId)
+    .single<{ id: string; country_id: string }>();
+
+  if (dojo.error || !dojo.data) {
+    return { ok: false, error: dojo.error?.message ?? "No se encontro el dojo." };
+  }
+
+  if (
+    !scope.isSuperAdmin &&
+    !scope.isGlobalAdmin &&
+    !scope.countryIds.includes(dojo.data.country_id)
+  ) {
+    return { ok: false, error: "No puedes crear admins en ese dojo." };
+  }
+
+  return { ok: true, countryId: dojo.data.country_id, dojoId };
 }
 
-function filterCountriesByScope<
-  T extends { id: string },
-  D extends { country_id: string },
->(countries: T[], scope: UserAdminScope, dojos: D[]) {
-  if (scope.isGlobal) {
+function scopeCountries<T extends { id: string }, D extends { country_id: string }>(
+  countries: T[],
+  scope: AdminScope,
+  dojos: D[],
+) {
+  if (scope.isSuperAdmin || scope.isGlobalAdmin) {
     return countries;
   }
 
@@ -756,14 +558,15 @@ function filterCountriesByScope<
     ...scope.countryIds,
     ...dojos.map((dojo) => dojo.country_id),
   ]);
+
   return countries.filter((country) => countryIds.has(country.id));
 }
 
-function filterDojosByScope<T extends { id: string; country_id: string }>(
+function scopeDojos<T extends { id: string; country_id: string }>(
   dojos: T[],
-  scope: UserAdminScope,
+  scope: AdminScope,
 ) {
-  if (scope.isGlobal) {
+  if (scope.isSuperAdmin || scope.isGlobalAdmin) {
     return dojos;
   }
 
@@ -774,15 +577,16 @@ function filterDojosByScope<T extends { id: string; country_id: string }>(
   );
 }
 
-function filterAssignmentsByScope<
+function scopeAssignments<
   T extends { country_id: string | null; dojo_id: string | null },
   D extends { id: string; country_id: string },
->(assignments: T[], scope: UserAdminScope, dojos: D[]) {
-  if (scope.isGlobal) {
+>(assignments: T[], scope: AdminScope, dojos: D[]) {
+  if (scope.isSuperAdmin || scope.isGlobalAdmin) {
     return assignments;
   }
 
-  const dojoCountryById = new Map(dojos.map((dojo) => [dojo.id, dojo.country_id]));
+  const countryByDojoId = new Map(dojos.map((dojo) => [dojo.id, dojo.country_id]));
+
   return assignments.filter((assignment) => {
     if (assignment.country_id && scope.countryIds.includes(assignment.country_id)) {
       return true;
@@ -792,77 +596,47 @@ function filterAssignmentsByScope<
       return true;
     }
 
-    const dojoCountryId = assignment.dojo_id
-      ? dojoCountryById.get(assignment.dojo_id)
+    const countryId = assignment.dojo_id
+      ? countryByDojoId.get(assignment.dojo_id)
       : null;
 
-    return dojoCountryId ? scope.countryIds.includes(dojoCountryId) : false;
+    return countryId ? scope.countryIds.includes(countryId) : false;
   });
 }
 
-async function canManageAssignment(
-  supabase: SupabaseAdminClient,
-  scope: UserAdminScope,
-  assignment: ScopeRole,
-) {
+function canManageAssignment(scope: AdminScope, assignment: ScopeAssignment) {
   const roleKey = getRoleKey(assignment.roles);
 
   if (scope.isSuperAdmin) {
     return true;
   }
 
-  if (roleKey === "global_admin") {
+  if (roleKey === "global_admin" || roleKey === "country_admin") {
     return false;
   }
 
-  if (scope.isGlobal) {
+  if (scope.isGlobalAdmin) {
     return true;
   }
 
-  if (roleKey === "country_admin") {
-    return false;
-  }
-
-  if (assignment.country_id && scope.countryIds.includes(assignment.country_id)) {
-    return true;
-  }
-
-  if (!assignment.dojo_id) {
-    return false;
-  }
-
-  if (scope.dojoIds.includes(assignment.dojo_id)) {
-    return true;
-  }
-
-  const dojo = await supabase
-    .from("dojos")
-    .select("country_id")
-    .eq("id", assignment.dojo_id)
-    .maybeSingle<{ country_id: string }>();
-
-  return dojo.data?.country_id
-    ? scope.countryIds.includes(dojo.data.country_id)
-    : false;
+  return Boolean(
+    (assignment.country_id && scope.countryIds.includes(assignment.country_id)) ||
+      (assignment.dojo_id && scope.dojoIds.includes(assignment.dojo_id)),
+  );
 }
 
 async function findAuthUserIdByEmail(
-  supabase: SupabaseAdminClient,
+  admin: SupabaseAdminClient,
   email: string,
 ) {
-  let page = 1;
+  for (let page = 1; page <= 10; page += 1) {
+    const users = await admin.auth.admin.listUsers({ page, perPage: 100 });
 
-  while (page <= 10) {
-    const { data, error } = await supabase.auth.admin.listUsers({
-      page,
-      perPage: 100,
-    });
-
-    if (error) {
+    if (users.error) {
       return null;
     }
 
-    const user = data.users.find(
+    const user = users.data.users.find(
       (item) => item.email?.toLowerCase() === email,
     );
 
@@ -870,27 +644,39 @@ async function findAuthUserIdByEmail(
       return user.id;
     }
 
-    if (data.users.length < 100) {
+    if (users.data.users.length < 100) {
       return null;
     }
-
-    page += 1;
   }
 
   return null;
 }
 
-function getRoleKey(role: { key: string } | Array<{ key: string }> | null) {
-  return Array.isArray(role) ? role[0]?.key : role?.key;
+function normalizeAssignments(rows: unknown[]) {
+  return rows.map((row) => {
+    const item = row as AdminAssignment;
+
+    return {
+      ...item,
+      roles: firstRelation(item.roles),
+      countries: firstRelation(item.countries),
+      dojos: firstRelation(item.dojos),
+    };
+  });
 }
 
-function getServiceRoleKey() {
-  return (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE ||
-    ""
-  ).trim();
+function hasAnyAdminRole(assignments: ScopeAssignment[]) {
+  return assignments.some((assignment) =>
+    adminRoleKeys.includes(getRoleKey(assignment.roles) as (typeof adminRoleKeys)[number]),
+  );
+}
+
+function firstRelation(value: unknown) {
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function getRoleKey(role: ScopeAssignment["roles"]) {
+  return Array.isArray(role) ? role[0]?.key : role?.key;
 }
 
 function getBearerToken(request: NextRequest) {
@@ -900,13 +686,13 @@ function getBearerToken(request: NextRequest) {
   return scheme.toLowerCase() === "bearer" && token ? token.trim() : "";
 }
 
-function getDetectedSupabaseEnvNames() {
-  return Object.keys(process.env)
-    .filter(
-      (key) =>
-        key.startsWith("SUPABASE_") || key.startsWith("NEXT_PUBLIC_SUPABASE_"),
-    )
-    .sort();
+function getServiceRoleKey() {
+  return (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    ""
+  ).trim();
 }
 
 function normalizeEmail(value: unknown) {
@@ -922,12 +708,6 @@ function normalizeOptionalId(value: unknown) {
   return text || null;
 }
 
-function slugify(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+function jsonError(error: string, status: number) {
+  return NextResponse.json({ error }, { status });
 }
