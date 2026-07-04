@@ -504,6 +504,11 @@ async function requireUserAdmin() {
 
   const profile =
     profileByAuthUser ??
+    (await linkExistingAdminProfileByEmail(
+      admin,
+      user.id,
+      user.email ?? "",
+    )) ??
     (await ensureBootstrapSuperAdminProfile(
       admin,
       user.id,
@@ -547,6 +552,58 @@ async function requireUserAdmin() {
   }
 
   return { admin, profileId: profile.id, scope } as const;
+}
+
+async function linkExistingAdminProfileByEmail(
+  supabase: SupabaseAdminClient,
+  authUserId: string,
+  email: string,
+) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const profileResult = await supabase
+    .from("users_profiles")
+    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .eq("email", normalizedEmail)
+    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+
+  if (profileResult.error || !profileResult.data) {
+    return null;
+  }
+
+  const roleKeys = (profileResult.data.user_roles ?? [])
+    .map((assignment) => getRoleKey(assignment.roles))
+    .filter(Boolean);
+
+  if (
+    !roleKeys.some((roleKey) =>
+      ["super_admin", "global_admin", "country_admin", "dojo_admin"].includes(
+        roleKey ?? "",
+      ),
+    )
+  ) {
+    return null;
+  }
+
+  const linkedProfile = await supabase
+    .from("users_profiles")
+    .update({
+      auth_user_id: authUserId,
+      status: "active",
+    })
+    .eq("id", profileResult.data.id)
+    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .single<{ id: string; user_roles: ScopeRole[] | null }>();
+
+  if (linkedProfile.error || !linkedProfile.data) {
+    return null;
+  }
+
+  return linkedProfile.data;
 }
 
 async function ensureBootstrapSuperAdminProfile(
