@@ -63,11 +63,11 @@ type AdminPanelProps = {
 export function AdminPanel({ locale }: AdminPanelProps) {
   return (
     <>
-      <AdminModule title="Usuarios y permisos">
+      <AdminModule title="Usuarios y permisos: crear admins" defaultOpen>
         <UsersAdmin initialLocale={locale} />
       </AdminModule>
 
-      <AdminModule title="Kenshi e importacion masiva">
+      <AdminModule title="Kenshi: alta/importacion de miembros" defaultOpen>
         <MembersAdmin initialLocale={locale} />
       </AdminModule>
 
@@ -79,7 +79,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
         <EventsAdmin initialLocale={locale} />
       </AdminModule>
 
-      <AdminModule title="Paises y dojos">
+      <AdminModule title="Paises y dojos: alta de pais/dojo" defaultOpen>
         <LocationsAdmin initialLocale={locale} />
       </AdminModule>
 
@@ -92,13 +92,15 @@ export function AdminPanel({ locale }: AdminPanelProps) {
 
 function AdminModule({
   title,
+  defaultOpen = false,
   children,
 }: {
   title: string;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <details className="border border-[var(--line)] bg-white p-5">
+    <details className="border border-[var(--line)] bg-white p-5" open={defaultOpen}>
       <summary className="cursor-pointer text-xl font-semibold">{title}</summary>
       <div className="mt-5">{children}</div>
     </details>

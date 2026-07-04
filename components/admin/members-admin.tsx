@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileUp, Loader2, Send, UsersRound } from "lucide-react";
 import type { Locale } from "@/lib/i18n/config";
+import { createClient } from "@/lib/supabase/browser";
 
 type CountryOption = {
   id: string;
@@ -73,6 +74,7 @@ const csvTemplate =
   "Ane,Gonzalez,ane@example.com,3 kyu,2026-01-10,+34 600 000 000\n";
 
 export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
+  const supabase = useMemo(() => createClient(), []);
   const [payload, setPayload] = useState<MembersPayload>(emptyPayload);
   const [csvText, setCsvText] = useState(csvTemplate);
   const [selectedDojoId, setSelectedDojoId] = useState("");
@@ -81,8 +83,18 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function fetchMembersPayload(): Promise<MembersLoadResult> {
-    const response = await fetch("/api/admin/members", { cache: "no-store" });
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [supabase]);
+
+  const fetchMembersPayload = useCallback(async (): Promise<MembersLoadResult> => {
+    const response = await fetch("/api/admin/members", {
+      cache: "no-store",
+      headers: await getAuthHeaders(),
+    });
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -93,7 +105,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     }
 
     return { ok: true, payload: data as MembersPayload };
-  }
+  }, [getAuthHeaders]);
 
   const loadMembers = useCallback(async () => {
     setMessage("");
@@ -108,7 +120,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     }
 
     setLoading(false);
-  }, []);
+  }, [fetchMembersPayload]);
 
   useEffect(() => {
     let ignore = false;
@@ -131,7 +143,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [fetchMembersPayload]);
 
   const rows = useMemo(() => parseCsvRows(csvText, payload), [csvText, payload]);
   const eligibleDojos = useMemo(
@@ -158,7 +170,10 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
 
     const response = await fetch("/api/admin/members", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
       body: JSON.stringify({
         rows: validRows.map((row) => ({
           ...row,

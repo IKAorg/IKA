@@ -77,6 +77,12 @@ type UsersPayload = {
   };
 };
 
+const defaultAssignableRoles: AssignableRoleKey[] = [
+  "global_admin",
+  "country_admin",
+  "dojo_admin",
+];
+
 const roleLabels: Record<RoleKey, string> = {
   super_admin: "Super admin",
   global_admin: "Admin global",
@@ -124,6 +130,71 @@ export function UsersAdmin({
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, [supabase]);
 
+  const loadUsersDirectly = useCallback(async (): Promise<UsersPayload | null> => {
+    const [profiles, roles, assignments, countries, dojos] = await Promise.all([
+      supabase
+        .from("users_profiles")
+        .select("id,email,display_name,status")
+        .order("email", { ascending: true }),
+      supabase
+        .from("roles")
+        .select("id,key,name")
+        .in("key", defaultAssignableRoles)
+        .order("name", { ascending: true }),
+      supabase
+        .from("user_roles")
+        .select(
+          "id,profile_id,role_id,country_id,dojo_id,roles(key,name),countries(id,code,country_translations(language_code,name)),dojos(id,country_id,city,dojo_translations(language_code,name))",
+        ),
+      supabase
+        .from("countries")
+        .select("id,code,country_translations(language_code,name)")
+        .order("code", { ascending: true }),
+      supabase
+        .from("dojos")
+        .select("id,country_id,city,dojo_translations(language_code,name)")
+        .order("city", { ascending: true }),
+    ]);
+
+    const firstError =
+      profiles.error ??
+      roles.error ??
+      assignments.error ??
+      countries.error ??
+      dojos.error;
+
+    if (firstError) {
+      return null;
+    }
+
+    return {
+      profiles: (profiles.data ?? []) as Profile[],
+      roles: (roles.data ?? []) as Role[],
+      assignments: ((assignments.data ?? []) as Array<
+        Omit<Assignment, "roles" | "countries" | "dojos"> & {
+          roles: Assignment["roles"] | Assignment["roles"][];
+          countries: Assignment["countries"] | Assignment["countries"][];
+          dojos: Assignment["dojos"] | Assignment["dojos"][];
+        }
+      >).map((assignment) => ({
+        ...assignment,
+        roles: firstRelation(assignment.roles),
+        countries: firstRelation(assignment.countries),
+        dojos: firstRelation(assignment.dojos),
+      })),
+      countries: (countries.data ?? []) as CountryOption[],
+      dojos: (dojos.data ?? []) as DojoOption[],
+      assignableRoles: defaultAssignableRoles,
+      scope: {
+        isSuperAdmin: true,
+        isGlobal: true,
+        countryIds: [],
+        dojoIds: [],
+        roleKeys: ["super_admin"],
+      },
+    };
+  }, [supabase]);
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setMessage("");
@@ -135,14 +206,22 @@ export function UsersAdmin({
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudieron cargar los usuarios.");
-      setPayload({
-        profiles: [],
-        roles: [],
-        assignments: [],
-        countries: [],
-        dojos: [],
-      });
+      const fallbackPayload = await loadUsersDirectly();
+
+      if (fallbackPayload) {
+        setPayload(fallbackPayload);
+        setMessage("");
+      } else {
+        setMessage(data.error ?? "No se pudieron cargar los usuarios.");
+        setPayload({
+          profiles: [],
+          roles: [],
+          assignments: [],
+          countries: [],
+          dojos: [],
+          assignableRoles: defaultAssignableRoles,
+        });
+      }
     } else {
       const nextPayload = data as UsersPayload;
       const nextRoleKeys =
@@ -164,7 +243,7 @@ export function UsersAdmin({
     }
 
     setLoading(false);
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, loadUsersDirectly]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -309,10 +388,14 @@ export function UsersAdmin({
       ? payload.dojos.filter((dojo) => dojo.country_id === form.countryId)
       : payload.dojos;
   const availableRoleKeys = useMemo(
-    () =>
-      payload.assignableRoles && payload.assignableRoles.length > 0
-        ? payload.assignableRoles
-        : payload.roles.map((role) => role.key),
+    () => {
+      if (payload.assignableRoles && payload.assignableRoles.length > 0) {
+        return payload.assignableRoles;
+      }
+
+      const roleKeys = payload.roles.map((role) => role.key);
+      return roleKeys.length > 0 ? roleKeys : defaultAssignableRoles;
+    },
     [payload.assignableRoles, payload.roles],
   );
 
@@ -658,4 +741,8 @@ function dojoLabel(dojo: DojoOption, locale: Locale) {
     dojo.dojo_translations?.[0]?.name ??
     dojo.city
   );
+}
+
+function firstRelation<T>(value: T | T[] | null) {
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
