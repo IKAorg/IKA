@@ -506,7 +506,7 @@ async function requireUserAdmin(request: NextRequest) {
   if (error) {
     return {
       error: NextResponse.json(
-        { error: "No se encontro el perfil del administrador." },
+        { error: `Error leyendo perfil administrador: ${error.message}` },
         { status: 403 },
       ),
     } as const;
@@ -528,7 +528,10 @@ async function requireUserAdmin(request: NextRequest) {
   if (!profile) {
     return {
       error: NextResponse.json(
-        { error: "No se encontro el perfil del administrador." },
+        {
+          error:
+            "No se encontro el perfil del administrador para el usuario autenticado. Cierra sesion y entra con el email super_admin.",
+        },
         { status: 403 },
       ),
     } as const;
