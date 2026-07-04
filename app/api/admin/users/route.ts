@@ -123,12 +123,9 @@ export async function GET(request: NextRequest) {
   );
 
   return NextResponse.json({
-    profiles:
-      guard.scope.isSuperAdmin || guard.scope.isGlobalAdmin
-        ? profiles.data ?? []
-        : (profiles.data ?? []).filter((profile) =>
-            visibleProfileIds.has(profile.id as string),
-          ),
+    profiles: (profiles.data ?? []).filter((profile) =>
+      visibleProfileIds.has(profile.id as string),
+    ),
     roles: roles.data ?? [],
     assignments: scopedAssignments,
     countries: scopedCountries,
@@ -201,14 +198,10 @@ export async function POST(request: NextRequest) {
     profilePayload.auth_user_id = authUserId;
   }
 
-  const profile = await guard.admin
-    .from("users_profiles")
-    .upsert(profilePayload, { onConflict: "email" })
-    .select("id")
-    .single<{ id: string }>();
+  const profile = await upsertProfileByEmail(guard.admin, profilePayload);
 
-  if (profile.error || !profile.data) {
-    return jsonError(profile.error?.message ?? "No se pudo crear el perfil.", 500);
+  if (!profile.ok) {
+    return jsonError(profile.error, 500);
   }
 
   const role = await guard.admin
@@ -223,7 +216,7 @@ export async function POST(request: NextRequest) {
 
   const assignment = await guard.admin.from("user_roles").upsert(
     {
-      profile_id: profile.data.id,
+      profile_id: profile.id,
       role_id: role.data.id,
       country_id: roleKey === "country_admin" ? target.countryId : null,
       dojo_id: roleKey === "dojo_admin" ? target.dojoId : null,
@@ -257,9 +250,9 @@ export async function DELETE(request: NextRequest) {
 
   const assignment = await guard.admin
     .from("user_roles")
-    .select("id,country_id,dojo_id,roles(key)")
+    .select("id,profile_id,country_id,dojo_id,roles(key)")
     .eq("id", assignmentId)
-    .single<ScopeAssignment & { id: string }>();
+    .maybeSingle<ScopeAssignment & { id: string; profile_id: string }>();
 
   if (assignment.error || !assignment.data) {
     return jsonError(assignment.error?.message ?? "No se encontro el rol.", 404);
@@ -276,6 +269,10 @@ export async function DELETE(request: NextRequest) {
 
   if (deleted.error) {
     return jsonError(deleted.error.message, 500);
+  }
+
+  if (assignment.data.profile_id !== guard.scope.profileId) {
+    await deleteProfileWhenNoRolesRemain(guard.admin, assignment.data.profile_id);
   }
 
   return NextResponse.json({ ok: true });
@@ -650,6 +647,66 @@ async function findAuthUserIdByEmail(
   }
 
   return null;
+}
+
+async function upsertProfileByEmail(
+  admin: SupabaseAdminClient,
+  payload: Record<string, string | null>,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const email = payload.email;
+
+  if (!email) {
+    return { ok: false, error: "El email es obligatorio." };
+  }
+
+  const upserted = await admin
+    .from("users_profiles")
+    .upsert(payload, { onConflict: "email" })
+    .select("id")
+    .limit(1);
+
+  if (upserted.error) {
+    return { ok: false, error: upserted.error.message };
+  }
+
+  const id = (upserted.data?.[0]?.id as string | undefined) ?? "";
+
+  if (id) {
+    return { ok: true, id };
+  }
+
+  const existing = await admin
+    .from("users_profiles")
+    .select("id")
+    .eq("email", email)
+    .limit(1);
+
+  if (existing.error) {
+    return { ok: false, error: existing.error.message };
+  }
+
+  const existingId = (existing.data?.[0]?.id as string | undefined) ?? "";
+
+  return existingId
+    ? { ok: true, id: existingId }
+    : { ok: false, error: "No se pudo crear o recuperar el perfil." };
+}
+
+async function deleteProfileWhenNoRolesRemain(
+  admin: SupabaseAdminClient,
+  profileId: string,
+) {
+  const remainingRoles = await admin
+    .from("user_roles")
+    .select("id")
+    .eq("profile_id", profileId)
+    .limit(1);
+
+  if (remainingRoles.error || (remainingRoles.data?.length ?? 0) > 0) {
+    return;
+  }
+
+  await admin.from("users_profiles").delete().eq("id", profileId);
 }
 
 function normalizeAssignments(rows: unknown[]) {
