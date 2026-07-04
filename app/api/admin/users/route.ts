@@ -272,7 +272,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (assignment.data.profile_id !== guard.scope.profileId) {
-    await deleteProfileWhenNoRolesRemain(guard.admin, assignment.data.profile_id);
+    await deleteEmptyUnlinkedProfile(guard.admin, assignment.data.profile_id);
   }
 
   return NextResponse.json({ ok: true });
@@ -692,7 +692,7 @@ async function upsertProfileByEmail(
     : { ok: false, error: "No se pudo crear o recuperar el perfil." };
 }
 
-async function deleteProfileWhenNoRolesRemain(
+async function deleteEmptyUnlinkedProfile(
   admin: SupabaseAdminClient,
   profileId: string,
 ) {
@@ -703,6 +703,16 @@ async function deleteProfileWhenNoRolesRemain(
     .limit(1);
 
   if (remainingRoles.error || (remainingRoles.data?.length ?? 0) > 0) {
+    return;
+  }
+
+  const linkedMember = await admin
+    .from("members")
+    .select("id")
+    .eq("profile_id", profileId)
+    .limit(1);
+
+  if (linkedMember.error || (linkedMember.data?.length ?? 0) > 0) {
     return;
   }
 
