@@ -357,11 +357,6 @@ export async function POST(request: NextRequest) {
 }
 
 async function requireMembersAdmin(request: NextRequest) {
-  const sessionClient = await createSessionClient();
-  const {
-    data: { user },
-  } = await sessionClient.auth.getUser();
-
   const url = getSupabaseProjectUrl();
   const serviceRoleKey = getServiceRoleKey();
 
@@ -381,16 +376,7 @@ async function requireMembersAdmin(request: NextRequest) {
   const admin = createServiceClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  let authenticatedUser = user;
-
-  if (!authenticatedUser) {
-    const token = getBearerToken(request);
-
-    if (token) {
-      const tokenUser = await admin.auth.getUser(token);
-      authenticatedUser = tokenUser.data.user;
-    }
-  }
+  const authenticatedUser = await getAuthenticatedMemberAdminUser(admin, request);
 
   if (!authenticatedUser) {
     return {
@@ -446,6 +432,28 @@ async function requireMembersAdmin(request: NextRequest) {
   };
 
   return { admin, profileId: profile.id, scope } as const;
+}
+
+async function getAuthenticatedMemberAdminUser(
+  admin: SupabaseAdminClient,
+  request: NextRequest,
+) {
+  const token = getBearerToken(request);
+
+  if (token) {
+    const tokenUser = await admin.auth.getUser(token);
+
+    if (tokenUser.data.user) {
+      return tokenUser.data.user;
+    }
+  }
+
+  const sessionClient = await createSessionClient();
+  const {
+    data: { user },
+  } = await sessionClient.auth.getUser();
+
+  return user;
 }
 
 async function getMembersAdminProfile(
