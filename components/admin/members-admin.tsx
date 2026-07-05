@@ -467,8 +467,16 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
         getValue(record, "lastname") ||
         getValue(record, "apellido") ||
         getValue(record, "apellidos"),
-      email: getValue(record, "email") || getValue(record, "correo"),
-      phone: getValue(record, "phone") || getValue(record, "telefono"),
+      email:
+        getValue(record, "email") ||
+        getValue(record, "correo") ||
+        getValue(record, "email_familia") ||
+        getValue(record, "emailfamilia"),
+      phone:
+        getValue(record, "phone") ||
+        getValue(record, "telefono") ||
+        getValue(record, "telefono_alumno") ||
+        getValue(record, "teléfono alumno"),
       countryId: getValue(record, "country_id") || country?.id || "",
       countryCode:
         getValue(record, "country_code") ||
@@ -478,7 +486,11 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
       dojoId: getValue(record, "dojo_id") || dojo?.id || "",
       dojoName: dojo ? "" : dojoInput,
       birthDate: getValue(record, "birth_date") || getValue(record, "fecha_nacimiento"),
-      joinedDate: getValue(record, "joined_date") || getValue(record, "fecha_alta"),
+      joinedDate:
+        getValue(record, "joined_date") ||
+        getValue(record, "fecha_alta") ||
+        getValue(record, "fecha_ingreso") ||
+        getValue(record, "fecha ingreso"),
       currentGrade:
         getValue(record, "current_grade") ||
         getValue(record, "grade") ||
@@ -487,7 +499,10 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
         getValue(record, "main_instructor") || getValue(record, "instructor"),
       guardianName: getValue(record, "guardian_name") || getValue(record, "tutor"),
       guardianEmail:
-        getValue(record, "guardian_email") || getValue(record, "email_tutor"),
+        getValue(record, "guardian_email") ||
+        getValue(record, "email_tutor") ||
+        getValue(record, "email_familia") ||
+        getValue(record, "emailfamilia"),
       isMinor: getValue(record, "is_minor") || getValue(record, "menor"),
       notes: getValue(record, "notes") || getValue(record, "notas"),
     };
