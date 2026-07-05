@@ -149,6 +149,7 @@ type PortalCopy = {
   passwordPlaceholder: string;
   enter: string;
   magicLinkSent: string;
+  requestAccess?: string;
   loadError: string;
   privatePortal: string;
   signOut: string;
@@ -187,10 +188,11 @@ const portalCopies: Record<Locale, PortalCopy> = {
     secureAccess: "Secure access",
     enterPortal: "Enter the portal",
     loginHelp:
-      "Use the email linked to your IKA record. If you do not have a password, leave it empty and you will receive a magic link.",
-    passwordPlaceholder: "Optional password",
+      "Use the email and password linked to your IKA record. For first access or password recovery, request new credentials.",
+    passwordPlaceholder: "Password",
     enter: "Enter",
-    magicLinkSent: "Check your email to enter the portal.",
+    magicLinkSent: "Check your email to create or recover your portal password.",
+    requestAccess: "Create or recover credentials",
     loadError: "The portal could not be loaded.",
     privatePortal: "Private portal",
     signOut: "Sign out",
@@ -236,10 +238,11 @@ const portalCopies: Record<Locale, PortalCopy> = {
     secureAccess: "Acceso seguro",
     enterPortal: "Entrar al portal",
     loginHelp:
-      "Usa el email asociado a tu ficha IKA. Si no tienes contrasena, deja el campo vacio y recibiras un enlace magico.",
-    passwordPlaceholder: "Contrasena opcional",
+      "Usa el email y la contrasena asociados a tu ficha IKA. Para primer acceso o recuperar contrasena, solicita nuevas credenciales.",
+    passwordPlaceholder: "Contrasena",
     enter: "Entrar",
-    magicLinkSent: "Revisa tu email para entrar al portal.",
+    magicLinkSent: "Revisa tu email para crear o recuperar tu contrasena del portal.",
+    requestAccess: "Crear o recuperar credenciales",
     loadError: "No se pudo cargar el portal.",
     privatePortal: "Portal privado",
     signOut: "Salir",
@@ -531,6 +534,22 @@ function normalizeEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
+function getAuthRedirectParams() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const searchParams = new URLSearchParams(window.location.search);
+  const accessToken =
+    hashParams.get("access_token") ?? searchParams.get("access_token") ?? "";
+  const refreshToken =
+    hashParams.get("refresh_token") ?? searchParams.get("refresh_token") ?? "";
+  const type = hashParams.get("type") ?? searchParams.get("type") ?? "";
+
+  return { accessToken, refreshToken, type };
+}
+
 export function PortalClient({
   locale = defaultLocale,
 }: {
@@ -583,18 +602,59 @@ export function PortalClient({
   }, [copy.loadError, getAuthHeaders]);
 
   useEffect(() => {
-    const hasRecoveryHint =
-      typeof window !== "undefined" &&
-      (window.location.hash.includes("type=recovery") ||
-        window.location.search.includes("type=recovery"));
+    let active = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    async function initializePortalSession() {
+      const redirectParams = getAuthRedirectParams();
+      const hasRecoveryHint = redirectParams?.type === "recovery";
+
+      if (redirectParams?.accessToken && redirectParams.refreshToken) {
+        const nextSession = await supabase.auth.setSession({
+          access_token: redirectParams.accessToken,
+          refresh_token: redirectParams.refreshToken,
+        });
+
+        if (!active) {
+          return;
+        }
+
+        if (nextSession.error) {
+          setMessage(nextSession.error.message);
+          setLoading(false);
+          return;
+        }
+
+        setSession(nextSession.data.session);
+
+        if (typeof window !== "undefined") {
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+
+        if (hasRecoveryHint) {
+          setRecoveryMode(true);
+          setPortal(null);
+          setLoading(false);
+          return;
+        }
+
+        await loadPortal();
+        return;
+      }
+
+      const { data } = await supabase.auth.getSession();
+
+      if (!active) {
+        return;
+      }
+
       setSession(data.session);
       setLoading(false);
       if (data.session && !hasRecoveryHint) {
         void loadPortal();
       }
-    });
+    }
+
+    void initializePortalSession();
 
     const {
       data: { subscription },
@@ -617,28 +677,49 @@ export function PortalClient({
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [loadPortal, recoveryMode, supabase]);
 
   async function signIn() {
+    if (!email || !password) {
+      setMessage("Introduce email y contrasena.");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
-    const result = password
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo:
-              typeof window === "undefined"
-                ? undefined
-                : `${window.location.origin}/${locale}/portal`,
-          },
-        });
+    const result = await supabase.auth.signInWithPassword({ email, password });
 
     if (result.error) {
       setMessage(result.error.message);
-    } else if (!password) {
+    }
+
+    setLoading(false);
+  }
+
+  async function requestCredentials() {
+    if (!email) {
+      setMessage("Introduce tu email para recibir credenciales.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+
+    const result = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo:
+        typeof window === "undefined"
+          ? undefined
+          : `${window.location.origin}/${locale}/portal?type=recovery`,
+    });
+
+    if (result.error) {
+      setMessage(result.error.message);
+    } else {
       setMessage(copy.magicLinkSent);
     }
 
@@ -762,11 +843,19 @@ export function PortalClient({
           </div>
           <button
             onClick={signIn}
-            disabled={loading || !email}
+            disabled={loading || !email || !password}
             className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-5 py-3 font-semibold text-white disabled:opacity-50"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
             {copy.enter}
+          </button>
+          <button
+            type="button"
+            onClick={() => void requestCredentials()}
+            disabled={loading || !email}
+            className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-5 py-3 font-semibold disabled:opacity-50"
+          >
+            {copy.requestAccess ?? "Create or recover credentials"}
           </button>
           {message ? (
             <p className="text-sm font-semibold text-[var(--accent)]">
