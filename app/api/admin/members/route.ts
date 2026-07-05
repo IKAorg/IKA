@@ -1,6 +1,7 @@
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
+import { createPublicSupabaseClient } from "@/lib/supabase/public-client";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
 
 type ScopeRole = {
@@ -267,11 +268,14 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  let authUserId = await findAuthUserIdByEmail(guard.admin, member.data.email);
+  const memberEmail = member.data.email.trim().toLowerCase();
+  const redirectTo = buildPublicRedirectUrl(request, "es", "portal");
+  let authUserId = await findAuthUserIdByEmail(guard.admin, memberEmail);
+  let inviteSent = false;
 
   if (!authUserId) {
-    const invite = await guard.admin.auth.admin.inviteUserByEmail(member.data.email, {
-      redirectTo: buildPublicRedirectUrl(request, "es", "portal"),
+    const invite = await guard.admin.auth.admin.inviteUserByEmail(memberEmail, {
+      redirectTo,
     });
 
     if (invite.error) {
@@ -279,16 +283,40 @@ export async function PATCH(request: NextRequest) {
     }
 
     authUserId = invite.data.user?.id ?? null;
+    inviteSent = true;
+  } else {
+    const publicClient = createPublicSupabaseClient();
+
+    if (!publicClient) {
+      return NextResponse.json(
+        { error: "No se pudo preparar el envio del email del portal." },
+        { status: 500 },
+      );
+    }
+
+    const accessEmail = await publicClient.auth.signInWithOtp({
+      email: memberEmail,
+      options: {
+        emailRedirectTo: redirectTo,
+        shouldCreateUser: false,
+      },
+    });
+
+    if (accessEmail.error) {
+      return NextResponse.json({ error: accessEmail.error.message }, { status: 500 });
+    }
+
+    inviteSent = true;
   }
 
   const profile = await guard.admin
     .from("users_profiles")
     .upsert(
       {
-        email: member.data.email,
+        email: memberEmail,
         display_name: `${member.data.first_name} ${member.data.last_name}`,
         auth_user_id: authUserId,
-        status: authUserId ? "invited" : "active",
+        status: "invited",
       },
       { onConflict: "email" },
     )
@@ -337,8 +365,8 @@ export async function PATCH(request: NextRequest) {
     .from("members")
     .update({
       profile_id: profile.data.id,
-      portal_invite_sent_at: new Date().toISOString(),
-      portal_invite_sent_to: member.data.email,
+      portal_invite_sent_at: inviteSent ? new Date().toISOString() : null,
+      portal_invite_sent_to: inviteSent ? memberEmail : null,
       portal_invite_sent_by: guard.profileId,
       updated_by: guard.profileId,
     })
