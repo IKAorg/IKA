@@ -231,7 +231,7 @@ async function getPortalDashboard(
     supabase
       .from("members")
       .select(
-        "id,first_name,last_name,email,phone,status,current_grade,joined_date,country_id,dojo_id",
+        "id,first_name,last_name,email,phone,status,current_grade,joined_date,country_id,dojo_id,member_group",
       )
       .order("last_name", { ascending: true }),
   ]);
@@ -267,6 +267,7 @@ async function getPortalDashboard(
     joined_date: string | null;
     country_id: string | null;
     dojo_id: string | null;
+    member_group: string | null;
   }>;
   const visibleDojos = scope.isGlobal
     ? allDojos
@@ -295,6 +296,12 @@ async function getPortalDashboard(
   const activeMembers = visibleMembers.filter(
     (member) => member.status === "active",
   );
+  const activeAdults = activeMembers.filter(
+    (member) => member.member_group === "adult",
+  );
+  const activeChildren = activeMembers.filter(
+    (member) => member.member_group === "child",
+  );
   const membersByDojo = visibleDojos.map((dojo) => ({
     dojoId: dojo.id,
     dojoName: firstTranslationName(dojo.dojo_translations) || dojo.city,
@@ -303,6 +310,25 @@ async function getPortalDashboard(
       .length,
     activeMembers: activeMembers.filter((member) => member.dojo_id === dojo.id)
       .length,
+    activeAdults: activeAdults.filter((member) => member.dojo_id === dojo.id)
+      .length,
+    activeChildren: activeChildren.filter((member) => member.dojo_id === dojo.id)
+      .length,
+  }));
+  const membersByCountry = visibleCountries.map((country) => ({
+    countryId: country.id,
+    countryName: firstTranslationName(country.country_translations) || country.code,
+    totalMembers: visibleMembers.filter(
+      (member) => member.country_id === country.id,
+    ).length,
+    activeMembers: activeMembers.filter(
+      (member) => member.country_id === country.id,
+    ).length,
+    activeAdults: activeAdults.filter((member) => member.country_id === country.id)
+      .length,
+    activeChildren: activeChildren.filter(
+      (member) => member.country_id === country.id,
+    ).length,
   }));
 
   return {
@@ -312,11 +338,14 @@ async function getPortalDashboard(
       dojos: visibleDojos.length,
       members: visibleMembers.length,
       activeMembers: activeMembers.length,
+      activeAdults: activeAdults.length,
+      activeChildren: activeChildren.length,
     },
     countries: visibleCountries.slice(0, 50),
     dojos: visibleDojos.slice(0, 80),
     members: visibleMembers.slice(0, 100),
     membersByDojo,
+    membersByCountry,
   };
 }
 

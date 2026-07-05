@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileUp, Loader2, Mail, Send, UsersRound } from "lucide-react";
+import { FileUp, Loader2, Mail, Pencil, Save, Send, UsersRound, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import type { Locale } from "@/lib/i18n/config";
 import { createClient } from "@/lib/supabase/browser";
@@ -27,7 +27,16 @@ type MemberRow = {
   first_name: string;
   last_name: string;
   email: string | null;
+  phone: string | null;
+  status: string;
   current_grade: string | null;
+  birth_date: string | null;
+  joined_date: string | null;
+  main_instructor: string | null;
+  guardian_name: string | null;
+  guardian_email: string | null;
+  internal_notes: string | null;
+  member_group: string | null;
   country_id: string | null;
   dojo_id: string | null;
   portal_invite_sent_at: string | null;
@@ -54,6 +63,23 @@ type ImportRow = {
   guardianName: string;
   guardianEmail: string;
   isMinor: string;
+  notes: string;
+  memberGroup: string;
+};
+
+type MemberEditForm = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  currentGrade: string;
+  birthDate: string;
+  joinedDate: string;
+  status: string;
+  memberGroup: string;
+  mainInstructor: string;
+  guardianName: string;
+  guardianEmail: string;
   notes: string;
 };
 
@@ -86,6 +112,9 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [inviteSendingId, setInviteSendingId] = useState("");
+  const [editingMemberId, setEditingMemberId] = useState("");
+  const [savingMemberId, setSavingMemberId] = useState("");
+  const [memberForm, setMemberForm] = useState<MemberEditForm | null>(null);
   const [message, setMessage] = useState("");
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -183,7 +212,13 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     selectedDojo?.has_dojo_admin === true;
 
   const validRows = useMemo(
-    () => rows.filter((row) => row.firstName && row.lastName),
+    () =>
+      rows.filter(
+        (row) =>
+          row.firstName &&
+          row.lastName &&
+          (!row.status || isActiveImportStatus(row.status)),
+      ),
     [rows],
   );
 
@@ -285,6 +320,63 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       `Email enviado al email ${data.member?.portal_invite_sent_to ?? member.email}.`,
     );
     setInviteSendingId("");
+  }
+
+  function startEditingMember(member: MemberRow) {
+    setEditingMemberId(member.id);
+    setMemberForm(memberToForm(member));
+    setMessage("");
+  }
+
+  function updateMemberForm(field: keyof MemberEditForm, value: string) {
+    setMemberForm((current) =>
+      current
+        ? {
+            ...current,
+            [field]: value,
+          }
+        : current,
+    );
+  }
+
+  async function saveMember(member: MemberRow) {
+    if (!memberForm) {
+      return;
+    }
+
+    setSavingMemberId(member.id);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "update_member",
+        memberId: member.id,
+        member: memberForm,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo guardar el Kenshi.");
+      setSavingMemberId("");
+      return;
+    }
+
+    setPayload((current) => ({
+      ...current,
+      members: current.members.map((item) =>
+        item.id === member.id ? { ...item, ...data.member } : item,
+      ),
+    }));
+    setEditingMemberId("");
+    setMemberForm(null);
+    setSavingMemberId("");
+    setMessage("Kenshi actualizado.");
   }
 
   return (
@@ -481,20 +573,157 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                       Invitacion al portal pendiente.
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => void sendPortalInvite(member)}
-                    disabled={!member.email || inviteSendingId === member.id}
-                    className="inline-flex h-9 items-center justify-center gap-2 border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
-                  >
-                    {inviteSendingId === member.id ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Mail size={16} />
-                    )}
-                    Enviar email
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEditingMember(member)}
+                      className="inline-flex h-9 items-center justify-center gap-2 border border-[var(--line)] px-3 font-semibold"
+                    >
+                      <Pencil size={16} />
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void sendPortalInvite(member)}
+                      disabled={!member.email || inviteSendingId === member.id}
+                      className="inline-flex h-9 items-center justify-center gap-2 border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
+                    >
+                      {inviteSendingId === member.id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Mail size={16} />
+                      )}
+                      Enviar email
+                    </button>
+                  </div>
                 </div>
+                {editingMemberId === member.id && memberForm ? (
+                  <div className="grid gap-3 border-t border-[var(--line)] pt-3 md:col-span-2">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <EditField
+                        label="Nombre"
+                        value={memberForm.firstName}
+                        onChange={(value) => updateMemberForm("firstName", value)}
+                      />
+                      <EditField
+                        label="Apellidos"
+                        value={memberForm.lastName}
+                        onChange={(value) => updateMemberForm("lastName", value)}
+                      />
+                      <EditField
+                        label="Email"
+                        value={memberForm.email}
+                        onChange={(value) => updateMemberForm("email", value)}
+                      />
+                      <EditField
+                        label="Telefono"
+                        value={memberForm.phone}
+                        onChange={(value) => updateMemberForm("phone", value)}
+                      />
+                      <EditField
+                        label="Grado"
+                        value={memberForm.currentGrade}
+                        onChange={(value) => updateMemberForm("currentGrade", value)}
+                      />
+                      <EditField
+                        label="Fecha ingreso"
+                        type="date"
+                        value={memberForm.joinedDate}
+                        onChange={(value) => updateMemberForm("joinedDate", value)}
+                      />
+                      <label className="grid gap-1 font-semibold">
+                        Grupo
+                        <select
+                          value={memberForm.memberGroup}
+                          onChange={(event) =>
+                            updateMemberForm("memberGroup", event.target.value)
+                          }
+                          className="border border-[var(--line)] px-3 py-2 font-normal"
+                        >
+                          <option value="">Sin grupo</option>
+                          <option value="adult">Adultos</option>
+                          <option value="child">Ninos</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-1 font-semibold">
+                        Estado
+                        <select
+                          value={memberForm.status}
+                          onChange={(event) =>
+                            updateMemberForm("status", event.target.value)
+                          }
+                          className="border border-[var(--line)] px-3 py-2 font-normal"
+                        >
+                          <option value="active">Activo</option>
+                          <option value="inactive">Inactivo</option>
+                          <option value="temporary_leave">Baja temporal</option>
+                        </select>
+                      </label>
+                      <EditField
+                        label="Instructor"
+                        value={memberForm.mainInstructor}
+                        onChange={(value) =>
+                          updateMemberForm("mainInstructor", value)
+                        }
+                      />
+                      <EditField
+                        label="Tutor"
+                        value={memberForm.guardianName}
+                        onChange={(value) => updateMemberForm("guardianName", value)}
+                      />
+                      <EditField
+                        label="Email tutor"
+                        value={memberForm.guardianEmail}
+                        onChange={(value) =>
+                          updateMemberForm("guardianEmail", value)
+                        }
+                      />
+                      <EditField
+                        label="Fecha nacimiento"
+                        type="date"
+                        value={memberForm.birthDate}
+                        onChange={(value) => updateMemberForm("birthDate", value)}
+                      />
+                    </div>
+                    <label className="grid gap-1 font-semibold">
+                      Notas
+                      <textarea
+                        value={memberForm.notes}
+                        onChange={(event) =>
+                          updateMemberForm("notes", event.target.value)
+                        }
+                        rows={3}
+                        className="border border-[var(--line)] px-3 py-2 font-normal"
+                      />
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void saveMember(member)}
+                        disabled={savingMemberId === member.id}
+                        className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+                      >
+                        {savingMemberId === member.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Save size={16} />
+                        )}
+                        Guardar Kenshi
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingMemberId("");
+                          setMemberForm(null);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
+                      >
+                        <X size={16} />
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -527,6 +756,11 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
     const dojoInput = getValue(record, "dojo") || getValue(record, "club");
     const country = resolveCountryInput(payload, countryInput);
     const dojo = resolveDojoInput(payload, dojoInput, country?.id ?? "");
+    const classInput = getValue(record, "clase");
+    const memberGroup = normalizeMemberGroup(classInput);
+    const familyEmail =
+      getValue(record, "email_familia") || getValue(record, "emailfamilia");
+    const directEmail = getValue(record, "email") || getValue(record, "correo");
 
     return {
       firstName:
@@ -539,10 +773,7 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
         getValue(record, "apellido") ||
         getValue(record, "apellidos"),
       email:
-        getValue(record, "email") ||
-        getValue(record, "correo") ||
-        getValue(record, "email_familia") ||
-        getValue(record, "emailfamilia"),
+        directEmail || (memberGroup === "child" ? "" : familyEmail),
       phone:
         getValue(record, "phone") ||
         getValue(record, "telefono") ||
@@ -573,10 +804,10 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
       guardianEmail:
         getValue(record, "guardian_email") ||
         getValue(record, "email_tutor") ||
-        getValue(record, "email_familia") ||
-        getValue(record, "emailfamilia"),
+        familyEmail,
       isMinor: getValue(record, "is_minor") || getValue(record, "menor"),
       notes: getValue(record, "notes") || getValue(record, "notas"),
+      memberGroup,
     };
   });
 }
@@ -707,5 +938,65 @@ function normalizeComparable(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .trim();
+      .trim();
+}
+
+function normalizeMemberGroup(value: string) {
+  const comparable = normalizeComparable(value);
+
+  if (["adult", "adulto", "adultos", "senior"].includes(comparable)) {
+    return "adult";
+  }
+
+  if (["child", "children", "nino", "ninos", "niño", "niños", "infantil"].includes(comparable)) {
+    return "child";
+  }
+
+  return "";
+}
+
+function isActiveImportStatus(value: string) {
+  return ["active", "activo", "activa"].includes(normalizeComparable(value));
+}
+
+function memberToForm(member: MemberRow): MemberEditForm {
+  return {
+    firstName: member.first_name,
+    lastName: member.last_name,
+    email: member.email ?? "",
+    phone: member.phone ?? "",
+    currentGrade: member.current_grade ?? "",
+    birthDate: member.birth_date ?? "",
+    joinedDate: member.joined_date ?? "",
+    status: member.status,
+    memberGroup: member.member_group ?? "",
+    mainInstructor: member.main_instructor ?? "",
+    guardianName: member.guardian_name ?? "",
+    guardianEmail: member.guardian_email ?? "",
+    notes: member.internal_notes ?? "",
+  };
+}
+
+function EditField({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <label className="grid gap-1 font-semibold">
+      {label}
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="border border-[var(--line)] px-3 py-2 font-normal"
+      />
+    </label>
+  );
 }

@@ -46,11 +46,27 @@ type ImportRow = {
   guardianEmail?: string;
   isMinor?: boolean | string;
   notes?: string;
+  memberGroup?: string;
 };
 
-type MemberInviteBody = {
+type MemberPatchBody = {
   action?: string;
   memberId?: string;
+  member?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    currentGrade?: string;
+    joinedDate?: string;
+    birthDate?: string;
+    status?: string;
+    memberGroup?: string;
+    mainInstructor?: string;
+    guardianName?: string;
+    guardianEmail?: string;
+    notes?: string;
+  };
 };
 
 export async function GET(request: NextRequest) {
@@ -72,7 +88,7 @@ export async function GET(request: NextRequest) {
     guard.admin
       .from("members")
       .select(
-        "id,ika_number,first_name,last_name,email,phone,status,current_grade,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
+        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
       .order("created_at", { ascending: false })
       .limit(80),
@@ -126,11 +142,11 @@ export async function PATCH(request: NextRequest) {
     return guard.error;
   }
 
-  const body = (await request.json().catch(() => null)) as MemberInviteBody | null;
+  const body = (await request.json().catch(() => null)) as MemberPatchBody | null;
 
-  if (body?.action !== "send_portal_invite" || !body.memberId) {
+  if (!body?.memberId) {
     return NextResponse.json(
-      { error: "Accion de invitacion no valida." },
+      { error: "Kenshi no valido." },
       { status: 400 },
     );
   }
@@ -160,21 +176,94 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  if (!member.data.email) {
-    return NextResponse.json(
-      { error: "Este Kenshi no tiene email para enviar invitacion." },
-      { status: 400 },
-    );
-  }
-
   if (
     !member.data.country_id ||
     !member.data.dojo_id ||
     !canManageTarget(guard.scope, member.data.country_id, member.data.dojo_id)
   ) {
     return NextResponse.json(
-      { error: "No tienes permisos para invitar a este Kenshi." },
+      { error: "No tienes permisos para modificar este Kenshi." },
       { status: 403 },
+    );
+  }
+
+  if (body.action === "update_member") {
+    const input = body.member ?? {};
+    const firstName = normalizeText(input.firstName);
+    const lastName = normalizeText(input.lastName);
+    const status = normalizeMemberStatus(input.status);
+
+    if (!firstName || !lastName) {
+      return NextResponse.json(
+        { error: "Nombre y apellidos son obligatorios." },
+        { status: 400 },
+      );
+    }
+
+    if (!status) {
+      return NextResponse.json(
+        { error: "Estado no valido." },
+        { status: 400 },
+      );
+    }
+
+    const email = normalizeEmail(input.email) || null;
+    const updated = await guard.admin
+      .from("members")
+      .update({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone: normalizeText(input.phone) || null,
+        current_grade: normalizeText(input.currentGrade) || null,
+        birth_date: normalizeDate(normalizeText(input.birthDate)),
+        joined_date: normalizeDate(normalizeText(input.joinedDate)),
+        status,
+        member_group: normalizeMemberGroup(input.memberGroup),
+        main_instructor: normalizeText(input.mainInstructor) || null,
+        guardian_name: normalizeText(input.guardianName) || null,
+        guardian_email: normalizeEmail(input.guardianEmail) || null,
+        internal_notes: normalizeText(input.notes) || null,
+        updated_by: guard.profileId,
+      })
+      .eq("id", member.data.id)
+      .select(
+        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
+      )
+      .single();
+
+    if (updated.error || !updated.data) {
+      return NextResponse.json(
+        { error: updated.error?.message ?? "No se pudo actualizar el Kenshi." },
+        { status: 500 },
+      );
+    }
+
+    if (member.data.profile_id && email) {
+      await guard.admin
+        .from("users_profiles")
+        .update({
+          email,
+          display_name: `${firstName} ${lastName}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", member.data.profile_id);
+    }
+
+    return NextResponse.json({ ok: true, member: updated.data });
+  }
+
+  if (body.action !== "send_portal_invite") {
+    return NextResponse.json(
+      { error: "Accion no valida." },
+      { status: 400 },
+    );
+  }
+
+  if (!member.data.email) {
+    return NextResponse.json(
+      { error: "Este Kenshi no tiene email para enviar invitacion." },
+      { status: 400 },
     );
   }
 
@@ -375,26 +464,64 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const duplicate = row.email
+    const existingByEmail = row.email
       ? await guard.admin
           .from("members")
           .select("id")
           .ilike("email", row.email)
           .maybeSingle<{ id: string }>()
       : { data: null, error: null };
+    const existingByName = existingByEmail.data
+      ? { data: null, error: null }
+      : await guard.admin
+          .from("members")
+          .select("id")
+          .eq("dojo_id", dojoId)
+          .ilike("first_name", row.firstName)
+          .ilike("last_name", row.lastName)
+          .maybeSingle<{ id: string }>();
+    const existingMember = existingByEmail.data ?? existingByName.data;
 
-    if (duplicate.error) {
-      result.skipped += 1;
-      result.errors.push({ row: rowNumber, error: duplicate.error.message });
-      continue;
-    }
-
-    if (duplicate.data) {
+    if (existingByEmail.error || existingByName.error) {
       result.skipped += 1;
       result.errors.push({
         row: rowNumber,
-        error: "Ya existe un Kenshi con ese email.",
+        error: existingByEmail.error?.message ?? existingByName.error?.message ?? "",
       });
+      continue;
+    }
+
+    if (existingMember) {
+      const updated = await guard.admin
+        .from("members")
+        .update({
+          first_name: row.firstName,
+          last_name: row.lastName,
+          birth_date: normalizeDate(row.birthDate),
+          country_id: countryId,
+          dojo_id: dojoId,
+          main_instructor: row.mainInstructor || null,
+          email: row.email || null,
+          phone: row.phone || null,
+          is_minor: normalizeBoolean(row.isMinor) || row.memberGroup === "child",
+          guardian_name: row.guardianName || null,
+          guardian_email: row.guardianEmail || null,
+          joined_date: normalizeDate(row.joinedDate),
+          status: "active",
+          current_grade: row.currentGrade || null,
+          internal_notes: row.notes || null,
+          member_group: normalizeMemberGroup(row.memberGroup),
+          updated_by: guard.profileId,
+        })
+        .eq("id", existingMember.id);
+
+      if (updated.error) {
+        result.skipped += 1;
+        result.errors.push({ row: rowNumber, error: updated.error.message });
+        continue;
+      }
+
+      result.imported += 1;
       continue;
     }
 
@@ -475,13 +602,14 @@ export async function POST(request: NextRequest) {
       main_instructor: row.mainInstructor || null,
       email: row.email || null,
       phone: row.phone || null,
-      is_minor: normalizeBoolean(row.isMinor),
+      is_minor: normalizeBoolean(row.isMinor) || row.memberGroup === "child",
       guardian_name: row.guardianName || null,
       guardian_email: row.guardianEmail || null,
       joined_date: normalizeDate(row.joinedDate),
       status: "active",
       current_grade: row.currentGrade || null,
       internal_notes: row.notes || null,
+      member_group: normalizeMemberGroup(row.memberGroup),
       created_by: guard.profileId,
       updated_by: guard.profileId,
     });
@@ -812,6 +940,7 @@ function normalizeImportRow(row: ImportRow) {
     guardianEmail: normalizeEmail(row.guardianEmail),
     isMinor: row.isMinor,
     notes: normalizeText(row.notes),
+    memberGroup: normalizeText(row.memberGroup),
   };
 }
 
@@ -1043,7 +1172,18 @@ function normalizeComparable(value: string) {
 }
 
 function normalizeDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const dayFirst = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (dayFirst) {
+    const [, day, month, year] = dayFirst;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  return null;
 }
 
 function normalizeBoolean(value: unknown) {
@@ -1058,4 +1198,40 @@ function normalizeBoolean(value: unknown) {
   return ["true", "1", "yes", "si", "sí"].includes(
     value.trim().toLowerCase(),
   );
+}
+
+function normalizeMemberGroup(value: unknown) {
+  const comparable = normalizeComparable(normalizeText(value));
+
+  if (["adult", "adulto", "adultos", "senior"].includes(comparable)) {
+    return "adult";
+  }
+
+  if (["child", "children", "nino", "ninos", "infantil"].includes(comparable)) {
+    return "child";
+  }
+
+  return null;
+}
+
+function normalizeMemberStatus(value: unknown) {
+  const comparable = normalizeComparable(normalizeText(value));
+
+  if (["active", "activo", "activa"].includes(comparable)) {
+    return "active";
+  }
+
+  if (["inactive", "inactivo", "inactiva", "baja"].includes(comparable)) {
+    return "inactive";
+  }
+
+  if (
+    ["temporary_leave", "baja_temporal", "temporal", "pausa"].includes(
+      comparable,
+    )
+  ) {
+    return "temporary_leave";
+  }
+
+  return "";
 }

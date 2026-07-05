@@ -95,12 +95,24 @@ type PortalDashboard = {
     dojos: number;
     members: number;
     activeMembers: number;
+    activeAdults: number;
+    activeChildren: number;
   };
   membersByDojo: Array<{
     dojoId: string;
     dojoName: string;
     totalMembers: number;
     activeMembers: number;
+    activeAdults: number;
+    activeChildren: number;
+  }>;
+  membersByCountry: Array<{
+    countryId: string;
+    countryName: string;
+    totalMembers: number;
+    activeMembers: number;
+    activeAdults: number;
+    activeChildren: number;
   }>;
   members: Array<{
     id: string;
@@ -721,6 +733,8 @@ function AdminDashboard({
         <MetricCard label="Dojos" value={dashboard.totals.dojos} />
         <MetricCard label="Kenshi activos" value={dashboard.totals.activeMembers} />
         <MetricCard label="Kenshi total" value={dashboard.totals.members} />
+        <MetricCard label="Adultos activos" value={dashboard.totals.activeAdults} />
+        <MetricCard label="Ninos activos" value={dashboard.totals.activeChildren} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
@@ -747,6 +761,33 @@ function AdminDashboard({
                   <strong>{dojo.dojoName}</strong>
                   <span className="text-[var(--muted)]">
                     {dojo.activeMembers} activos / {dojo.totalMembers} total
+                  </span>
+                  <span className="text-[var(--muted)]">
+                    Adultos {dojo.activeAdults} / Ninos {dojo.activeChildren}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="border border-[var(--line)] bg-white p-5">
+          <h3 className="text-2xl font-semibold">Resumen por pais</h3>
+          <div className="mt-4 grid gap-2 text-sm">
+            {dashboard.membersByCountry.length === 0 ? (
+              <p className="text-[var(--muted)]">No hay paises en este alcance.</p>
+            ) : (
+              dashboard.membersByCountry.map((country) => (
+                <div
+                  key={country.countryId}
+                  className="grid gap-1 border border-[var(--line)] bg-[var(--paper)] p-3"
+                >
+                  <strong>{country.countryName}</strong>
+                  <span className="text-[var(--muted)]">
+                    {country.activeMembers} activos / {country.totalMembers} total
+                  </span>
+                  <span className="text-[var(--muted)]">
+                    Adultos {country.activeAdults} / Ninos {country.activeChildren}
                   </span>
                 </div>
               ))
