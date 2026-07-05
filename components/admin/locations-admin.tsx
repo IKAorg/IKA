@@ -103,6 +103,13 @@ type DojoForm = {
 
 type UploadImageFn = (file: File, scope: string) => Promise<string | null>;
 
+type LocationScope = {
+  isGlobal: boolean;
+  countryIds: string[];
+  dojoIds: string[];
+  roleKeys: string[];
+};
+
 const locales: Array<{ key: Locale; label: string }> = [
   { key: "en", label: "English" },
   { key: "es", label: "Español" },
@@ -171,6 +178,7 @@ export function LocationsAdmin({
   const [countries, setCountries] = useState<CountryRow[]>([]);
   const [dojos, setDojos] = useState<DojoRow[]>([]);
   const [mediaById, setMediaById] = useState<Map<string, MediaRow>>(new Map());
+  const [scope, setScope] = useState<LocationScope | null>(null);
   const [countryForm, setCountryForm] = useState<CountryForm>(() =>
     createEmptyCountryForm(initialLocale),
   );
@@ -209,8 +217,44 @@ export function LocationsAdmin({
     [supabase],
   );
 
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [supabase]);
+
   const loadLocations = useCallback(async () => {
     setLoading(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/locations", {
+      cache: "no-store",
+      headers: await getAuthHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudieron cargar paises y dojos.");
+      setCountries([]);
+      setDojos([]);
+      setMediaById(new Map());
+      setScope(null);
+      setLoading(false);
+      return;
+    }
+
+    setCountries((data.countries ?? []) as CountryRow[]);
+    setDojos((data.dojos ?? []) as DojoRow[]);
+    setMediaById(
+      new Map(
+        ((data.media ?? []) as MediaRow[]).map((media) => [media.id, media]),
+      ),
+    );
+    setScope((data.scope ?? null) as LocationScope | null);
+    setLoading(false);
+    return;
+
     const [countriesResult, dojosResult] = await Promise.all([
       supabase
         .from("countries")
@@ -244,7 +288,7 @@ export function LocationsAdmin({
     setDojos(nextDojos);
     await loadMedia(nextCountries, nextDojos);
     setLoading(false);
-  }, [loadMedia, supabase]);
+  }, [getAuthHeaders, loadMedia, supabase]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -309,6 +353,34 @@ export function LocationsAdmin({
       countryForm.logoUrl,
       `${countryForm.name} logo`,
     );
+    const response = await fetch("/api/admin/locations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "save_country",
+        country: {
+          ...countryForm,
+          flagMediaId: logoMediaId,
+        },
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo guardar el pais.");
+      setSaving(false);
+      return;
+    }
+
+    setCountryForm(createEmptyCountryForm(countryForm.locale));
+    setMessage("Pais guardado.");
+    await loadLocations();
+    setSaving(false);
+    return;
+
     const payload = {
       code: countryForm.code.toUpperCase(),
       status: countryForm.status,
@@ -334,7 +406,7 @@ export function LocationsAdmin({
       return;
     }
 
-    const countryId = countryResult.data.id as string;
+    const countryId = countryResult.data!.id as string;
     const { error } = await supabase.from("country_translations").upsert(
       {
         country_id: countryId,
@@ -347,7 +419,7 @@ export function LocationsAdmin({
     );
 
     if (error) {
-      setMessage(error.message);
+      setMessage(error!.message);
       setSaving(false);
       return;
     }
@@ -363,6 +435,35 @@ export function LocationsAdmin({
     setMessage("");
 
     const imageMediaId = await saveMediaReference(dojoForm.imageUrl, dojoForm.name);
+    const response = await fetch("/api/admin/locations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "save_dojo",
+        dojo: {
+          ...dojoForm,
+          countryId: dojoForm.countryId || countries[0]?.id || "",
+          mainImageMediaId: imageMediaId,
+        },
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo guardar el dojo.");
+      setSaving(false);
+      return;
+    }
+
+    setDojoForm(createEmptyDojoForm(dojoForm.locale));
+    setMessage("Dojo guardado.");
+    await loadLocations();
+    setSaving(false);
+    return;
+
     const payload = {
       country_id: dojoForm.countryId,
       city: dojoForm.city,
@@ -391,7 +492,7 @@ export function LocationsAdmin({
       return;
     }
 
-    const dojoId = dojoResult.data.id as string;
+    const dojoId = dojoResult.data!.id as string;
     const dojoSlug = await getUniqueDojoSlug(
       dojoForm.slug || slugify(dojoForm.name),
       dojoForm.locale,
@@ -410,7 +511,7 @@ export function LocationsAdmin({
     );
 
     if (error) {
-      setMessage(error.message);
+      setMessage(error!.message);
       setSaving(false);
       return;
     }
@@ -552,10 +653,29 @@ export function LocationsAdmin({
   }
 
   async function deleteCountry(id: string) {
+    const response = await fetch("/api/admin/locations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({ action: "delete_country", countryId: id }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo borrar el pais.");
+      return;
+    }
+
+    setMessage("Pais eliminado.");
+    await loadLocations();
+    return;
+
     const { error } = await supabase.from("countries").delete().eq("id", id);
 
     if (error) {
-      setMessage(error.message);
+      setMessage(error!.message);
       return;
     }
 
@@ -564,10 +684,29 @@ export function LocationsAdmin({
   }
 
   async function deleteDojo(id: string) {
+    const response = await fetch("/api/admin/locations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({ action: "delete_dojo", dojoId: id }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo borrar el dojo.");
+      return;
+    }
+
+    setMessage("Dojo eliminado.");
+    await loadLocations();
+    return;
+
     const { error } = await supabase.from("dojos").delete().eq("id", id);
 
     if (error) {
-      setMessage(error.message);
+      setMessage(error!.message);
       return;
     }
 
@@ -685,6 +824,8 @@ export function LocationsAdmin({
     return `${baseSlug}-${Date.now()}`;
   }
 
+  const isGlobalScope = scope?.isGlobal === true;
+
   if (!session) {
     return (
       <section className="mt-8 border border-[var(--line)] bg-white p-5">
@@ -714,16 +855,18 @@ export function LocationsAdmin({
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <div className="grid gap-5">
-          <CountryList
-            countries={countries}
-            mediaById={mediaById}
-            displayLocale={countryForm.locale}
-            loading={loading}
-            saving={saving}
-            onImportExisting={importExistingCountries}
-            onEdit={editCountry}
-            onDelete={deleteCountry}
-          />
+          {isGlobalScope ? (
+            <CountryList
+              countries={countries}
+              mediaById={mediaById}
+              displayLocale={countryForm.locale}
+              loading={loading}
+              saving={saving}
+              onImportExisting={importExistingCountries}
+              onEdit={editCountry}
+              onDelete={deleteCountry}
+            />
+          ) : null}
           <DojoList
             dojos={dojos}
             countries={countries}
@@ -735,23 +878,26 @@ export function LocationsAdmin({
         </div>
 
         <div className="grid gap-5">
-          <CountryFormView
-            form={countryForm}
-            setForm={setCountryForm}
-            onLocaleChange={changeCountryFormLocale}
-            saving={saving}
-            uploadingField={uploadingField}
-            onUploadImage={uploadPublicImage}
-            onSave={saveCountry}
-            onReset={() =>
-              setCountryForm(createEmptyCountryForm(countryForm.locale))
-            }
-          />
+          {isGlobalScope ? (
+            <CountryFormView
+              form={countryForm}
+              setForm={setCountryForm}
+              onLocaleChange={changeCountryFormLocale}
+              saving={saving}
+              uploadingField={uploadingField}
+              onUploadImage={uploadPublicImage}
+              onSave={saveCountry}
+              onReset={() =>
+                setCountryForm(createEmptyCountryForm(countryForm.locale))
+              }
+            />
+          ) : null}
           <DojoFormView
             form={dojoForm}
             setForm={setDojoForm}
             onLocaleChange={changeDojoFormLocale}
             countries={countries}
+            lockCountry={!isGlobalScope && countries.length === 1}
             saving={saving}
             uploadingField={uploadingField}
             onUploadImage={uploadPublicImage}
@@ -1080,6 +1226,7 @@ function DojoFormView({
   setForm,
   onLocaleChange,
   countries,
+  lockCountry = false,
   saving,
   uploadingField,
   onUploadImage,
@@ -1090,6 +1237,7 @@ function DojoFormView({
   setForm: React.Dispatch<React.SetStateAction<DojoForm>>;
   onLocaleChange: (locale: Locale) => void;
   countries: CountryRow[];
+  lockCountry?: boolean;
   saving: boolean;
   uploadingField: string | null;
   onUploadImage: UploadImageFn;
@@ -1107,7 +1255,8 @@ function DojoFormView({
       <div className="mt-4 grid gap-3">
         <AdminSelect
           label="País"
-          value={form.countryId}
+          value={lockCountry ? countries[0]?.id ?? "" : form.countryId}
+          disabled={lockCountry}
           onChange={(value) =>
             setForm((current) => ({ ...current, countryId: value }))
           }
@@ -1290,11 +1439,13 @@ function FormButtons({
 function AdminSelect({
   label,
   value,
+  disabled = false,
   onChange,
   options,
 }: {
   label: string;
   value: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
 }) {
@@ -1303,8 +1454,9 @@ function AdminSelect({
       {label}
       <select
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="border border-[var(--line)] px-3 py-2 font-normal"
+        className="border border-[var(--line)] px-3 py-2 font-normal disabled:bg-[var(--paper)]"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

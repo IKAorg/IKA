@@ -699,10 +699,15 @@ async function getMembersAdminProfile(
     .from("users_profiles")
     .select("id,user_roles(country_id,dojo_id,roles(key))")
     .eq("auth_user_id", authUserId)
-    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+    .limit(1);
 
-  if (byAuth.data) {
-    return byAuth.data;
+  const byAuthProfile = ((byAuth.data ?? []) as Array<{
+    id: string;
+    user_roles: ScopeRole[] | null;
+  }>)[0];
+
+  if (byAuthProfile) {
+    return byAuthProfile;
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -715,9 +720,15 @@ async function getMembersAdminProfile(
     .from("users_profiles")
     .select("id,user_roles(country_id,dojo_id,roles(key))")
     .ilike("email", normalizedEmail)
-    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+    .order("auth_user_id", { ascending: false, nullsFirst: false })
+    .limit(1);
 
-  if (!byEmail.data) {
+  const byEmailProfile = ((byEmail.data ?? []) as Array<{
+    id: string;
+    user_roles: ScopeRole[] | null;
+  }>)[0];
+
+  if (!byEmailProfile) {
     return normalizedEmail === officialSuperAdminEmail
       ? ensureOfficialSuperAdmin(admin, authUserId, normalizedEmail)
       : null;
@@ -726,11 +737,11 @@ async function getMembersAdminProfile(
   const linked = await admin
     .from("users_profiles")
     .update({ auth_user_id: authUserId, status: "active" })
-    .eq("id", byEmail.data.id)
+    .eq("id", byEmailProfile.id)
     .select("id,user_roles(country_id,dojo_id,roles(key))")
     .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
 
-  return linked.data ?? byEmail.data;
+  return linked.data ?? byEmailProfile;
 }
 
 async function ensureOfficialSuperAdmin(
