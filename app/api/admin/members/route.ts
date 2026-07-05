@@ -659,10 +659,10 @@ async function requireMembersAdmin(request: NextRequest) {
     .filter((role) => getRoleKey(role.roles) === "dojo_admin")
     .map((role) => role.dojo_id)
     .filter(Boolean) as string[];
-  const dojoCountryIds = await getCountryIdsForDojos(admin, dojoIds);
+  const countryIds = dojoIds.length > 0 ? [] : explicitCountryIds;
   const scope = {
     isGlobal: roleKeys.includes("super_admin") || roleKeys.includes("global_admin"),
-    countryIds: Array.from(new Set([...explicitCountryIds, ...dojoCountryIds])),
+    countryIds: Array.from(new Set(countryIds)),
     dojoIds,
   };
 
@@ -818,28 +818,6 @@ async function getMissingProfileDiagnostics(
     byAuthError: byAuth.error?.message ?? null,
     byEmailError: byEmail.error?.message ?? null,
   };
-}
-
-async function getCountryIdsForDojos(
-  admin: SupabaseAdminClient,
-  dojoIds: string[],
-) {
-  if (dojoIds.length === 0) {
-    return [];
-  }
-
-  const dojos = await admin
-    .from("dojos")
-    .select("country_id")
-    .in("id", dojoIds);
-
-  if (dojos.error) {
-    return [];
-  }
-
-  return (dojos.data ?? [])
-    .map((dojo) => dojo.country_id as string | null)
-    .filter(Boolean) as string[];
 }
 
 async function findAuthUserIdByEmail(

@@ -117,8 +117,8 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     Boolean(scope?.isGlobal) ||
     roleKeys.includes("super_admin") ||
     roleKeys.includes("global_admin");
-  const isCountryAdmin = roleKeys.includes("country_admin");
   const isDojoAdmin = roleKeys.includes("dojo_admin");
+  const isCountryAdmin = roleKeys.includes("country_admin") && !isDojoAdmin;
   const canManageUsers = isGlobal || isCountryAdmin;
   const canManageMembers = isGlobal || isCountryAdmin || isDojoAdmin;
   const canManageLocations = isGlobal || isCountryAdmin;

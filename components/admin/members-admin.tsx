@@ -87,6 +87,11 @@ type MembersPayload = {
   countries: CountryOption[];
   dojos: DojoOption[];
   members: MemberRow[];
+  scope?: {
+    isGlobal: boolean;
+    countryIds: string[];
+    dojoIds: string[];
+  };
 };
 
 type MembersLoadResult =
@@ -206,8 +211,13 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       ),
     [payload.dojos],
   );
+  const isGlobalScope = payload.scope?.isGlobal === true;
+  const isLockedToSingleDojo = !isGlobalScope && payload.dojos.length === 1;
+  const effectiveSelectedDojoId = isLockedToSingleDojo
+    ? payload.dojos[0]?.id ?? ""
+    : selectedDojoId;
   const selectedDojo =
-    payload.dojos.find((dojo) => dojo.id === selectedDojoId) ?? null;
+    payload.dojos.find((dojo) => dojo.id === effectiveSelectedDojoId) ?? null;
   const selectedDojoReady =
     selectedDojo?.has_country_admin === true &&
     selectedDojo?.has_dojo_admin === true;
@@ -409,9 +419,9 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               <h2 className="text-2xl font-semibold">Importacion Kenshi</h2>
             </div>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              Selecciona primero el dojo y despues importa muchos practicantes
-              a la vez desde Excel exportado como CSV. Solo se puede importar
-              cuando el pais tiene admin de pais y el dojo tiene admin de dojo.
+              {isLockedToSingleDojo
+                ? "Tu usuario esta limitado a este dojo. Sube el CSV y se importara solo aqui."
+                : "Selecciona primero el dojo y despues importa muchos practicantes a la vez desde Excel exportado como CSV."}
             </p>
           </div>
 
@@ -434,32 +444,43 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
 
         <label className="grid gap-2 text-sm font-semibold">
           Dojo destino
-          <select
-            value={selectedDojoId}
-            onChange={(event) => setSelectedDojoId(event.target.value)}
-            disabled={loading || !session || payload.dojos.length === 0}
-            className="border border-[var(--line)] px-3 py-2 font-normal"
-          >
-            <option value="">Selecciona dojo</option>
-            {payload.dojos.map((dojo) => {
-              const ready = dojo.has_country_admin && dojo.has_dojo_admin;
+          {isLockedToSingleDojo && selectedDojo ? (
+            <div className="border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-normal">
+              {dojoLabel(selectedDojo, initialLocale)}
+            </div>
+          ) : (
+            <select
+              value={selectedDojoId}
+              onChange={(event) => setSelectedDojoId(event.target.value)}
+              disabled={loading || !session || payload.dojos.length === 0}
+              className="border border-[var(--line)] px-3 py-2 font-normal"
+            >
+              <option value="">Selecciona dojo</option>
+              {payload.dojos.map((dojo) => {
+                const ready = dojo.has_country_admin && dojo.has_dojo_admin;
+                const countryLabelText = countryLabelById(
+                  payload,
+                  dojo.country_id,
+                  initialLocale,
+                );
 
-              return (
-                <option key={dojo.id} value={dojo.id} disabled={!ready}>
-                  {dojoLabel(dojo, initialLocale)} ·{" "}
-                  {countryLabelById(payload, dojo.country_id, initialLocale)}
-                  {ready ? "" : " · falta admin pais o dojo"}
-                </option>
-              );
-            })}
-          </select>
+                return (
+                  <option key={dojo.id} value={dojo.id} disabled={!ready}>
+                    {dojoLabel(dojo, initialLocale)}
+                    {countryLabelText ? ` · ${countryLabelText}` : ""}
+                    {ready ? "" : " · falta admin pais o dojo"}
+                  </option>
+                );
+              })}
+            </select>
+          )}
           {payload.dojos.length === 0 ? (
             <span className="text-sm text-[var(--accent)]">
               {loading
                 ? "Cargando dojos..."
                 : message || "No hay dojos disponibles para tu rol."}
             </span>
-          ) : eligibleDojos.length === 0 ? (
+          ) : !isLockedToSingleDojo && eligibleDojos.length === 0 ? (
             <span className="text-sm text-[var(--accent)]">
               Primero crea el admin de pais y el admin de dojo antes de importar
               Kenshi.
@@ -522,7 +543,9 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               <tr className="border-b border-[var(--line)]">
                 <th className="py-2 pr-4">Nombre</th>
                 <th className="py-2 pr-4">Email</th>
-                <th className="py-2 pr-4">Pais</th>
+                {!isLockedToSingleDojo ? (
+                  <th className="py-2 pr-4">Pais</th>
+                ) : null}
                 <th className="py-2 pr-4">Dojo</th>
                 <th className="py-2 pr-4">Grado</th>
               </tr>
@@ -534,18 +557,20 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                     {row.firstName} {row.lastName}
                   </td>
                   <td className="py-2 pr-4">{row.email || "-"}</td>
-                  <td className="py-2 pr-4">
-                    {selectedDojo
-                      ? countryLabelById(
-                          payload,
-                          selectedDojo.country_id,
-                          initialLocale,
-                        )
-                      : row.countryName ||
-                        row.countryCode ||
-                        countryLabelById(payload, row.countryId, initialLocale) ||
-                        "-"}
-                  </td>
+                  {!isLockedToSingleDojo ? (
+                    <td className="py-2 pr-4">
+                      {selectedDojo
+                        ? countryLabelById(
+                            payload,
+                            selectedDojo.country_id,
+                            initialLocale,
+                          )
+                        : row.countryName ||
+                          row.countryCode ||
+                          countryLabelById(payload, row.countryId, initialLocale) ||
+                          "-"}
+                    </td>
+                  ) : null}
                   <td className="py-2 pr-4">
                     {selectedDojo
                       ? dojoLabel(selectedDojo, initialLocale)
