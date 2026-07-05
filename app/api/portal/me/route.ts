@@ -161,7 +161,7 @@ async function getAuthenticatedUser(
 }
 
 async function getPortalScope(
-  supabase: PortalSupabaseClient,
+  _supabase: PortalSupabaseClient,
   roles: Array<{
     country_id: string | null;
     dojo_id: string | null;
@@ -179,21 +179,6 @@ async function getPortalScope(
     .filter((role) => getRoleKey(role.roles) === "country_admin")
     .map((role) => role.country_id)
     .filter(Boolean) as string[];
-
-  if (dojoIds.length > 0) {
-    const dojos = await supabase
-      .from("dojos")
-      .select("country_id")
-      .in("id", dojoIds);
-
-    ((dojos.data ?? []) as Array<{ country_id: string | null }>).forEach((dojo) => {
-      const countryId = dojo.country_id as string | null;
-
-      if (countryId) {
-        countryIds.push(countryId);
-      }
-    });
-  }
 
   return {
     roleKeys,
@@ -222,11 +207,11 @@ async function getPortalDashboard(
   const [countriesResult, dojosResult, membersResult] = await Promise.all([
     supabase
       .from("countries")
-      .select("id,code,country_translations(language_code,name)")
+      .select("id,code,flag_media_id,main_image_media_id,country_translations(language_code,name)")
       .order("code", { ascending: true }),
     supabase
       .from("dojos")
-      .select("id,country_id,city,dojo_translations(language_code,name)")
+      .select("id,country_id,city,main_image_media_id,dojo_translations(language_code,name)")
       .order("city", { ascending: true }),
     supabase
       .from("members")
@@ -248,12 +233,15 @@ async function getPortalDashboard(
   const allCountries = (countriesResult.data ?? []) as Array<{
     id: string;
     code: string;
+    flag_media_id: string | null;
+    main_image_media_id: string | null;
     country_translations?: unknown;
   }>;
   const allDojos = (dojosResult.data ?? []) as Array<{
     id: string;
     country_id: string;
     city: string;
+    main_image_media_id: string | null;
     dojo_translations?: unknown;
   }>;
   const allMembers = (membersResult.data ?? []) as Array<{
@@ -278,10 +266,14 @@ async function getPortalDashboard(
           scope.countryIds.includes(dojo.country_id as string),
       );
   const visibleDojoIds = new Set(visibleDojos.map((dojo) => dojo.id as string));
+  const visibleCountryIds = new Set([
+    ...scope.countryIds,
+    ...visibleDojos.map((dojo) => dojo.country_id as string),
+  ]);
   const visibleCountries = scope.isGlobal
     ? allCountries
     : allCountries.filter((country) =>
-        scope.countryIds.includes(country.id as string),
+        visibleCountryIds.has(country.id as string),
       );
   const visibleMembers = scope.isGlobal
     ? allMembers
@@ -303,10 +295,25 @@ async function getPortalDashboard(
   const activeChildren = activeMembers.filter(
     (member) => member.member_group === "child",
   );
+  const mediaById = await getMediaById(
+    supabase,
+    Array.from(
+      new Set(
+        [
+          ...visibleCountries.flatMap((country) => [
+            country.flag_media_id,
+            country.main_image_media_id,
+          ]),
+          ...visibleDojos.map((dojo) => dojo.main_image_media_id),
+        ].filter(Boolean) as string[],
+      ),
+    ),
+  );
   const membersByDojo = visibleDojos.map((dojo) => ({
     dojoId: dojo.id,
     dojoName: firstTranslationName(dojo.dojo_translations) || dojo.city,
     countryId: dojo.country_id,
+    logoUrl: getMediaUrl(dojo.main_image_media_id, mediaById),
     totalMembers: visibleMembers.filter((member) => member.dojo_id === dojo.id)
       .length,
     activeMembers: activeMembers.filter((member) => member.dojo_id === dojo.id)
@@ -319,6 +326,9 @@ async function getPortalDashboard(
   const membersByCountry = visibleCountries.map((country) => ({
     countryId: country.id,
     countryName: firstTranslationName(country.country_translations) || country.code,
+    logoUrl:
+      getMediaUrl(country.flag_media_id, mediaById) ||
+      getMediaUrl(country.main_image_media_id, mediaById),
     dojoCount: visibleDojos.filter((dojo) => dojo.country_id === country.id).length,
     totalMembers: visibleMembers.filter(
       (member) => member.country_id === country.id,
@@ -386,4 +396,29 @@ function firstTranslationName(value: unknown) {
   }
 
   return (value[0]?.name as string | undefined) ?? "";
+}
+
+async function getMediaById(supabase: PortalSupabaseClient, ids: string[]) {
+  if (ids.length === 0) {
+    return new Map<string, string>();
+  }
+
+  const media = await supabase
+    .from("media_library")
+    .select("id,storage_path")
+    .in("id", ids);
+
+  if (media.error) {
+    return new Map<string, string>();
+  }
+
+  return new Map(
+    ((media.data ?? []) as Array<{ id: string; storage_path: string }>).map(
+      (item) => [item.id, item.storage_path],
+    ),
+  );
+}
+
+function getMediaUrl(id: string | null, mediaById: Map<string, string>) {
+  return id ? mediaById.get(id) ?? "" : "";
 }

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  BadgeCheck,
   Building2,
   ExternalLink,
   FileBadge,
@@ -102,6 +101,7 @@ type PortalDashboard = {
     dojoId: string;
     dojoName: string;
     countryId: string;
+    logoUrl: string;
     totalMembers: number;
     activeMembers: number;
     activeAdults: number;
@@ -110,6 +110,7 @@ type PortalDashboard = {
   membersByCountry: Array<{
     countryId: string;
     countryName: string;
+    logoUrl: string;
     dojoCount: number;
     totalMembers: number;
     activeMembers: number;
@@ -698,15 +699,19 @@ export function PortalClient({
 
       {portal && !loading ? (
         <div className="grid gap-5">
-          <RoleSummary roles={portal.roles} locale={locale} copy={copy} />
-          <AdminDashboard dashboard={portal.dashboard} locale={locale} />
-          <MemberPanel
-            member={portal.member}
-            grades={portal.gradeHistory}
-            locale={locale}
-            copy={copy}
-          />
-          <RoleDashboards roles={portal.roles} locale={locale} copy={copy} />
+          {portal.dashboard ? (
+            <AdminDashboard dashboard={portal.dashboard} locale={locale} />
+          ) : (
+            <>
+              <RoleSummary roles={portal.roles} locale={locale} copy={copy} />
+              <MemberPanel
+                member={portal.member}
+                grades={portal.gradeHistory}
+                locale={locale}
+                copy={copy}
+              />
+            </>
+          )}
         </div>
       ) : null}
     </section>
@@ -768,10 +773,21 @@ function AdminDashboard({
                   key={country.countryId}
                   className="border border-[var(--line)] bg-[var(--paper)] p-3"
                 >
-                  <summary className="cursor-pointer text-lg font-semibold">
-                    {country.countryName} · {country.dojoCount} dojos ·{" "}
-                    {country.activeMembers} Kenshi activos · Adultos{" "}
-                    {country.activeAdults} / Ninos {country.activeChildren}
+                  <summary className="cursor-pointer">
+                    <span className="inline-flex flex-wrap items-center gap-3 text-lg font-semibold">
+                      {country.logoUrl ? (
+                        <img
+                          src={country.logoUrl}
+                          alt=""
+                          className="size-12 border border-[var(--line)] bg-white object-contain p-1"
+                        />
+                      ) : null}
+                      <span>
+                        {country.countryName} · {country.dojoCount} dojos ·{" "}
+                        {country.activeMembers} Kenshi activos · Adultos{" "}
+                        {country.activeAdults} / Ninos {country.activeChildren}
+                      </span>
+                    </span>
                   </summary>
                   <div className="mt-3 grid gap-3">
                     {countryDojos.length === 0 ? (
@@ -789,10 +805,21 @@ function AdminDashboard({
                             key={dojo.dojoId}
                             className="border border-[var(--line)] bg-white p-3"
                           >
-                            <summary className="cursor-pointer font-semibold">
-                              {dojo.dojoName} · {dojo.activeMembers} activos /{" "}
-                              {dojo.totalMembers} total · Adultos {dojo.activeAdults} / Ninos{" "}
-                              {dojo.activeChildren}
+                            <summary className="cursor-pointer">
+                              <span className="inline-flex flex-wrap items-center gap-3 font-semibold">
+                                {dojo.logoUrl ? (
+                                  <img
+                                    src={dojo.logoUrl}
+                                    alt=""
+                                    className="size-10 border border-[var(--line)] bg-white object-contain p-1"
+                                  />
+                                ) : null}
+                                <span>
+                                  {dojo.dojoName} · {dojo.activeMembers} activos /{" "}
+                                  {dojo.totalMembers} total · Adultos {dojo.activeAdults} / Ninos{" "}
+                                  {dojo.activeChildren}
+                                </span>
+                              </span>
                             </summary>
                             <div className="mt-3 max-h-80 overflow-y-auto">
                               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
@@ -995,62 +1022,6 @@ function MemberPanel({
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-function RoleDashboards({
-  roles,
-  locale,
-  copy,
-}: {
-  roles: PortalRole[];
-  locale: Locale;
-  copy: PortalCopy;
-}) {
-  const keys = roles.map((assignment) => getRole(assignment.roles)?.key);
-
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {keys.includes("dojo_admin") ? (
-        <DashboardCard
-          icon={<Building2 size={22} />}
-          title={copy.dojoAdminTitle}
-          text={copy.dojoAdminText}
-        />
-      ) : null}
-      {keys.includes("country_admin") ? (
-        <DashboardCard
-          icon={<Globe2 size={22} />}
-          title={copy.countryAdminTitle}
-          text={copy.countryAdminText}
-        />
-      ) : null}
-      {keys.includes("global_admin") || keys.includes("super_admin") ? (
-        <DashboardCard
-          icon={<ShieldCheck size={22} />}
-          title={copy.globalAdminTitle}
-          text={copy.globalAdminText}
-        />
-      ) : null}
-      {roles.length > 0 ? (
-        <DashboardCard
-          icon={<BadgeCheck size={22} />}
-          title={copy.activeScopeTitle}
-          text={roles
-            .map((assignment) => {
-              const role = getRole(assignment.roles);
-              return [
-                role ? copy.roleLabels[role.key] : copy.roleFallback,
-                labelCountry(assignment.countries, locale),
-                labelDojo(assignment.dojos, locale),
-              ]
-                .filter(Boolean)
-                .join(" · ");
-            })
-            .join(" / ")}
-        />
-      ) : null}
     </div>
   );
 }
