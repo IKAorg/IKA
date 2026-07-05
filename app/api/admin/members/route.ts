@@ -270,7 +270,9 @@ export async function PATCH(request: NextRequest) {
 
   const memberEmail = member.data.email.trim().toLowerCase();
   const redirectTo = buildPublicRedirectUrl(request, "es", "portal");
-  let authUserId = await findAuthUserIdByEmail(guard.admin, memberEmail);
+  let authUserId =
+    (await findProfileAuthUserIdByEmail(guard.admin, memberEmail)) ??
+    (await findAuthUserIdByEmail(guard.admin, memberEmail));
   let inviteSent = false;
   const shouldSendAccessEmail = Boolean(authUserId);
 
@@ -349,12 +351,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const accessEmail = await publicClient.auth.signInWithOtp({
-      email: memberEmail,
-      options: {
-        emailRedirectTo: redirectTo,
-        shouldCreateUser: false,
-      },
+    const accessEmail = await publicClient.auth.resetPasswordForEmail(memberEmail, {
+      redirectTo,
     });
 
     if (accessEmail.error) {
@@ -941,6 +939,27 @@ async function findAuthUserIdByEmail(
   }
 
   return null;
+}
+
+async function findProfileAuthUserIdByEmail(
+  supabase: SupabaseAdminClient,
+  email: string,
+) {
+  const profile = await supabase
+    .from("users_profiles")
+    .select("auth_user_id")
+    .ilike("email", email)
+    .not("auth_user_id", "is", null)
+    .limit(1);
+
+  if (profile.error) {
+    return null;
+  }
+
+  return (
+    ((profile.data ?? [])[0] as { auth_user_id?: string | null } | undefined)
+      ?.auth_user_id ?? null
+  );
 }
 
 function normalizeImportRow(row: ImportRow) {
