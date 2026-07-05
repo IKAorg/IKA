@@ -96,7 +96,7 @@ type MembersPayload = {
 
 type MembersLoadResult =
   | { ok: true; payload: MembersPayload }
-  | { ok: false; error: string };
+  | { ok: false; error: string; diagnostics?: unknown };
 
 const emptyPayload: MembersPayload = {
   countries: [],
@@ -126,8 +126,22 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
+    const user = data.session?.user;
+    const headers: Record<string, string> = {};
 
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    if (user?.id) {
+      headers["x-client-auth-user-id"] = user.id;
+    }
+
+    if (user?.email) {
+      headers["x-client-auth-email"] = user.email;
+    }
+
+    return headers;
   }, [supabase]);
 
   const fetchMembersPayload = useCallback(async (): Promise<MembersLoadResult> => {
@@ -140,7 +154,11 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     if (!response.ok) {
       return {
         ok: false,
-        error: data.error ?? "No se pudo cargar el modulo Kenshi.",
+        error: formatAdminError(
+          data.error ?? "No se pudo cargar el modulo Kenshi.",
+          data.diagnostics,
+        ),
+        diagnostics: data.diagnostics,
       };
     }
 
@@ -1073,4 +1091,29 @@ function EditField({
       />
     </label>
   );
+}
+
+function formatAdminError(error: string, diagnostics: unknown) {
+  if (!diagnostics || typeof diagnostics !== "object") {
+    return error;
+  }
+
+  const data = diagnostics as {
+    authUserId?: string | null;
+    authEmail?: string | null;
+    clientAuthUserId?: string | null;
+    clientAuthEmail?: string | null;
+    profilesByAuth?: Array<{ email?: string | null; status?: string | null }>;
+    profilesByEmail?: Array<{ email?: string | null; status?: string | null }>;
+  };
+  const details = [
+    data.authEmail ? `Backend email: ${data.authEmail}` : "Backend email: vacio",
+    data.authUserId ? `Backend user: ${data.authUserId}` : "Backend user: vacio",
+    data.clientAuthEmail ? `Navegador email: ${data.clientAuthEmail}` : "",
+    data.clientAuthUserId ? `Navegador user: ${data.clientAuthUserId}` : "",
+    `Perfiles por auth: ${data.profilesByAuth?.length ?? 0}`,
+    `Perfiles por email: ${data.profilesByEmail?.length ?? 0}`,
+  ].filter(Boolean);
+
+  return `${error} ${details.join(" | ")}`;
 }

@@ -621,6 +621,7 @@ async function requireMembersAdmin(request: NextRequest) {
       admin,
       authenticatedUser.id,
       getAuthUserEmail(authenticatedUser),
+      request,
     );
 
     return {
@@ -803,6 +804,7 @@ async function getMissingProfileDiagnostics(
   admin: SupabaseAdminClient,
   authUserId: string,
   email: string,
+  request: NextRequest,
 ) {
   const normalizedEmail = normalizeEmail(email);
   const [byAuth, byEmail] = await Promise.all([
@@ -823,6 +825,8 @@ async function getMissingProfileDiagnostics(
   return {
     authUserId,
     authEmail: normalizedEmail || null,
+    clientAuthUserId: request.headers.get("x-client-auth-user-id"),
+    clientAuthEmail: normalizeEmail(request.headers.get("x-client-auth-email")),
     profilesByAuth: byAuth.data ?? [],
     profilesByEmail: byEmail.data ?? [],
     byAuthError: byAuth.error?.message ?? null,
