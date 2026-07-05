@@ -3,12 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
 
-type ScopeRole = {
-  country_id: string | null;
-  dojo_id: string | null;
-  roles: { key: string } | Array<{ key: string }> | null;
-};
-
 type UntypedTable = {
   Row: Record<string, unknown>;
   Insert: Record<string, unknown>;
@@ -487,16 +481,15 @@ async function getAdminProfile(
 ) {
   const byAuth = await admin
     .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .select("id")
     .eq("auth_user_id", authUserId)
     .limit(1);
   const authProfile = ((byAuth.data ?? []) as Array<{
     id: string;
-    user_roles: ScopeRole[] | null;
   }>)[0];
 
   if (authProfile) {
-    return authProfile;
+    return withProfileRoles(admin, authProfile.id);
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -507,13 +500,12 @@ async function getAdminProfile(
 
   const byEmail = await admin
     .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .select("id")
     .ilike("email", normalizedEmail)
     .order("auth_user_id", { ascending: false, nullsFirst: false })
     .limit(1);
   const emailProfile = ((byEmail.data ?? []) as Array<{
     id: string;
-    user_roles: ScopeRole[] | null;
   }>)[0];
 
   if (!emailProfile) {
@@ -526,10 +518,56 @@ async function getAdminProfile(
     .from("users_profiles")
     .update({ auth_user_id: authUserId, status: "active" })
     .eq("id", emailProfile.id)
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+    .select("id")
+    .maybeSingle<{ id: string }>();
 
-  return linked.data ?? emailProfile;
+  return withProfileRoles(admin, linked.data?.id ?? emailProfile.id);
+}
+
+async function withProfileRoles(admin: SupabaseAdminClient, profileId: string) {
+  const assignments = await admin
+    .from("user_roles")
+    .select("country_id,dojo_id,role_id")
+    .eq("profile_id", profileId);
+
+  if (assignments.error) {
+    return null;
+  }
+
+  const rows = (assignments.data ?? []) as Array<{
+    country_id: string | null;
+    dojo_id: string | null;
+    role_id: string | null;
+  }>;
+  const roleIds = rows
+    .map((assignment) => assignment.role_id)
+    .filter(Boolean) as string[];
+  const roles =
+    roleIds.length > 0
+      ? await admin.from("roles").select("id,key").in("id", roleIds)
+      : { data: [], error: null };
+
+  if (roles.error) {
+    return null;
+  }
+
+  const roleKeyById = new Map(
+    ((roles.data ?? []) as Array<{ id: string; key: string }>).map((role) => [
+      role.id,
+      role.key,
+    ]),
+  );
+
+  return {
+    id: profileId,
+    user_roles: rows.map((assignment) => ({
+      country_id: assignment.country_id,
+      dojo_id: assignment.dojo_id,
+      roles: assignment.role_id
+        ? { key: roleKeyById.get(assignment.role_id) ?? "" }
+        : null,
+    })),
+  };
 }
 
 async function ensureOfficialSuperAdmin(

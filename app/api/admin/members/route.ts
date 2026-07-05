@@ -698,17 +698,16 @@ async function getMembersAdminProfile(
 ) {
   const byAuth = await admin
     .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .select("id")
     .eq("auth_user_id", authUserId)
     .limit(1);
 
   const byAuthProfile = ((byAuth.data ?? []) as Array<{
     id: string;
-    user_roles: ScopeRole[] | null;
   }>)[0];
 
   if (byAuthProfile) {
-    return byAuthProfile;
+    return withProfileRoles(admin, byAuthProfile.id);
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -719,14 +718,13 @@ async function getMembersAdminProfile(
 
   const byEmail = await admin
     .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .select("id")
     .ilike("email", normalizedEmail)
     .order("auth_user_id", { ascending: false, nullsFirst: false })
     .limit(1);
 
   const byEmailProfile = ((byEmail.data ?? []) as Array<{
     id: string;
-    user_roles: ScopeRole[] | null;
   }>)[0];
 
   if (!byEmailProfile) {
@@ -739,10 +737,56 @@ async function getMembersAdminProfile(
     .from("users_profiles")
     .update({ auth_user_id: authUserId, status: "active" })
     .eq("id", byEmailProfile.id)
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
+    .select("id")
+    .maybeSingle<{ id: string }>();
 
-  return linked.data ?? byEmailProfile;
+  return withProfileRoles(admin, linked.data?.id ?? byEmailProfile.id);
+}
+
+async function withProfileRoles(admin: SupabaseAdminClient, profileId: string) {
+  const assignments = await admin
+    .from("user_roles")
+    .select("country_id,dojo_id,role_id")
+    .eq("profile_id", profileId);
+
+  if (assignments.error) {
+    return null;
+  }
+
+  const rows = (assignments.data ?? []) as Array<{
+    country_id: string | null;
+    dojo_id: string | null;
+    role_id: string | null;
+  }>;
+  const roleIds = rows
+    .map((assignment) => assignment.role_id)
+    .filter(Boolean) as string[];
+  const roles =
+    roleIds.length > 0
+      ? await admin.from("roles").select("id,key").in("id", roleIds)
+      : { data: [], error: null };
+
+  if (roles.error) {
+    return null;
+  }
+
+  const roleKeyById = new Map(
+    ((roles.data ?? []) as Array<{ id: string; key: string }>).map((role) => [
+      role.id,
+      role.key,
+    ]),
+  );
+
+  return {
+    id: profileId,
+    user_roles: rows.map((assignment) => ({
+      country_id: assignment.country_id,
+      dojo_id: assignment.dojo_id,
+      roles: assignment.role_id
+        ? { key: roleKeyById.get(assignment.role_id) ?? "" }
+        : null,
+    })),
+  };
 }
 
 async function ensureOfficialSuperAdmin(
