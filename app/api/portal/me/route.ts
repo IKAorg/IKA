@@ -231,7 +231,7 @@ async function getPortalDashboard(
     supabase
       .from("members")
       .select(
-        "id,first_name,last_name,email,phone,status,current_grade,joined_date,country_id,dojo_id,member_group",
+        "id,ika_number,first_name,last_name,email,phone,status,current_grade,joined_date,country_id,dojo_id,member_group",
       )
       .order("last_name", { ascending: true }),
   ]);
@@ -258,6 +258,7 @@ async function getPortalDashboard(
   }>;
   const allMembers = (membersResult.data ?? []) as Array<{
     id: string;
+    ika_number: string | null;
     first_name: string;
     last_name: string;
     email: string | null;
@@ -318,6 +319,7 @@ async function getPortalDashboard(
   const membersByCountry = visibleCountries.map((country) => ({
     countryId: country.id,
     countryName: firstTranslationName(country.country_translations) || country.code,
+    dojoCount: visibleDojos.filter((dojo) => dojo.country_id === country.id).length,
     totalMembers: visibleMembers.filter(
       (member) => member.country_id === country.id,
     ).length,

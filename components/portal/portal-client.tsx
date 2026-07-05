@@ -101,6 +101,7 @@ type PortalDashboard = {
   membersByDojo: Array<{
     dojoId: string;
     dojoName: string;
+    countryId: string;
     totalMembers: number;
     activeMembers: number;
     activeAdults: number;
@@ -109,6 +110,7 @@ type PortalDashboard = {
   membersByCountry: Array<{
     countryId: string;
     countryName: string;
+    dojoCount: number;
     totalMembers: number;
     activeMembers: number;
     activeAdults: number;
@@ -116,6 +118,7 @@ type PortalDashboard = {
   }>;
   members: Array<{
     id: string;
+    ika_number: string | null;
     first_name: string;
     last_name: string;
     email: string | null;
@@ -123,6 +126,9 @@ type PortalDashboard = {
     status: string;
     current_grade: string | null;
     joined_date: string | null;
+    country_id: string | null;
+    dojo_id: string | null;
+    member_group: string | null;
   }>;
 };
 
@@ -737,102 +743,117 @@ function AdminDashboard({
         <MetricCard label="Ninos activos" value={dashboard.totals.activeChildren} />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-        <section className="border border-[var(--line)] bg-white p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-2xl font-semibold">Gestion IKA</h3>
-            <a
-              href={`/${locale}/admin`}
-              className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
-            >
-              <ExternalLink size={15} />
-              Abrir herramientas
-            </a>
-          </div>
-          <div className="mt-4 grid gap-2 text-sm">
-            {dashboard.membersByDojo.length === 0 ? (
-              <p className="text-[var(--muted)]">No hay dojos en este alcance.</p>
-            ) : (
-              dashboard.membersByDojo.map((dojo) => (
-                <div
-                  key={dojo.dojoId}
-                  className="grid gap-1 border border-[var(--line)] bg-[var(--paper)] p-3"
-                >
-                  <strong>{dojo.dojoName}</strong>
-                  <span className="text-[var(--muted)]">
-                    {dojo.activeMembers} activos / {dojo.totalMembers} total
-                  </span>
-                  <span className="text-[var(--muted)]">
-                    Adultos {dojo.activeAdults} / Ninos {dojo.activeChildren}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+      <section className="border border-[var(--line)] bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-2xl font-semibold">Gestion por pais y dojo</h3>
+          <a
+            href={`/${locale}/admin`}
+            className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+          >
+            <ExternalLink size={15} />
+            Editar informacion
+          </a>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {dashboard.membersByCountry.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">No hay paises en este alcance.</p>
+          ) : (
+            dashboard.membersByCountry.map((country) => {
+              const countryDojos = dashboard.membersByDojo.filter(
+                (dojo) => dojo.countryId === country.countryId,
+              );
 
-        <section className="border border-[var(--line)] bg-white p-5">
-          <h3 className="text-2xl font-semibold">Resumen por pais</h3>
-          <div className="mt-4 grid gap-2 text-sm">
-            {dashboard.membersByCountry.length === 0 ? (
-              <p className="text-[var(--muted)]">No hay paises en este alcance.</p>
-            ) : (
-              dashboard.membersByCountry.map((country) => (
-                <div
+              return (
+                <details
                   key={country.countryId}
-                  className="grid gap-1 border border-[var(--line)] bg-[var(--paper)] p-3"
+                  className="border border-[var(--line)] bg-[var(--paper)] p-3"
                 >
-                  <strong>{country.countryName}</strong>
-                  <span className="text-[var(--muted)]">
-                    {country.activeMembers} activos / {country.totalMembers} total
-                  </span>
-                  <span className="text-[var(--muted)]">
-                    Adultos {country.activeAdults} / Ninos {country.activeChildren}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+                  <summary className="cursor-pointer text-lg font-semibold">
+                    {country.countryName} · {country.dojoCount} dojos ·{" "}
+                    {country.activeMembers} Kenshi activos · Adultos{" "}
+                    {country.activeAdults} / Ninos {country.activeChildren}
+                  </summary>
+                  <div className="mt-3 grid gap-3">
+                    {countryDojos.length === 0 ? (
+                      <p className="text-sm text-[var(--muted)]">
+                        No hay dojos en este pais.
+                      </p>
+                    ) : (
+                      countryDojos.map((dojo) => {
+                        const dojoMembers = dashboard.members.filter(
+                          (member) => member.dojo_id === dojo.dojoId,
+                        );
 
-        <section className="border border-[var(--line)] bg-white p-5">
-          <h3 className="text-2xl font-semibold">Kenshi visibles</h3>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[680px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-[var(--line)]">
-                  <th className="py-2 pr-4">Nombre</th>
-                  <th className="py-2 pr-4">Email</th>
-                  <th className="py-2 pr-4">Telefono</th>
-                  <th className="py-2 pr-4">Grado</th>
-                  <th className="py-2 pr-4">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboard.members.length === 0 ? (
-                  <tr>
-                    <td className="py-3 text-[var(--muted)]" colSpan={5}>
-                      No hay Kenshi en este alcance.
-                    </td>
-                  </tr>
-                ) : (
-                  dashboard.members.map((member) => (
-                    <tr key={member.id} className="border-b border-[var(--line)]">
-                      <td className="py-2 pr-4">
-                        {member.first_name} {member.last_name}
-                      </td>
-                      <td className="py-2 pr-4">{member.email ?? "-"}</td>
-                      <td className="py-2 pr-4">{member.phone ?? "-"}</td>
-                      <td className="py-2 pr-4">{member.current_grade ?? "-"}</td>
-                      <td className="py-2 pr-4">{member.status}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
+                        return (
+                          <details
+                            key={dojo.dojoId}
+                            className="border border-[var(--line)] bg-white p-3"
+                          >
+                            <summary className="cursor-pointer font-semibold">
+                              {dojo.dojoName} · {dojo.activeMembers} activos /{" "}
+                              {dojo.totalMembers} total · Adultos {dojo.activeAdults} / Ninos{" "}
+                              {dojo.activeChildren}
+                            </summary>
+                            <div className="mt-3 max-h-80 overflow-y-auto">
+                              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                                <thead>
+                                  <tr className="border-b border-[var(--line)]">
+                                    <th className="py-2 pr-4">IKA</th>
+                                    <th className="py-2 pr-4">Nombre</th>
+                                    <th className="py-2 pr-4">Grupo</th>
+                                    <th className="py-2 pr-4">Email</th>
+                                    <th className="py-2 pr-4">Grado</th>
+                                    <th className="py-2 pr-4">Estado</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {dojoMembers.length === 0 ? (
+                                    <tr>
+                                      <td className="py-3 text-[var(--muted)]" colSpan={6}>
+                                        No hay Kenshi en este dojo.
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    dojoMembers.map((member) => (
+                                      <tr
+                                        key={member.id}
+                                        className="border-b border-[var(--line)]"
+                                      >
+                                        <td className="py-2 pr-4">
+                                          {member.ika_number ?? "-"}
+                                        </td>
+                                        <td className="py-2 pr-4">
+                                          {member.first_name} {member.last_name}
+                                        </td>
+                                        <td className="py-2 pr-4">
+                                          {member.member_group === "child"
+                                            ? "Nino"
+                                            : member.member_group === "adult"
+                                              ? "Adulto"
+                                              : "-"}
+                                        </td>
+                                        <td className="py-2 pr-4">{member.email ?? "-"}</td>
+                                        <td className="py-2 pr-4">
+                                          {member.current_grade ?? "-"}
+                                        </td>
+                                        <td className="py-2 pr-4">{member.status}</td>
+                                      </tr>
+                                    ))
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </details>
+                        );
+                      })
+                    )}
+                  </div>
+                </details>
+              );
+            })
+          )}
+        </div>
+      </section>
     </section>
   );
 }
