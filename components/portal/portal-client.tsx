@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Building2,
+  Camera,
+  Eye,
+  EyeOff,
   ExternalLink,
   FileBadge,
-  Globe2,
+  KeyRound,
   Loader2,
   LogOut,
-  ShieldCheck,
+  Mail,
+  Phone,
+  Save,
+  Upload,
   UserRound,
 } from "lucide-react";
+import Image from "next/image";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
@@ -54,7 +60,10 @@ type PortalMember = {
   status: string;
   current_grade: string | null;
   last_exam_date: string | null;
+  birth_date: string | null;
   joined_date: string | null;
+  member_group: string | null;
+  profile_image_url: string | null;
   consent_accepted: boolean;
   countries: ScopeCountry | null;
   dojos: ScopeDojo | null;
@@ -528,6 +537,7 @@ export function PortalClient({
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [portal, setPortal] = useState<PortalPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -613,6 +623,12 @@ export function PortalClient({
     setPortal(null);
   }
 
+  function updatePortalMember(nextMember: PortalMember) {
+    setPortal((current) =>
+      current ? { ...current, member: nextMember } : current,
+    );
+  }
+
   const displayName =
     portal?.profile?.display_name ||
     (portal?.member
@@ -642,13 +658,24 @@ export function PortalClient({
             type="email"
             className="border border-[var(--line)] px-3 py-3"
           />
-          <input
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder={copy.passwordPlaceholder}
-            type="password"
-            className="border border-[var(--line)] px-3 py-3"
-          />
+          <div className="grid grid-cols-[1fr_auto] border border-[var(--line)]">
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={copy.passwordPlaceholder}
+              type={showPassword ? "text" : "password"}
+              className="min-w-0 px-3 py-3 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              className="inline-flex w-12 items-center justify-center border-l border-[var(--line)]"
+              aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+              title={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
           <button
             onClick={signIn}
             disabled={loading || !email}
@@ -703,12 +730,15 @@ export function PortalClient({
             <AdminDashboard dashboard={portal.dashboard} locale={locale} />
           ) : (
             <>
-              <RoleSummary roles={portal.roles} locale={locale} copy={copy} />
               <MemberPanel
+                key={portal.member?.id ?? "pending-member"}
                 member={portal.member}
                 grades={portal.gradeHistory}
                 locale={locale}
                 copy={copy}
+                supabase={supabase}
+                getAuthHeaders={getAuthHeaders}
+                onMemberUpdated={updatePortalMember}
               />
             </>
           )}
@@ -894,56 +924,34 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function RoleSummary({
-  roles,
-  locale,
-  copy,
-}: {
-  roles: PortalRole[];
-  locale: Locale;
-  copy: PortalCopy;
-}) {
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {roles.length === 0 ? (
-        <DashboardCard
-          icon={<ShieldCheck size={22} />}
-          title={copy.noRoleTitle}
-          text={copy.noRoleText}
-        />
-      ) : (
-        roles.map((assignment) => {
-          const role = getRole(assignment.roles);
-          const scope =
-            labelCountry(assignment.countries, locale) ||
-            labelDojo(assignment.dojos, locale) ||
-            copy.generalAccess;
-
-          return (
-            <DashboardCard
-              key={assignment.id}
-              icon={getRoleIcon(role?.key)}
-              title={role ? copy.roleLabels[role.key] : copy.roleFallback}
-              text={scope}
-            />
-          );
-        })
-      )}
-    </div>
-  );
-}
-
 function MemberPanel({
   member,
   grades,
   locale,
   copy,
+  supabase,
+  getAuthHeaders,
+  onMemberUpdated,
 }: {
   member: PortalMember | null;
   grades: GradeHistory[];
   locale: Locale;
   copy: PortalCopy;
+  supabase: ReturnType<typeof createClient>;
+  getAuthHeaders: () => Promise<Record<string, string>>;
+  onMemberUpdated: (member: PortalMember) => void;
 }) {
+  const [contactEmail, setContactEmail] = useState(member?.email ?? "");
+  const [phone, setPhone] = useState(member?.phone ?? "");
+  const [profileImageUrl, setProfileImageUrl] = useState(
+    member?.profile_image_url ?? "",
+  );
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [panelMessage, setPanelMessage] = useState("");
+
   if (!member) {
     return (
       <DashboardCard
@@ -954,47 +962,284 @@ function MemberPanel({
     );
   }
 
+  const currentMember = member;
+
+  async function uploadProfileImage(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setPanelMessage("Selecciona una imagen.");
+      return;
+    }
+
+    setUploading(true);
+    setPanelMessage("");
+
+    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const storagePath = `members/${currentMember.id}/profile-${Date.now()}.${extension}`;
+    const upload = await supabase.storage
+      .from("public-media")
+      .upload(storagePath, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: true,
+      });
+
+    setUploading(false);
+
+    if (upload.error) {
+      setPanelMessage(upload.error.message);
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("public-media")
+      .getPublicUrl(storagePath);
+
+    setProfileImageUrl(data.publicUrl);
+  }
+
+  async function saveFicha() {
+    setSaving(true);
+    setPanelMessage("");
+
+    const response = await fetch("/api/portal/me", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        email: contactEmail,
+        phone,
+        profileImageUrl,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setPanelMessage(data.error ?? "No se pudo guardar la ficha IKA.");
+      setSaving(false);
+      return;
+    }
+
+    if (contactEmail && contactEmail !== currentMember.email) {
+      const emailUpdate = await supabase.auth.updateUser(
+        { email: contactEmail },
+        {
+          emailRedirectTo:
+            typeof window === "undefined"
+              ? undefined
+              : `${window.location.origin}/${locale}/portal`,
+        },
+      );
+
+      if (emailUpdate.error) {
+        setPanelMessage(emailUpdate.error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    if (newPassword) {
+      const passwordUpdate = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (passwordUpdate.error) {
+        setPanelMessage(passwordUpdate.error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    onMemberUpdated(data.member as PortalMember);
+    setNewPassword("");
+    setPanelMessage(
+      newPassword
+        ? "Ficha IKA y credenciales actualizadas."
+        : "Ficha IKA actualizada.",
+    );
+    setSaving(false);
+  }
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
-      <section className="border border-[var(--line)] bg-white p-5">
-        <div className="flex items-center gap-3">
-          <UserRound size={22} className="text-[var(--accent)]" />
-          <h3 className="text-2xl font-semibold">{copy.memberProfileTitle}</h3>
+    <div className="grid gap-5">
+      <section className="overflow-hidden border border-[var(--line)] bg-white">
+        <div className="grid gap-6 bg-[var(--ink)] p-6 text-white md:grid-cols-[auto_1fr_auto] md:items-center">
+          <Image
+            src="/images/ika-logo.webp"
+            alt="IKA"
+            width={72}
+            height={72}
+            className="bg-white object-contain p-2"
+          />
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
+              Ficha IKA
+            </p>
+            <h3 className="mt-2 text-3xl font-semibold">
+              {member.first_name} {member.last_name}
+            </h3>
+            <p className="mt-2 text-sm text-white/70">
+              {member.ika_number || "Sin numero IKA"} ·{" "}
+              {member.current_grade || "Sin grado"} · {member.status}
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-3 md:items-end">
+            <div className="flex size-28 items-center justify-center overflow-hidden border border-white/25 bg-white/10">
+              {profileImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={profileImageUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <UserRound size={42} />
+              )}
+            </div>
+            <label className="inline-flex cursor-pointer items-center gap-2 border border-white/30 px-3 py-2 text-sm font-semibold">
+              {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+              Cambiar foto
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                disabled={uploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    void uploadProfileImage(file);
+                  }
+                }}
+              />
+            </label>
+          </div>
         </div>
-        <dl className="mt-5 grid gap-3 text-sm">
-          <InfoRow label={copy.ikaPassport} value={member.ika_number} copy={copy} />
-          <InfoRow
-            label={copy.name}
-            value={`${member.first_name} ${member.last_name}`}
-            copy={copy}
-          />
-          <InfoRow label={copy.status} value={member.status} copy={copy} />
-          <InfoRow
-            label={copy.currentGrade}
-            value={member.current_grade}
-            copy={copy}
-          />
-          <InfoRow
-            label={copy.country}
-            value={labelCountry(member.countries, locale)}
-            copy={copy}
-          />
-          <InfoRow
-            label={copy.dojo}
-            value={labelDojo(member.dojos, locale)}
-            copy={copy}
-          />
-          <InfoRow
-            label={copy.joinedIka}
-            value={formatDate(member.joined_date, locale)}
-            copy={copy}
-          />
-          <InfoRow
-            label={copy.consent}
-            value={member.consent_accepted ? copy.consentAccepted : copy.pending}
-            copy={copy}
-          />
-        </dl>
+
+        <div className="grid gap-6 p-5 lg:grid-cols-[1.05fr_0.95fr]">
+          <dl className="grid gap-3 text-sm md:grid-cols-2">
+            <InfoRow label={copy.ikaPassport} value={member.ika_number} copy={copy} />
+            <InfoRow
+              label={copy.name}
+              value={`${member.first_name} ${member.last_name}`}
+              copy={copy}
+            />
+            <InfoRow label={copy.status} value={member.status} copy={copy} />
+            <InfoRow
+              label={copy.currentGrade}
+              value={member.current_grade}
+              copy={copy}
+            />
+            <InfoRow
+              label={copy.country}
+              value={labelCountry(member.countries, locale)}
+              copy={copy}
+            />
+            <InfoRow
+              label={copy.dojo}
+              value={labelDojo(member.dojos, locale)}
+              copy={copy}
+            />
+            <InfoRow
+              label={copy.joinedIka}
+              value={formatDate(member.joined_date, locale)}
+              copy={copy}
+            />
+            <InfoRow
+              label="Fecha nacimiento"
+              value={formatDate(member.birth_date, locale)}
+              copy={copy}
+            />
+            <InfoRow
+              label="Grupo"
+              value={
+                member.member_group === "child"
+                  ? "Nino"
+                  : member.member_group === "adult"
+                    ? "Adulto"
+                    : ""
+              }
+              copy={copy}
+            />
+            <InfoRow
+              label={copy.consent}
+              value={member.consent_accepted ? copy.consentAccepted : copy.pending}
+              copy={copy}
+            />
+          </dl>
+
+          <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
+            <h4 className="text-xl font-semibold">Datos editables</h4>
+            <label className="grid gap-1 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2">
+                <Mail size={15} /> Email
+              </span>
+              <input
+                value={contactEmail}
+                onChange={(event) => setContactEmail(event.target.value)}
+                className="border border-[var(--line)] bg-white px-3 py-2 font-normal"
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2">
+                <Phone size={15} /> Telefono
+              </span>
+              <input
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                className="border border-[var(--line)] bg-white px-3 py-2 font-normal"
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2">
+                <Camera size={15} /> URL foto
+              </span>
+              <input
+                value={profileImageUrl}
+                onChange={(event) => setProfileImageUrl(event.target.value)}
+                className="border border-[var(--line)] bg-white px-3 py-2 font-normal"
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2">
+                <KeyRound size={15} /> Nueva contrasena
+              </span>
+              <div className="grid grid-cols-[1fr_auto] border border-[var(--line)] bg-white">
+                <input
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  type={showNewPassword ? "text" : "password"}
+                  className="min-w-0 px-3 py-2 font-normal outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((current) => !current)}
+                  className="inline-flex w-11 items-center justify-center border-l border-[var(--line)]"
+                  aria-label={
+                    showNewPassword ? "Ocultar contrasena" : "Mostrar contrasena"
+                  }
+                  title={showNewPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+                >
+                  {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </label>
+            <button
+              type="button"
+              onClick={() => void saveFicha()}
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Guardar ficha IKA
+            </button>
+            {panelMessage ? (
+              <p className="text-sm font-semibold text-[var(--accent)]">
+                {panelMessage}
+              </p>
+            ) : null}
+          </div>
+        </div>
       </section>
 
       <section className="border border-[var(--line)] bg-white p-5">
@@ -1061,26 +1306,6 @@ function InfoRow({
       <dd className="text-[var(--muted)]">{value || copy.pending}</dd>
     </div>
   );
-}
-
-function getRole(role: PortalRole["roles"]) {
-  return Array.isArray(role) ? role[0] : role;
-}
-
-function getRoleIcon(role?: RoleKey) {
-  if (role === "country_admin") {
-    return <Globe2 size={22} />;
-  }
-
-  if (role === "dojo_admin") {
-    return <Building2 size={22} />;
-  }
-
-  if (role === "global_admin" || role === "super_admin") {
-    return <ShieldCheck size={22} />;
-  }
-
-  return <UserRound size={22} />;
 }
 
 function labelCountry(country: ScopeCountry | null, locale: Locale) {

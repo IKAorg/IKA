@@ -272,6 +272,7 @@ export async function PATCH(request: NextRequest) {
   const redirectTo = buildPublicRedirectUrl(request, "es", "portal");
   let authUserId = await findAuthUserIdByEmail(guard.admin, memberEmail);
   let inviteSent = false;
+  const shouldSendAccessEmail = Boolean(authUserId);
 
   if (!authUserId) {
     const invite = await guard.admin.auth.admin.inviteUserByEmail(memberEmail, {
@@ -283,29 +284,6 @@ export async function PATCH(request: NextRequest) {
     }
 
     authUserId = invite.data.user?.id ?? null;
-    inviteSent = true;
-  } else {
-    const publicClient = createPublicSupabaseClient();
-
-    if (!publicClient) {
-      return NextResponse.json(
-        { error: "No se pudo preparar el envio del email del portal." },
-        { status: 500 },
-      );
-    }
-
-    const accessEmail = await publicClient.auth.signInWithOtp({
-      email: memberEmail,
-      options: {
-        emailRedirectTo: redirectTo,
-        shouldCreateUser: false,
-      },
-    });
-
-    if (accessEmail.error) {
-      return NextResponse.json({ error: accessEmail.error.message }, { status: 500 });
-    }
-
     inviteSent = true;
   }
 
@@ -359,6 +337,31 @@ export async function PATCH(request: NextRequest) {
 
   if (role.error) {
     return NextResponse.json({ error: role.error.message }, { status: 500 });
+  }
+
+  if (shouldSendAccessEmail) {
+    const publicClient = createPublicSupabaseClient();
+
+    if (!publicClient) {
+      return NextResponse.json(
+        { error: "No se pudo preparar el envio del email del portal." },
+        { status: 500 },
+      );
+    }
+
+    const accessEmail = await publicClient.auth.signInWithOtp({
+      email: memberEmail,
+      options: {
+        emailRedirectTo: redirectTo,
+        shouldCreateUser: false,
+      },
+    });
+
+    if (accessEmail.error) {
+      return NextResponse.json({ error: accessEmail.error.message }, { status: 500 });
+    }
+
+    inviteSent = true;
   }
 
   const updated = await guard.admin

@@ -22,29 +22,17 @@ type PortalSupabaseClient = ReturnType<
   typeof createServiceClient<UntypedDatabase, "public", "public">
 >;
 
-export async function GET(request: NextRequest) {
-  const url = getSupabaseProjectUrl();
-  const serviceRoleKey = getServiceRoleKey();
+const memberSelect =
+  "id,ika_number,first_name,last_name,email,phone,status,current_grade,last_exam_date,birth_date,joined_date,member_group,profile_image_url,consent_accepted,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))";
 
-  if (!url || !serviceRoleKey) {
-    return NextResponse.json(
-      {
-        error:
-          "Falta configuracion de Vercel para cargar el portal privado.",
-        detectedSupabaseVariables: getDetectedSupabaseEnvNames(),
-      },
-      { status: 500 },
-    );
+export async function GET(request: NextRequest) {
+  const ready = await getPortalRequestContext(request);
+
+  if (ready.error) {
+    return ready.error;
   }
 
-  const supabase = createServiceClient<UntypedDatabase, "public", "public">(
-    url,
-    serviceRoleKey,
-    {
-    auth: { persistSession: false, autoRefreshToken: false },
-    },
-  );
-  const user = await getAuthenticatedUser(supabase, request);
+  const { supabase, user } = ready;
 
   if (!user) {
     return NextResponse.json({ error: "No autenticado." }, { status: 401 });
@@ -75,13 +63,7 @@ export async function GET(request: NextRequest) {
         "id,country_id,dojo_id,roles(key,name),countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
       .eq("profile_id", portalProfile.id),
-    supabase
-      .from("members")
-      .select(
-        "id,ika_number,first_name,last_name,email,phone,status,current_grade,last_exam_date,joined_date,consent_accepted,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
-      )
-      .eq("profile_id", portalProfile.id)
-      .maybeSingle(),
+    getPortalMember(supabase, portalProfile.id, portalProfile.email),
   ]);
 
   if (rolesResult.error) {
@@ -128,6 +110,111 @@ export async function GET(request: NextRequest) {
     gradeHistory: gradeHistory.data ?? [],
     dashboard,
   });
+}
+
+export async function PATCH(request: NextRequest) {
+  const ready = await getPortalRequestContext(request);
+
+  if (ready.error) {
+    return ready.error;
+  }
+
+  const { supabase, user } = ready;
+
+  if (!user) {
+    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  }
+
+  const profile = await getPortalProfile(supabase, user.id, getAuthUserEmail(user));
+
+  if (!profile) {
+    return NextResponse.json({ error: "No se encontro la ficha IKA." }, { status: 404 });
+  }
+
+  const portalProfile = profile as {
+    id: string;
+    email: string;
+    display_name: string | null;
+    status: string;
+  };
+  const member = await getPortalMember(supabase, portalProfile.id, portalProfile.email);
+
+  if (member.error) {
+    return NextResponse.json({ error: member.error.message }, { status: 500 });
+  }
+
+  if (!member.data) {
+    return NextResponse.json({ error: "No se encontro la ficha del Kenshi." }, { status: 404 });
+  }
+
+  const body = (await request.json().catch(() => ({}))) as {
+    email?: string;
+    phone?: string;
+    profileImageUrl?: string;
+  };
+  const email = normalizeEmail(body.email);
+  const phone = normalizeOptionalText(body.phone);
+  const profileImageUrl = normalizeOptionalText(body.profileImageUrl);
+  const updates: Record<string, string | null> = {
+    phone,
+    profile_image_url: profileImageUrl,
+  };
+
+  if (email) {
+    updates.email = email;
+  }
+
+  const updated = await supabase
+    .from("members")
+    .update(updates)
+    .eq("id", (member.data as { id: string }).id)
+    .select(memberSelect)
+    .maybeSingle();
+
+  if (updated.error || !updated.data) {
+    return NextResponse.json(
+      { error: updated.error?.message ?? "No se pudo actualizar la ficha IKA." },
+      { status: 500 },
+    );
+  }
+
+  if (email) {
+    await supabase
+      .from("users_profiles")
+      .update({ email, updated_at: new Date().toISOString() })
+      .eq("id", portalProfile.id);
+  }
+
+  return NextResponse.json({ ok: true, member: updated.data });
+}
+
+async function getPortalRequestContext(request: NextRequest) {
+  const url = getSupabaseProjectUrl();
+  const serviceRoleKey = getServiceRoleKey();
+
+  if (!url || !serviceRoleKey) {
+    return {
+      error: NextResponse.json(
+        {
+          error:
+            "Falta configuracion de Vercel para cargar el portal privado.",
+          detectedSupabaseVariables: getDetectedSupabaseEnvNames(),
+        },
+        { status: 500 },
+      ),
+    } as const;
+  }
+
+  const supabase = createServiceClient<UntypedDatabase, "public", "public">(
+    url,
+    serviceRoleKey,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
+  const user = await getAuthenticatedUser(supabase, request);
+
+  return { supabase, user, error: null } as const;
 }
 
 async function getAuthenticatedUser(
@@ -450,8 +537,71 @@ async function getPortalProfile(
   return linked.data ?? emailProfile;
 }
 
+async function getPortalMember(
+  supabase: PortalSupabaseClient,
+  profileId: string,
+  email: string,
+) {
+  const byProfile = await supabase
+    .from("members")
+    .select(memberSelect)
+    .eq("profile_id", profileId)
+    .limit(1);
+
+  if (byProfile.error) {
+    return byProfile;
+  }
+
+  const profileMember = (byProfile.data ?? [])[0];
+
+  if (profileMember) {
+    return { data: profileMember, error: null } as const;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail) {
+    return { data: null, error: null } as const;
+  }
+
+  const byEmail = await supabase
+    .from("members")
+    .select(memberSelect)
+    .ilike("email", normalizedEmail)
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (byEmail.error) {
+    return byEmail;
+  }
+
+  const emailMember = (byEmail.data ?? [])[0] as { id?: string } | undefined;
+
+  if (!emailMember?.id) {
+    return { data: null, error: null } as const;
+  }
+
+  await supabase
+    .from("members")
+    .update({ profile_id: profileId, updated_at: new Date().toISOString() })
+    .eq("id", emailMember.id);
+
+  const linked = await supabase
+    .from("members")
+    .select(memberSelect)
+    .eq("id", emailMember.id)
+    .maybeSingle();
+
+  return linked;
+}
+
 function normalizeEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function normalizeOptionalText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function getAuthUserEmail(user: {
