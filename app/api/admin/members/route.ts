@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
         "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
       .order("created_at", { ascending: false })
-      .limit(80),
+      .limit(1000),
   ]);
 
   const firstError =

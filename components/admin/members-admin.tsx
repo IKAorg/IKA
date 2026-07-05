@@ -115,6 +115,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [editingMemberId, setEditingMemberId] = useState("");
   const [savingMemberId, setSavingMemberId] = useState("");
   const [memberForm, setMemberForm] = useState<MemberEditForm | null>(null);
+  const [memberSearch, setMemberSearch] = useState("");
   const [message, setMessage] = useState("");
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -221,6 +222,25 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       ),
     [rows],
   );
+  const skippedRows = rows.length - validRows.length;
+  const filteredMembers = useMemo(() => {
+    const wanted = normalizeComparable(memberSearch);
+
+    if (!wanted) {
+      return payload.members;
+    }
+
+    return payload.members.filter((member) =>
+      normalizeComparable(
+        [
+          member.ika_number,
+          member.first_name,
+          member.last_name,
+          member.email ?? "",
+        ].join(" "),
+      ).includes(wanted),
+    );
+  }, [memberSearch, payload.members]);
 
   async function importRows() {
     setImporting(true);
@@ -485,7 +505,17 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       </section>
 
       <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
-        <h3 className="text-xl font-semibold">Previsualizacion</h3>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-semibold">Previsualizacion</h3>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Solo se muestran las filas activas que se van a importar.
+            </p>
+          </div>
+          <span className="text-sm font-semibold text-[var(--muted)]">
+            Activos: {validRows.length} / Omitidos: {skippedRows}
+          </span>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
@@ -498,7 +528,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               </tr>
             </thead>
             <tbody>
-              {rows.slice(0, 20).map((row, index) => (
+              {validRows.slice(0, 20).map((row, index) => (
                 <tr key={`${row.email}-${index}`} className="border-b border-[var(--line)]">
                   <td className="py-2 pr-4">
                     {row.firstName} {row.lastName}
@@ -529,22 +559,41 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             </tbody>
           </table>
         </div>
-        {rows.length > 20 ? (
+        {validRows.length > 20 ? (
           <p className="text-sm text-[var(--muted)]">
-            Mostrando 20 de {rows.length} filas.
+            Mostrando 20 de {validRows.length} filas activas.
           </p>
         ) : null}
       </section>
 
       <section className="grid gap-3 border border-[var(--line)] bg-white p-5">
-        <h3 className="text-xl font-semibold">Ultimos Kenshi</h3>
+        <div className="grid gap-3 md:grid-cols-[1fr_minmax(220px,360px)] md:items-end">
+          <div>
+            <h3 className="text-xl font-semibold">Kenshi</h3>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {filteredMembers.length} visibles de {payload.members.length}.
+            </p>
+          </div>
+          <label className="grid gap-1 text-sm font-semibold">
+            Buscar
+            <input
+              type="search"
+              value={memberSearch}
+              onChange={(event) => setMemberSearch(event.target.value)}
+              placeholder="Numero, nombre o apellidos"
+              className="border border-[var(--line)] px-3 py-2 font-normal"
+            />
+          </label>
+        </div>
         {loading ? (
           <p className="text-sm text-[var(--muted)]">Cargando Kenshi...</p>
         ) : payload.members.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">No hay Kenshi visibles.</p>
+        ) : filteredMembers.length === 0 ? (
+          <p className="text-sm text-[var(--muted)]">No hay Kenshi para esa busqueda.</p>
         ) : (
-          <div className="grid gap-2">
-            {payload.members.map((member) => (
+          <div className="grid max-h-[720px] gap-2 overflow-y-auto pr-2">
+            {filteredMembers.map((member) => (
               <div
                 key={member.id}
                 className="grid gap-2 border border-[var(--line)] px-3 py-2 text-sm md:grid-cols-[1fr_auto]"
