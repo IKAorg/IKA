@@ -81,7 +81,6 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [session, setSession] = useState<Session | null>(null);
   const [csvText, setCsvText] = useState(csvTemplate);
   const [selectedDojoId, setSelectedDojoId] = useState("");
-  const [sendInvites, setSendInvites] = useState(true);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
@@ -204,7 +203,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           dojoId: selectedDojo?.id ?? "",
           dojoName: "",
         })),
-        sendInvites,
+        sendInvites: false,
         locale: initialLocale,
       }),
     });
@@ -321,14 +320,10 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
         />
 
         <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-          <label className="flex items-center gap-3 text-sm font-semibold">
-            <input
-              type="checkbox"
-              checked={sendInvites}
-              onChange={(event) => setSendInvites(event.target.checked)}
-            />
-            Enviar invitacion al portal si la fila tiene email
-          </label>
+          <p className="text-sm font-semibold text-[var(--muted)]">
+            El volcado CSV no envia emails. Las invitaciones se enviaran despues
+            manualmente desde el area del dojo.
+          </p>
 
           <button
             type="button"

@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const rows = Array.isArray(body?.rows) ? (body.rows as ImportRow[]) : [];
-  const sendInvites = body?.sendInvites === true;
+  // CSV imports never send portal invitations. Dojo managers will invite Kenshi manually.
+  const sendInvites = false;
   const locale = normalizeText(body?.locale) || "es";
 
   if (rows.length === 0) {
