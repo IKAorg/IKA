@@ -527,6 +527,10 @@ const portalCopies: Record<Locale, PortalCopy> = {
   },
 };
 
+function normalizeEmail(value: unknown) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
 export function PortalClient({
   locale = defaultLocale,
 }: {
@@ -544,6 +548,7 @@ export function PortalClient({
       (window.location.hash.includes("type=recovery") ||
         window.location.search.includes("type=recovery")),
   );
+  const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
   const [portal, setPortal] = useState<PortalPayload | null>(null);
@@ -648,6 +653,14 @@ export function PortalClient({
   }
 
   async function saveRecoveryPassword() {
+    const expectedEmail = normalizeEmail(recoveryEmail);
+    const currentEmail = normalizeEmail(session?.user.email);
+
+    if (!expectedEmail) {
+      setMessage("Introduce el email del Kenshi.");
+      return;
+    }
+
     if (!recoveryPassword || recoveryPassword.length < 6) {
       setMessage("La contrasena debe tener al menos 6 caracteres.");
       return;
@@ -655,6 +668,27 @@ export function PortalClient({
 
     setLoading(true);
     setMessage("");
+
+    const currentSession = await supabase.auth.getSession();
+    const recoverySessionEmail = normalizeEmail(
+      currentSession.data.session?.user.email,
+    );
+
+    if (!currentSession.data.session) {
+      setMessage(
+        "El enlace de recuperacion no ha abierto una sesion valida. Solicita un nuevo email y abrelo en una ventana privada.",
+      );
+      setLoading(false);
+      return;
+    }
+
+    if (recoverySessionEmail !== expectedEmail) {
+      setMessage(
+        `Este enlace esta activo para ${recoverySessionEmail || currentEmail || "otra cuenta"}, no para ${expectedEmail}. Sal de la cuenta actual o abre el email en una ventana privada.`,
+      );
+      setLoading(false);
+      return;
+    }
 
     const result = await supabase.auth.updateUser({
       password: recoveryPassword,
@@ -666,6 +700,7 @@ export function PortalClient({
       return;
     }
 
+    setRecoveryEmail("");
     setRecoveryPassword("");
     setRecoveryMode(false);
     setMessage("Contrasena actualizada.");
@@ -757,6 +792,13 @@ export function PortalClient({
         </div>
 
         <div className="grid gap-3">
+          <input
+            value={recoveryEmail}
+            onChange={(event) => setRecoveryEmail(event.target.value)}
+            placeholder="Email del Kenshi"
+            type="email"
+            className="border border-[var(--line)] px-3 py-3"
+          />
           <div className="grid grid-cols-[1fr_auto] border border-[var(--line)]">
             <input
               value={recoveryPassword}
@@ -779,7 +821,7 @@ export function PortalClient({
           </div>
           <button
             onClick={() => void saveRecoveryPassword()}
-            disabled={loading || !recoveryPassword}
+            disabled={loading || !recoveryEmail || !recoveryPassword}
             className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-5 py-3 font-semibold text-white disabled:opacity-50"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
