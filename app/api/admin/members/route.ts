@@ -659,10 +659,9 @@ async function requireMembersAdmin(request: NextRequest) {
     .filter((role) => getRoleKey(role.roles) === "dojo_admin")
     .map((role) => role.dojo_id)
     .filter(Boolean) as string[];
-  const countryIds = dojoIds.length > 0 ? [] : explicitCountryIds;
   const scope = {
     isGlobal: roleKeys.includes("super_admin") || roleKeys.includes("global_admin"),
-    countryIds: Array.from(new Set(countryIds)),
+    countryIds: Array.from(new Set(explicitCountryIds)),
     dojoIds,
   };
 
@@ -715,7 +714,7 @@ async function getMembersAdminProfile(
   const byEmail = await admin
     .from("users_profiles")
     .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .eq("email", normalizedEmail)
+    .ilike("email", normalizedEmail)
     .maybeSingle<{ id: string; user_roles: ScopeRole[] | null }>();
 
   if (!byEmail.data) {
@@ -805,7 +804,7 @@ async function getMissingProfileDiagnostics(
       ? admin
           .from("users_profiles")
           .select("id,email,status,auth_user_id")
-          .eq("email", normalizedEmail)
+          .ilike("email", normalizedEmail)
           .limit(3)
       : Promise.resolve({ data: [], error: null }),
   ]);

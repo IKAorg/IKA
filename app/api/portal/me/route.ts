@@ -179,7 +179,7 @@ async function getPortalScope(
     .filter((role) => getRoleKey(role.roles) === "country_admin")
     .map((role) => role.country_id)
     .filter(Boolean) as string[];
-  const countryIds = dojoIds.length > 0 ? [] : explicitCountryIds;
+  const countryIds = explicitCountryIds;
 
   return {
     roleKeys,

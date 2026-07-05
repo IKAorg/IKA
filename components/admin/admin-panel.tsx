@@ -81,18 +81,28 @@ export function AdminPanel({ locale }: AdminPanelProps) {
       .getSession()
       .then(({ data }) => {
         const token = data.session?.access_token;
-        return fetch("/api/portal/me", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const headers: Record<string, string> = token
+          ? { Authorization: `Bearer ${token}` }
+          : {};
+
+        return Promise.all([
+          fetch("/api/portal/me", {
+            cache: "no-store",
+            headers,
+          }).then((response) => response.json().catch(() => ({}))),
+          fetch("/api/admin/members", {
+            cache: "no-store",
+            headers,
+          }).then((response) => response.json().catch(() => ({}))),
+        ]);
       })
-      .then((response) => response.json().catch(() => ({})))
-      .then((portal) => {
+      .then(([portal, members]) => {
         if (!active) {
           return;
         }
 
-        const nextScope = portal?.dashboard?.scope as AdminScope | undefined;
+        const nextScope = (portal?.dashboard?.scope ??
+          members?.scope) as AdminScope | undefined;
         setScope(nextScope ?? null);
         setLoadingScope(false);
       })
@@ -117,9 +127,9 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     Boolean(scope?.isGlobal) ||
     roleKeys.includes("super_admin") ||
     roleKeys.includes("global_admin");
-  const isDojoAdmin = roleKeys.includes("dojo_admin");
-  const isCountryAdmin = roleKeys.includes("country_admin") && !isDojoAdmin;
-  const canManageUsers = isGlobal || isCountryAdmin;
+  const isCountryAdmin = roleKeys.includes("country_admin");
+  const isDojoAdmin = roleKeys.includes("dojo_admin") && !isCountryAdmin;
+  const canManageUsers = isGlobal;
   const canManageMembers = isGlobal || isCountryAdmin || isDojoAdmin;
   const canManageLocations = isGlobal || isCountryAdmin;
 
