@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileUp, Loader2, Send, UsersRound } from "lucide-react";
+import { FileUp, Loader2, Mail, Send, UsersRound } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import type { Locale } from "@/lib/i18n/config";
 import { createClient } from "@/lib/supabase/browser";
@@ -30,6 +30,8 @@ type MemberRow = {
   current_grade: string | null;
   country_id: string | null;
   dojo_id: string | null;
+  portal_invite_sent_at: string | null;
+  portal_invite_sent_to: string | null;
   countries: CountryOption | null;
   dojos: DojoOption | null;
 };
@@ -83,6 +85,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [selectedDojoId, setSelectedDojoId] = useState("");
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [inviteSendingId, setInviteSendingId] = useState("");
   const [message, setMessage] = useState("");
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -234,6 +237,54 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     }
 
     setCsvText(await file.text());
+  }
+
+  async function sendPortalInvite(member: MemberRow) {
+    if (!member.email) {
+      setMessage("Ese Kenshi no tiene email.");
+      return;
+    }
+
+    setInviteSendingId(member.id);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "send_portal_invite",
+        memberId: member.id,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo enviar la invitacion.");
+      setInviteSendingId("");
+      return;
+    }
+
+    setPayload((current) => ({
+      ...current,
+      members: current.members.map((item) =>
+        item.id === member.id
+          ? {
+              ...item,
+              portal_invite_sent_at:
+                data.member?.portal_invite_sent_at ?? new Date().toISOString(),
+              portal_invite_sent_to:
+                data.member?.portal_invite_sent_to ?? member.email,
+            }
+          : item,
+      ),
+    }));
+    setMessage(
+      `Email enviado al email ${data.member?.portal_invite_sent_to ?? member.email}.`,
+    );
+    setInviteSendingId("");
   }
 
   return (
@@ -404,7 +455,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             {payload.members.map((member) => (
               <div
                 key={member.id}
-                className="grid gap-1 border border-[var(--line)] px-3 py-2 text-sm md:grid-cols-[1fr_auto]"
+                className="grid gap-2 border border-[var(--line)] px-3 py-2 text-sm md:grid-cols-[1fr_auto]"
               >
                 <span>
                   <strong>
@@ -420,6 +471,30 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                     ? countryLabel(member.countries, initialLocale)
                     : "-"}
                 </span>
+                <div className="grid gap-2 md:col-span-2 md:grid-cols-[1fr_auto] md:items-center">
+                  {member.portal_invite_sent_to ? (
+                    <span className="font-semibold text-[var(--accent)]">
+                      Email enviado al email {member.portal_invite_sent_to}.
+                    </span>
+                  ) : (
+                    <span className="text-[var(--muted)]">
+                      Invitacion al portal pendiente.
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void sendPortalInvite(member)}
+                    disabled={!member.email || inviteSendingId === member.id}
+                    className="inline-flex h-9 items-center justify-center gap-2 border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
+                  >
+                    {inviteSendingId === member.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Mail size={16} />
+                    )}
+                    Enviar email
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -48,6 +48,11 @@ type ImportRow = {
   notes?: string;
 };
 
+type MemberInviteBody = {
+  action?: string;
+  memberId?: string;
+};
+
 export async function GET(request: NextRequest) {
   const guard = await requireMembersAdmin(request);
 
@@ -67,7 +72,7 @@ export async function GET(request: NextRequest) {
     guard.admin
       .from("members")
       .select(
-        "id,ika_number,first_name,last_name,email,phone,status,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
+        "id,ika_number,first_name,last_name,email,phone,status,current_grade,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
       .order("created_at", { ascending: false })
       .limit(80),
@@ -111,6 +116,130 @@ export async function GET(request: NextRequest) {
     dojos,
     members,
     scope: guard.scope,
+  });
+}
+
+export async function PATCH(request: NextRequest) {
+  const guard = await requireMembersAdmin(request);
+
+  if (guard.error) {
+    return guard.error;
+  }
+
+  const body = (await request.json().catch(() => null)) as MemberInviteBody | null;
+
+  if (body?.action !== "send_portal_invite" || !body.memberId) {
+    return NextResponse.json(
+      { error: "Accion de invitacion no valida." },
+      { status: 400 },
+    );
+  }
+
+  const member = await guard.admin
+    .from("members")
+    .select("id,profile_id,first_name,last_name,email,country_id,dojo_id")
+    .eq("id", body.memberId)
+    .maybeSingle<{
+      id: string;
+      profile_id: string | null;
+      first_name: string;
+      last_name: string;
+      email: string | null;
+      country_id: string | null;
+      dojo_id: string | null;
+    }>();
+
+  if (member.error) {
+    return NextResponse.json({ error: member.error.message }, { status: 500 });
+  }
+
+  if (!member.data) {
+    return NextResponse.json(
+      { error: "No se encontro el Kenshi." },
+      { status: 404 },
+    );
+  }
+
+  if (!member.data.email) {
+    return NextResponse.json(
+      { error: "Este Kenshi no tiene email para enviar invitacion." },
+      { status: 400 },
+    );
+  }
+
+  if (
+    !member.data.country_id ||
+    !member.data.dojo_id ||
+    !canManageTarget(guard.scope, member.data.country_id, member.data.dojo_id)
+  ) {
+    return NextResponse.json(
+      { error: "No tienes permisos para invitar a este Kenshi." },
+      { status: 403 },
+    );
+  }
+
+  let authUserId = await findAuthUserIdByEmail(guard.admin, member.data.email);
+
+  if (!authUserId) {
+    const invite = await guard.admin.auth.admin.inviteUserByEmail(member.data.email, {
+      redirectTo: buildPublicRedirectUrl(request, "es", "portal"),
+    });
+
+    if (invite.error) {
+      return NextResponse.json({ error: invite.error.message }, { status: 500 });
+    }
+
+    authUserId = invite.data.user?.id ?? null;
+  }
+
+  const profile = await guard.admin
+    .from("users_profiles")
+    .upsert(
+      {
+        email: member.data.email,
+        display_name: `${member.data.first_name} ${member.data.last_name}`,
+        auth_user_id: authUserId,
+        status: authUserId ? "invited" : "active",
+      },
+      { onConflict: "email" },
+    )
+    .select("id")
+    .single<{ id: string }>();
+
+  if (profile.error || !profile.data) {
+    return NextResponse.json(
+      { error: profile.error?.message ?? "No se pudo actualizar el perfil." },
+      { status: 500 },
+    );
+  }
+
+  const updated = await guard.admin
+    .from("members")
+    .update({
+      profile_id: profile.data.id,
+      portal_invite_sent_at: new Date().toISOString(),
+      portal_invite_sent_to: member.data.email,
+      portal_invite_sent_by: guard.profileId,
+      updated_by: guard.profileId,
+    })
+    .eq("id", member.data.id)
+    .select("id,portal_invite_sent_at,portal_invite_sent_to")
+    .single<{
+      id: string;
+      portal_invite_sent_at: string | null;
+      portal_invite_sent_to: string | null;
+    }>();
+
+  if (updated.error || !updated.data) {
+    return NextResponse.json(
+      { error: updated.error?.message ?? "No se pudo registrar la invitacion." },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    member: updated.data,
   });
 }
 
