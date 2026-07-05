@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   Building2,
+  ExternalLink,
   FileBadge,
   Globe2,
   Loader2,
@@ -78,6 +79,39 @@ type PortalPayload = {
   roles: PortalRole[];
   member: PortalMember | null;
   gradeHistory: GradeHistory[];
+  dashboard: PortalDashboard | null;
+};
+
+type PortalDashboard = {
+  error?: string;
+  scope: {
+    roleKeys: string[];
+    isGlobal: boolean;
+    countryIds: string[];
+    dojoIds: string[];
+  };
+  totals: {
+    countries: number;
+    dojos: number;
+    members: number;
+    activeMembers: number;
+  };
+  membersByDojo: Array<{
+    dojoId: string;
+    dojoName: string;
+    totalMembers: number;
+    activeMembers: number;
+  }>;
+  members: Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    phone: string | null;
+    status: string;
+    current_grade: string | null;
+    joined_date: string | null;
+  }>;
 };
 
 type PortalCopy = {
@@ -479,11 +513,21 @@ export function PortalClient({
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [supabase]);
+
   const loadPortal = useCallback(async () => {
     setLoading(true);
     setMessage("");
 
-    const response = await fetch("/api/portal/me", { cache: "no-store" });
+    const response = await fetch("/api/portal/me", {
+      cache: "no-store",
+      headers: await getAuthHeaders(),
+    });
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -494,7 +538,7 @@ export function PortalClient({
     }
 
     setLoading(false);
-  }, [copy.loadError]);
+  }, [copy.loadError, getAuthHeaders]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -637,6 +681,7 @@ export function PortalClient({
       {portal && !loading ? (
         <div className="grid gap-5">
           <RoleSummary roles={portal.roles} locale={locale} copy={copy} />
+          <AdminDashboard dashboard={portal.dashboard} locale={locale} />
           <MemberPanel
             member={portal.member}
             grades={portal.gradeHistory}
@@ -647,6 +692,116 @@ export function PortalClient({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function AdminDashboard({
+  dashboard,
+  locale,
+}: {
+  dashboard: PortalDashboard | null;
+  locale: Locale;
+}) {
+  if (!dashboard) {
+    return null;
+  }
+
+  if (dashboard.error) {
+    return (
+      <section className="border border-[var(--line)] bg-white p-5 text-sm font-semibold text-[var(--accent)]">
+        {dashboard.error}
+      </section>
+    );
+  }
+
+  return (
+    <section className="grid gap-5">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricCard label="Paises" value={dashboard.totals.countries} />
+        <MetricCard label="Dojos" value={dashboard.totals.dojos} />
+        <MetricCard label="Kenshi activos" value={dashboard.totals.activeMembers} />
+        <MetricCard label="Kenshi total" value={dashboard.totals.members} />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
+        <section className="border border-[var(--line)] bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-2xl font-semibold">Gestion IKA</h3>
+            <a
+              href={`/${locale}/admin`}
+              className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+            >
+              <ExternalLink size={15} />
+              Abrir herramientas
+            </a>
+          </div>
+          <div className="mt-4 grid gap-2 text-sm">
+            {dashboard.membersByDojo.length === 0 ? (
+              <p className="text-[var(--muted)]">No hay dojos en este alcance.</p>
+            ) : (
+              dashboard.membersByDojo.map((dojo) => (
+                <div
+                  key={dojo.dojoId}
+                  className="grid gap-1 border border-[var(--line)] bg-[var(--paper)] p-3"
+                >
+                  <strong>{dojo.dojoName}</strong>
+                  <span className="text-[var(--muted)]">
+                    {dojo.activeMembers} activos / {dojo.totalMembers} total
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="border border-[var(--line)] bg-white p-5">
+          <h3 className="text-2xl font-semibold">Kenshi visibles</h3>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[680px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--line)]">
+                  <th className="py-2 pr-4">Nombre</th>
+                  <th className="py-2 pr-4">Email</th>
+                  <th className="py-2 pr-4">Telefono</th>
+                  <th className="py-2 pr-4">Grado</th>
+                  <th className="py-2 pr-4">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboard.members.length === 0 ? (
+                  <tr>
+                    <td className="py-3 text-[var(--muted)]" colSpan={5}>
+                      No hay Kenshi en este alcance.
+                    </td>
+                  </tr>
+                ) : (
+                  dashboard.members.map((member) => (
+                    <tr key={member.id} className="border-b border-[var(--line)]">
+                      <td className="py-2 pr-4">
+                        {member.first_name} {member.last_name}
+                      </td>
+                      <td className="py-2 pr-4">{member.email ?? "-"}</td>
+                      <td className="py-2 pr-4">{member.phone ?? "-"}</td>
+                      <td className="py-2 pr-4">{member.current_grade ?? "-"}</td>
+                      <td className="py-2 pr-4">{member.status}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+  return (
+    <article className="border border-[var(--line)] bg-white p-5">
+      <p className="text-sm font-semibold text-[var(--muted)]">{label}</p>
+      <p className="mt-2 text-3xl font-semibold">{value}</p>
+    </article>
   );
 }
 

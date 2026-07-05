@@ -1,18 +1,28 @@
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
 
-export async function GET() {
-  const sessionClient = await createSessionClient();
-  const {
-    data: { user },
-  } = await sessionClient.auth.getUser();
+type UntypedTable = {
+  Row: Record<string, unknown>;
+  Insert: Record<string, unknown>;
+  Update: Record<string, unknown>;
+  Relationships: [];
+};
 
-  if (!user) {
-    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  }
+type UntypedDatabase = {
+  public: {
+    Tables: Record<string, UntypedTable>;
+    Views: Record<string, UntypedTable>;
+    Functions: Record<string, never>;
+  };
+};
 
+type PortalSupabaseClient = ReturnType<
+  typeof createServiceClient<UntypedDatabase, "public", "public">
+>;
+
+export async function GET(request: NextRequest) {
   const url = getSupabaseProjectUrl();
   const serviceRoleKey = getServiceRoleKey();
 
@@ -27,9 +37,18 @@ export async function GET() {
     );
   }
 
-  const supabase = createServiceClient(url, serviceRoleKey, {
+  const supabase = createServiceClient<UntypedDatabase, "public", "public">(
+    url,
+    serviceRoleKey,
+    {
     auth: { persistSession: false, autoRefreshToken: false },
-  });
+    },
+  );
+  const user = await getAuthenticatedUser(supabase, request);
+
+  if (!user) {
+    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  }
 
   const { data: profile, error: profileError } = await supabase
     .from("users_profiles")
@@ -47,8 +66,15 @@ export async function GET() {
       roles: [],
       member: null,
       gradeHistory: [],
+      dashboard: null,
     });
   }
+  const portalProfile = profile as {
+    id: string;
+    email: string;
+    display_name: string | null;
+    status: string;
+  };
 
   const [rolesResult, memberResult] = await Promise.all([
     supabase
@@ -56,13 +82,13 @@ export async function GET() {
       .select(
         "id,country_id,dojo_id,roles(key,name),countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
-      .eq("profile_id", profile.id),
+      .eq("profile_id", portalProfile.id),
     supabase
       .from("members")
       .select(
         "id,ika_number,first_name,last_name,email,phone,status,current_grade,last_exam_date,joined_date,consent_accepted,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
-      .eq("profile_id", profile.id)
+      .eq("profile_id", portalProfile.id)
       .maybeSingle(),
   ]);
 
@@ -80,11 +106,12 @@ export async function GET() {
     );
   }
 
-  const gradeHistory = memberResult.data
+  const member = memberResult.data as { id: string } | null;
+  const gradeHistory = member
     ? await supabase
         .from("grade_history")
         .select("id,grade,exam_date,exam_place,examiner")
-        .eq("member_id", memberResult.data.id)
+        .eq("member_id", member.id)
         .order("exam_date", { ascending: false })
     : { data: [], error: null };
 
@@ -94,13 +121,203 @@ export async function GET() {
       { status: 500 },
     );
   }
+  const roles = (rolesResult.data ?? []) as Array<{
+    country_id: string | null;
+    dojo_id: string | null;
+    roles: { key: string; name?: string } | Array<{ key: string; name?: string }> | null;
+  }>;
+  const scope = await getPortalScope(supabase, roles);
+  const dashboard = await getPortalDashboard(supabase, scope);
 
   return NextResponse.json({
-    profile,
-    roles: rolesResult.data ?? [],
+    profile: portalProfile,
+    roles,
     member: memberResult.data ?? null,
     gradeHistory: gradeHistory.data ?? [],
+    dashboard,
   });
+}
+
+async function getAuthenticatedUser(
+  supabase: PortalSupabaseClient,
+  request: NextRequest,
+) {
+  const token = getBearerToken(request);
+
+  if (token) {
+    const tokenUser = await supabase.auth.getUser(token);
+
+    if (tokenUser.data.user) {
+      return tokenUser.data.user;
+    }
+  }
+
+  const sessionClient = await createSessionClient();
+  const {
+    data: { user },
+  } = await sessionClient.auth.getUser();
+
+  return user;
+}
+
+async function getPortalScope(
+  supabase: PortalSupabaseClient,
+  roles: Array<{
+    country_id: string | null;
+    dojo_id: string | null;
+    roles: { key: string } | Array<{ key: string }> | null;
+  }>,
+) {
+  const roleKeys = roles
+    .map((role) => getRoleKey(role.roles))
+    .filter((roleKey): roleKey is string => Boolean(roleKey));
+  const dojoIds = roles
+    .filter((role) => getRoleKey(role.roles) === "dojo_admin")
+    .map((role) => role.dojo_id)
+    .filter(Boolean) as string[];
+  const countryIds = roles
+    .filter((role) => getRoleKey(role.roles) === "country_admin")
+    .map((role) => role.country_id)
+    .filter(Boolean) as string[];
+
+  if (dojoIds.length > 0) {
+    const dojos = await supabase
+      .from("dojos")
+      .select("country_id")
+      .in("id", dojoIds);
+
+    ((dojos.data ?? []) as Array<{ country_id: string | null }>).forEach((dojo) => {
+      const countryId = dojo.country_id as string | null;
+
+      if (countryId) {
+        countryIds.push(countryId);
+      }
+    });
+  }
+
+  return {
+    roleKeys,
+    isGlobal: roleKeys.includes("super_admin") || roleKeys.includes("global_admin"),
+    countryIds: Array.from(new Set(countryIds)),
+    dojoIds,
+  };
+}
+
+async function getPortalDashboard(
+  supabase: PortalSupabaseClient,
+  scope: {
+    roleKeys: string[];
+    isGlobal: boolean;
+    countryIds: string[];
+    dojoIds: string[];
+  },
+) {
+  const isAdmin =
+    scope.isGlobal || scope.countryIds.length > 0 || scope.dojoIds.length > 0;
+
+  if (!isAdmin) {
+    return null;
+  }
+
+  const [countriesResult, dojosResult, membersResult] = await Promise.all([
+    supabase
+      .from("countries")
+      .select("id,code,country_translations(language_code,name)")
+      .order("code", { ascending: true }),
+    supabase
+      .from("dojos")
+      .select("id,country_id,city,dojo_translations(language_code,name)")
+      .order("city", { ascending: true }),
+    supabase
+      .from("members")
+      .select(
+        "id,first_name,last_name,email,phone,status,current_grade,joined_date,country_id,dojo_id",
+      )
+      .order("last_name", { ascending: true }),
+  ]);
+
+  if (countriesResult.error || dojosResult.error || membersResult.error) {
+    return {
+      error:
+        countriesResult.error?.message ??
+        dojosResult.error?.message ??
+        membersResult.error?.message,
+    };
+  }
+
+  const allCountries = (countriesResult.data ?? []) as Array<{
+    id: string;
+    code: string;
+    country_translations?: unknown;
+  }>;
+  const allDojos = (dojosResult.data ?? []) as Array<{
+    id: string;
+    country_id: string;
+    city: string;
+    dojo_translations?: unknown;
+  }>;
+  const allMembers = (membersResult.data ?? []) as Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    phone: string | null;
+    status: string;
+    current_grade: string | null;
+    joined_date: string | null;
+    country_id: string | null;
+    dojo_id: string | null;
+  }>;
+  const visibleDojos = scope.isGlobal
+    ? allDojos
+    : allDojos.filter(
+        (dojo) =>
+          scope.dojoIds.includes(dojo.id as string) ||
+          scope.countryIds.includes(dojo.country_id as string),
+      );
+  const visibleDojoIds = new Set(visibleDojos.map((dojo) => dojo.id as string));
+  const visibleCountries = scope.isGlobal
+    ? allCountries
+    : allCountries.filter((country) =>
+        scope.countryIds.includes(country.id as string),
+      );
+  const visibleMembers = scope.isGlobal
+    ? allMembers
+    : allMembers.filter((member) => {
+        const dojoId = member.dojo_id as string | null;
+        const countryId = member.country_id as string | null;
+
+        return Boolean(
+          (dojoId && visibleDojoIds.has(dojoId)) ||
+            (countryId && scope.countryIds.includes(countryId)),
+        );
+      });
+  const activeMembers = visibleMembers.filter(
+    (member) => member.status === "active",
+  );
+  const membersByDojo = visibleDojos.map((dojo) => ({
+    dojoId: dojo.id,
+    dojoName: firstTranslationName(dojo.dojo_translations) || dojo.city,
+    countryId: dojo.country_id,
+    totalMembers: visibleMembers.filter((member) => member.dojo_id === dojo.id)
+      .length,
+    activeMembers: activeMembers.filter((member) => member.dojo_id === dojo.id)
+      .length,
+  }));
+
+  return {
+    scope,
+    totals: {
+      countries: visibleCountries.length,
+      dojos: visibleDojos.length,
+      members: visibleMembers.length,
+      activeMembers: activeMembers.length,
+    },
+    countries: visibleCountries.slice(0, 50),
+    dojos: visibleDojos.slice(0, 80),
+    members: visibleMembers.slice(0, 100),
+    membersByDojo,
+  };
 }
 
 function getServiceRoleKey() {
@@ -119,4 +336,23 @@ function getDetectedSupabaseEnvNames() {
         key.startsWith("SUPABASE_") || key.startsWith("NEXT_PUBLIC_SUPABASE_"),
     )
     .sort();
+}
+
+function getBearerToken(request: NextRequest) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const [scheme, token] = authorization.split(" ");
+
+  return scheme.toLowerCase() === "bearer" && token ? token.trim() : "";
+}
+
+function getRoleKey(role: { key: string } | Array<{ key: string }> | null) {
+  return Array.isArray(role) ? role[0]?.key : role?.key;
+}
+
+function firstTranslationName(value: unknown) {
+  if (!Array.isArray(value)) {
+    return "";
+  }
+
+  return (value[0]?.name as string | undefined) ?? "";
 }
