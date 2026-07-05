@@ -538,6 +538,14 @@ export function PortalClient({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      (window.location.hash.includes("type=recovery") ||
+        window.location.search.includes("type=recovery")),
+  );
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
   const [portal, setPortal] = useState<PortalPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -570,27 +578,42 @@ export function PortalClient({
   }, [copy.loadError, getAuthHeaders]);
 
   useEffect(() => {
+    const hasRecoveryHint =
+      typeof window !== "undefined" &&
+      (window.location.hash.includes("type=recovery") ||
+        window.location.search.includes("type=recovery"));
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
-      if (data.session) {
+      if (data.session && !hasRecoveryHint) {
         void loadPortal();
       }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        setPortal(null);
+        setMessage("");
+        setLoading(false);
+        return;
+      }
+
       if (nextSession) {
-        void loadPortal();
+        if (!recoveryMode) {
+          void loadPortal();
+        }
       } else {
         setPortal(null);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [loadPortal, supabase]);
+  }, [loadPortal, recoveryMode, supabase]);
 
   async function signIn() {
     setLoading(true);
@@ -621,6 +644,32 @@ export function PortalClient({
     await supabase.auth.signOut();
     setSession(null);
     setPortal(null);
+    setRecoveryMode(false);
+  }
+
+  async function saveRecoveryPassword() {
+    if (!recoveryPassword || recoveryPassword.length < 6) {
+      setMessage("La contrasena debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+
+    const result = await supabase.auth.updateUser({
+      password: recoveryPassword,
+    });
+
+    if (result.error) {
+      setMessage(result.error.message);
+      setLoading(false);
+      return;
+    }
+
+    setRecoveryPassword("");
+    setRecoveryMode(false);
+    setMessage("Contrasena actualizada.");
+    await loadPortal();
   }
 
   function updatePortalMember(nextMember: PortalMember) {
@@ -683,6 +732,58 @@ export function PortalClient({
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
             {copy.enter}
+          </button>
+          {message ? (
+            <p className="text-sm font-semibold text-[var(--accent)]">
+              {message}
+            </p>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
+  if (recoveryMode) {
+    return (
+      <section className="mt-10 grid gap-6 border border-[var(--line)] bg-white p-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+            Ficha IKA
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold">Crear nueva contrasena</h2>
+          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+            Introduce una contrasena nueva para activar el acceso al portal.
+          </p>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="grid grid-cols-[1fr_auto] border border-[var(--line)]">
+            <input
+              value={recoveryPassword}
+              onChange={(event) => setRecoveryPassword(event.target.value)}
+              placeholder="Nueva contrasena"
+              type={showRecoveryPassword ? "text" : "password"}
+              className="min-w-0 px-3 py-3 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowRecoveryPassword((current) => !current)}
+              className="inline-flex w-12 items-center justify-center border-l border-[var(--line)]"
+              aria-label={
+                showRecoveryPassword ? "Ocultar contrasena" : "Mostrar contrasena"
+              }
+              title={showRecoveryPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+            >
+              {showRecoveryPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+          <button
+            onClick={() => void saveRecoveryPassword()}
+            disabled={loading || !recoveryPassword}
+            className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-5 py-3 font-semibold text-white disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+            Guardar contrasena
           </button>
           {message ? (
             <p className="text-sm font-semibold text-[var(--accent)]">
