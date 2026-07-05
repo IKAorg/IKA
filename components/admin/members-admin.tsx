@@ -47,6 +47,7 @@ type ImportRow = {
   birthDate: string;
   joinedDate: string;
   currentGrade: string;
+  status: string;
   mainInstructor: string;
   guardianName: string;
   guardianEmail: string;
@@ -495,6 +496,7 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
         getValue(record, "current_grade") ||
         getValue(record, "grade") ||
         getValue(record, "grado"),
+      status: getValue(record, "status") || getValue(record, "estado"),
       mainInstructor:
         getValue(record, "main_instructor") || getValue(record, "instructor"),
       guardianName: getValue(record, "guardian_name") || getValue(record, "tutor"),

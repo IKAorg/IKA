@@ -40,6 +40,7 @@ type ImportRow = {
   birthDate?: string;
   joinedDate?: string;
   currentGrade?: string;
+  status?: string;
   mainInstructor?: string;
   guardianName?: string;
   guardianEmail?: string;
@@ -178,6 +179,15 @@ export async function POST(request: NextRequest) {
       result.errors.push({
         row: rowNumber,
         error: "Nombre y apellido son obligatorios.",
+      });
+      continue;
+    }
+
+    if (row.status && !isActiveImportStatus(row.status)) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: `Kenshi omitido por estado: ${row.status}.`,
       });
       continue;
     }
@@ -666,12 +676,19 @@ function normalizeImportRow(row: ImportRow) {
     birthDate: normalizeText(row.birthDate),
     joinedDate: normalizeText(row.joinedDate),
     currentGrade: normalizeText(row.currentGrade),
+    status: normalizeText(row.status),
     mainInstructor: normalizeText(row.mainInstructor),
     guardianName: normalizeText(row.guardianName),
     guardianEmail: normalizeEmail(row.guardianEmail),
     isMinor: row.isMinor,
     notes: normalizeText(row.notes),
   };
+}
+
+function isActiveImportStatus(value: string) {
+  return ["active", "activo", "activa"].includes(
+    normalizeComparable(value),
+  );
 }
 
 function resolveCountry(
