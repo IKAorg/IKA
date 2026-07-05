@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Camera,
   Eye,
   EyeOff,
   ExternalLink,
@@ -180,6 +179,20 @@ type PortalCopy = {
   globalAdminTitle: string;
   globalAdminText: string;
   activeScopeTitle: string;
+  seniority: string;
+  birthDate: string;
+  group: string;
+  child: string;
+  adult: string;
+  editableData: string;
+  photo: string;
+  changePhoto: string;
+  selectImage: string;
+  phone: string;
+  newPassword: string;
+  saveFicha: string;
+  fichaUpdated: string;
+  fichaCredentialsUpdated: string;
   roleLabels: Record<RoleKey, string>;
 };
 
@@ -210,12 +223,12 @@ const portalCopies: Record<Locale, PortalCopy> = {
     currentGrade: "Current grade",
     country: "Country",
     dojo: "Dojo",
-    joinedIka: "Joined IKA",
+    joinedIka: "Seniority",
     consent: "Consent",
     consentAccepted: "Accepted",
     pending: "Pending",
-    gradeHistoryTitle: "Grade history",
-    noGrades: "No grades have been registered yet.",
+    gradeHistoryTitle: "IKA course history",
+    noGrades: "No IKA courses have been registered yet.",
     dojoAdminTitle: "Dojo administration",
     dojoAdminText:
       "Manage members, dojo data, and basic follow-up. Advanced actions will be completed in the private module.",
@@ -226,6 +239,20 @@ const portalCopies: Record<Locale, PortalCopy> = {
     globalAdminText:
       "Global access to CMS, countries, dojos, events, users, and configuration.",
     activeScopeTitle: "Active scope",
+    seniority: "Seniority",
+    birthDate: "Birth date",
+    group: "Group",
+    child: "Child",
+    adult: "Adult",
+    editableData: "Editable data",
+    photo: "Profile photo",
+    changePhoto: "Change photo",
+    selectImage: "Select an image.",
+    phone: "Phone",
+    newPassword: "New password",
+    saveFicha: "Save IKA record",
+    fichaUpdated: "IKA record updated.",
+    fichaCredentialsUpdated: "IKA record and credentials updated.",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Global admin",
@@ -260,12 +287,12 @@ const portalCopies: Record<Locale, PortalCopy> = {
     currentGrade: "Grado actual",
     country: "Pais",
     dojo: "Dojo",
-    joinedIka: "Entrada IKA",
+    joinedIka: "Antiguedad",
     consent: "Consentimiento",
     consentAccepted: "Aceptado",
     pending: "Pendiente",
-    gradeHistoryTitle: "Historial de grados",
-    noGrades: "Todavia no hay grados registrados.",
+    gradeHistoryTitle: "Historial de cursos IKA",
+    noGrades: "Todavia no hay cursos IKA registrados.",
     dojoAdminTitle: "Administracion de dojo",
     dojoAdminText:
       "Gestion de miembros, datos del dojo y seguimiento basico. Las acciones avanzadas se completaran en el modulo privado.",
@@ -276,6 +303,20 @@ const portalCopies: Record<Locale, PortalCopy> = {
     globalAdminText:
       "Acceso global a CMS, paises, dojos, eventos, usuarios y configuracion.",
     activeScopeTitle: "Alcance activo",
+    seniority: "Antiguedad",
+    birthDate: "Fecha nacimiento",
+    group: "Grupo",
+    child: "Nino",
+    adult: "Adulto",
+    editableData: "Datos editables",
+    photo: "Foto de perfil",
+    changePhoto: "Cambiar foto",
+    selectImage: "Selecciona una imagen.",
+    phone: "Telefono",
+    newPassword: "Nueva contrasena",
+    saveFicha: "Guardar ficha IKA",
+    fichaUpdated: "Ficha IKA actualizada.",
+    fichaCredentialsUpdated: "Ficha IKA y credenciales actualizadas.",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Admin global",
@@ -309,12 +350,12 @@ const portalCopies: Record<Locale, PortalCopy> = {
     currentGrade: "Grado attuale",
     country: "Paese",
     dojo: "Dojo",
-    joinedIka: "Ingresso IKA",
+    joinedIka: "Anzianita",
     consent: "Consenso",
     consentAccepted: "Accettato",
     pending: "In sospeso",
-    gradeHistoryTitle: "Storico gradi",
-    noGrades: "Non ci sono ancora gradi registrati.",
+    gradeHistoryTitle: "Storico corsi IKA",
+    noGrades: "Non ci sono ancora corsi IKA registrati.",
     dojoAdminTitle: "Amministrazione dojo",
     dojoAdminText:
       "Gestione membri, dati del dojo e monitoraggio di base. Le azioni avanzate saranno completate nel modulo privato.",
@@ -325,6 +366,20 @@ const portalCopies: Record<Locale, PortalCopy> = {
     globalAdminText:
       "Accesso globale a CMS, paesi, dojo, eventi, utenti e configurazione.",
     activeScopeTitle: "Ambito attivo",
+    seniority: "Anzianita",
+    birthDate: "Data di nascita",
+    group: "Gruppo",
+    child: "Bambino",
+    adult: "Adulto",
+    editableData: "Dati modificabili",
+    photo: "Foto profilo",
+    changePhoto: "Cambia foto",
+    selectImage: "Seleziona un'immagine.",
+    phone: "Telefono",
+    newPassword: "Nuova password",
+    saveFicha: "Salva scheda IKA",
+    fichaUpdated: "Scheda IKA aggiornata.",
+    fichaCredentialsUpdated: "Scheda IKA e credenziali aggiornate.",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Admin globale",
@@ -358,12 +413,12 @@ const portalCopies: Record<Locale, PortalCopy> = {
     currentGrade: "Grade actuel",
     country: "Pays",
     dojo: "Dojo",
-    joinedIka: "Entree IKA",
+    joinedIka: "Anciennete",
     consent: "Consentement",
     consentAccepted: "Accepte",
     pending: "En attente",
-    gradeHistoryTitle: "Historique des grades",
-    noGrades: "Aucun grade n'a encore ete enregistre.",
+    gradeHistoryTitle: "Historique des cours IKA",
+    noGrades: "Aucun cours IKA n'a encore ete enregistre.",
     dojoAdminTitle: "Administration dojo",
     dojoAdminText:
       "Gestion des membres, des donnees du dojo et du suivi de base. Les actions avancees seront completees dans le module prive.",
@@ -374,6 +429,20 @@ const portalCopies: Record<Locale, PortalCopy> = {
     globalAdminText:
       "Acces global au CMS, pays, dojos, evenements, utilisateurs et configuration.",
     activeScopeTitle: "Perimetre actif",
+    seniority: "Anciennete",
+    birthDate: "Date de naissance",
+    group: "Groupe",
+    child: "Enfant",
+    adult: "Adulte",
+    editableData: "Donnees modifiables",
+    photo: "Photo de profil",
+    changePhoto: "Changer la photo",
+    selectImage: "Selectionnez une image.",
+    phone: "Telephone",
+    newPassword: "Nouveau mot de passe",
+    saveFicha: "Enregistrer la fiche IKA",
+    fichaUpdated: "Fiche IKA mise a jour.",
+    fichaCredentialsUpdated: "Fiche IKA et identifiants mis a jour.",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Admin global",
@@ -407,12 +476,12 @@ const portalCopies: Record<Locale, PortalCopy> = {
     currentGrade: "現在の級段",
     country: "国",
     dojo: "道場",
-    joinedIka: "IKA加入日",
+    joinedIka: "修行歴",
     consent: "同意",
     consentAccepted: "同意済み",
     pending: "未完了",
-    gradeHistoryTitle: "級段履歴",
-    noGrades: "登録された級段はまだありません。",
+    gradeHistoryTitle: "IKA講習履歴",
+    noGrades: "登録されたIKA講習はまだありません。",
     dojoAdminTitle: "道場管理",
     dojoAdminText:
       "会員、道場情報、基本的な確認を管理します。高度な操作はプライベートモジュールで完了します。",
@@ -423,6 +492,20 @@ const portalCopies: Record<Locale, PortalCopy> = {
     globalAdminText:
       "CMS、国、道場、イベント、ユーザー、設定へのグローバルアクセス。",
     activeScopeTitle: "有効な範囲",
+    seniority: "修行歴",
+    birthDate: "生年月日",
+    group: "区分",
+    child: "子ども",
+    adult: "大人",
+    editableData: "編集可能な情報",
+    photo: "プロフィール写真",
+    changePhoto: "写真を変更",
+    selectImage: "画像を選択してください。",
+    phone: "電話",
+    newPassword: "新しいパスワード",
+    saveFicha: "IKA記録を保存",
+    fichaUpdated: "IKA記録を更新しました。",
+    fichaCredentialsUpdated: "IKA記録と認証情報を更新しました。",
     roleLabels: {
       super_admin: "スーパー管理者",
       global_admin: "グローバル管理者",
@@ -456,12 +539,12 @@ const portalCopies: Record<Locale, PortalCopy> = {
     currentGrade: "当前等级",
     country: "国家",
     dojo: "道场",
-    joinedIka: "加入 IKA",
+    joinedIka: "练习年限",
     consent: "同意",
     consentAccepted: "已接受",
     pending: "待处理",
-    gradeHistoryTitle: "等级历史",
-    noGrades: "尚未登记任何等级。",
+    gradeHistoryTitle: "IKA课程历史",
+    noGrades: "尚未登记任何IKA课程。",
     dojoAdminTitle: "道场管理",
     dojoAdminText:
       "管理会员、道场资料和基础跟进。高级操作将在私人模块中完成。",
@@ -471,6 +554,20 @@ const portalCopies: Record<Locale, PortalCopy> = {
     globalAdminTitle: "全局管理",
     globalAdminText: "全局访问 CMS、国家、道场、活动、用户和配置。",
     activeScopeTitle: "当前权限范围",
+    seniority: "练习年限",
+    birthDate: "出生日期",
+    group: "组别",
+    child: "儿童",
+    adult: "成人",
+    editableData: "可编辑资料",
+    photo: "头像",
+    changePhoto: "更换照片",
+    selectImage: "请选择图片。",
+    phone: "电话",
+    newPassword: "新密码",
+    saveFicha: "保存IKA档案",
+    fichaUpdated: "IKA档案已更新。",
+    fichaCredentialsUpdated: "IKA档案和登录凭据已更新。",
     roleLabels: {
       super_admin: "超级管理员",
       global_admin: "全局管理员",
@@ -504,12 +601,12 @@ const portalCopies: Record<Locale, PortalCopy> = {
     currentGrade: "Aktualni stupen",
     country: "Zeme",
     dojo: "Dojo",
-    joinedIka: "Vstup do IKA",
+    joinedIka: "Delka praxe",
     consent: "Souhlas",
     consentAccepted: "Prijato",
     pending: "Ceka",
-    gradeHistoryTitle: "Historie stupnu",
-    noGrades: "Zatim nejsou registrovany zadne stupne.",
+    gradeHistoryTitle: "Historie kurzu IKA",
+    noGrades: "Zatim nejsou registrovany zadne kurzy IKA.",
     dojoAdminTitle: "Sprava dojo",
     dojoAdminText:
       "Sprava clenu, udaju dojo a zakladni sledovani. Pokrocile akce budou dokonceny v soukromem modulu.",
@@ -520,6 +617,20 @@ const portalCopies: Record<Locale, PortalCopy> = {
     globalAdminText:
       "Globalni pristup k CMS, zemim, dojo, udalostem, uzivatelum a konfiguraci.",
     activeScopeTitle: "Aktivni rozsah",
+    seniority: "Delka praxe",
+    birthDate: "Datum narozeni",
+    group: "Skupina",
+    child: "Dite",
+    adult: "Dospely",
+    editableData: "Upravitelne udaje",
+    photo: "Profilova fotografie",
+    changePhoto: "Zmenit fotografii",
+    selectImage: "Vyberte obrazek.",
+    phone: "Telefon",
+    newPassword: "Nove heslo",
+    saveFicha: "Ulozit zaznam IKA",
+    fichaUpdated: "Zaznam IKA byl aktualizovan.",
+    fichaCredentialsUpdated: "Zaznam IKA a prihlasovaci udaje byly aktualizovany.",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Global admin",
@@ -1198,35 +1309,42 @@ function MemberPanel({
 
   async function uploadProfileImage(file: File) {
     if (!file.type.startsWith("image/")) {
-      setPanelMessage("Selecciona una imagen.");
+      setPanelMessage(copy.selectImage);
       return;
     }
 
     setUploading(true);
     setPanelMessage("");
 
-    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const storagePath = `members/${currentMember.id}/profile-${Date.now()}.${extension}`;
-    const upload = await supabase.storage
-      .from("public-media")
-      .upload(storagePath, file, {
-        cacheControl: "31536000",
-        contentType: file.type,
-        upsert: true,
-      });
+    const imageDataUrl = await fileToDataUrl(file);
+    const response = await fetch("/api/portal/me", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        email: contactEmail,
+        phone,
+        profileImageUpload: {
+          name: file.name,
+          type: file.type,
+          dataUrl: imageDataUrl,
+        },
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
 
     setUploading(false);
 
-    if (upload.error) {
-      setPanelMessage(upload.error.message);
+    if (!response.ok) {
+      setPanelMessage(data.error ?? "No se pudo subir la foto.");
       return;
     }
 
-    const { data } = supabase.storage
-      .from("public-media")
-      .getPublicUrl(storagePath);
-
-    setProfileImageUrl(data.publicUrl);
+    onMemberUpdated(data.member as PortalMember);
+    setProfileImageUrl((data.member as PortalMember).profile_image_url ?? "");
+    setPanelMessage(copy.fichaUpdated);
   }
 
   async function saveFicha() {
@@ -1285,11 +1403,7 @@ function MemberPanel({
 
     onMemberUpdated(data.member as PortalMember);
     setNewPassword("");
-    setPanelMessage(
-      newPassword
-        ? "Ficha IKA y credenciales actualizadas."
-        : "Ficha IKA actualizada.",
-    );
+    setPanelMessage(newPassword ? copy.fichaCredentialsUpdated : copy.fichaUpdated);
     setSaving(false);
   }
 
@@ -1331,7 +1445,7 @@ function MemberPanel({
             </div>
             <label className="inline-flex cursor-pointer items-center gap-2 border border-white/30 px-3 py-2 text-sm font-semibold">
               {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-              Cambiar foto
+              {copy.changePhoto}
               <input
                 type="file"
                 accept="image/*"
@@ -1374,21 +1488,21 @@ function MemberPanel({
             />
             <InfoRow
               label={copy.joinedIka}
-              value={formatDate(member.joined_date, locale)}
+              value={formatSeniority(member.joined_date, locale)}
               copy={copy}
             />
             <InfoRow
-              label="Fecha nacimiento"
+              label={copy.birthDate}
               value={formatDate(member.birth_date, locale)}
               copy={copy}
             />
             <InfoRow
-              label="Grupo"
+              label={copy.group}
               value={
                 member.member_group === "child"
-                  ? "Nino"
+                  ? copy.child
                   : member.member_group === "adult"
-                    ? "Adulto"
+                    ? copy.adult
                     : ""
               }
               copy={copy}
@@ -1401,7 +1515,7 @@ function MemberPanel({
           </dl>
 
           <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
-            <h4 className="text-xl font-semibold">Datos editables</h4>
+            <h4 className="text-xl font-semibold">{copy.editableData}</h4>
             <label className="grid gap-1 text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
                 <Mail size={15} /> Email
@@ -1414,7 +1528,7 @@ function MemberPanel({
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
-                <Phone size={15} /> Telefono
+                <Phone size={15} /> {copy.phone}
               </span>
               <input
                 value={phone}
@@ -1424,17 +1538,7 @@ function MemberPanel({
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
-                <Camera size={15} /> URL foto
-              </span>
-              <input
-                value={profileImageUrl}
-                onChange={(event) => setProfileImageUrl(event.target.value)}
-                className="border border-[var(--line)] bg-white px-3 py-2 font-normal"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              <span className="inline-flex items-center gap-2">
-                <KeyRound size={15} /> Nueva contrasena
+                <KeyRound size={15} /> {copy.newPassword}
               </span>
               <div className="grid grid-cols-[1fr_auto] border border-[var(--line)] bg-white">
                 <input
@@ -1463,7 +1567,7 @@ function MemberPanel({
               className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 font-semibold text-white disabled:opacity-50"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Guardar ficha IKA
+              {copy.saveFicha}
             </button>
             {panelMessage ? (
               <p className="text-sm font-semibold text-[var(--accent)]">
@@ -1568,4 +1672,120 @@ function formatDate(value: string | null, locale: Locale) {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
     new Date(value),
   );
+}
+
+function formatSeniority(value: string | null, locale: Locale) {
+  if (!value) {
+    return "";
+  }
+
+  const start = new Date(`${value}T00:00:00`);
+  const today = new Date();
+
+  if (Number.isNaN(start.getTime()) || start > today) {
+    return formatDate(value, locale);
+  }
+
+  let years = today.getFullYear() - start.getFullYear();
+  let months = today.getMonth() - start.getMonth();
+  let days = today.getDate() - start.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    days += new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const unitLabels: Record<
+    Locale,
+    {
+      year: string;
+      years: string;
+      month: string;
+      months: string;
+      day: string;
+      days: string;
+    }
+  > = {
+    en: {
+      year: "year",
+      years: "years",
+      month: "month",
+      months: "months",
+      day: "day",
+      days: "days",
+    },
+    es: {
+      year: "ano",
+      years: "anos",
+      month: "mes",
+      months: "meses",
+      day: "dia",
+      days: "dias",
+    },
+    it: {
+      year: "anno",
+      years: "anni",
+      month: "mese",
+      months: "mesi",
+      day: "giorno",
+      days: "giorni",
+    },
+    fr: {
+      year: "an",
+      years: "ans",
+      month: "mois",
+      months: "mois",
+      day: "jour",
+      days: "jours",
+    },
+    ja: {
+      year: "年",
+      years: "年",
+      month: "か月",
+      months: "か月",
+      day: "日",
+      days: "日",
+    },
+    zh: {
+      year: "年",
+      years: "年",
+      month: "个月",
+      months: "个月",
+      day: "天",
+      days: "天",
+    },
+    cs: {
+      year: "rok",
+      years: "let",
+      month: "mesic",
+      months: "mesicu",
+      day: "den",
+      days: "dni",
+    },
+  };
+  const labels = unitLabels[locale] ?? unitLabels.en;
+  const parts = [
+    [years, years === 1 ? labels.year : labels.years],
+    [months, months === 1 ? labels.month : labels.months],
+    [days, days === 1 ? labels.day : labels.days],
+  ]
+    .filter(([amount]) => Number(amount) > 0)
+    .map(([amount, label]) => `${amount} ${label}`);
+
+  return parts.length > 0 ? parts.join(" · ") : `0 ${labels.days}`;
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }

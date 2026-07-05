@@ -80,21 +80,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const member = memberResult.data as { id: string } | null;
-  const gradeHistory = member
-    ? await supabase
-        .from("grade_history")
-        .select("id,grade,exam_date,exam_place,examiner")
-        .eq("member_id", member.id)
-        .order("exam_date", { ascending: false })
-    : { data: [], error: null };
-
-  if (gradeHistory.error) {
-    return NextResponse.json(
-      { error: gradeHistory.error.message },
-      { status: 500 },
-    );
-  }
   const roles = (rolesResult.data ?? []) as Array<{
     country_id: string | null;
     dojo_id: string | null;
@@ -107,7 +92,7 @@ export async function GET(request: NextRequest) {
     profile: portalProfile,
     roles,
     member: memberResult.data ?? null,
-    gradeHistory: gradeHistory.data ?? [],
+    gradeHistory: [],
     dashboard,
   });
 }
@@ -151,14 +136,34 @@ export async function PATCH(request: NextRequest) {
     email?: string;
     phone?: string;
     profileImageUrl?: string;
+    profileImageUpload?: {
+      name?: string;
+      type?: string;
+      dataUrl?: string;
+    };
   };
   const email = normalizeEmail(body.email);
   const phone = normalizeOptionalText(body.phone);
-  const profileImageUrl = normalizeOptionalText(body.profileImageUrl);
+  let profileImageUrl = normalizeOptionalText(body.profileImageUrl);
   const updates: Record<string, string | null> = {
     phone,
     profile_image_url: profileImageUrl,
   };
+
+  if (body.profileImageUpload?.dataUrl) {
+    const uploadedImage = await uploadMemberProfileImage(
+      supabase,
+      (member.data as { id: string }).id,
+      body.profileImageUpload,
+    );
+
+    if (uploadedImage.error) {
+      return NextResponse.json({ error: uploadedImage.error }, { status: 400 });
+    }
+
+    profileImageUrl = uploadedImage.url;
+    updates.profile_image_url = profileImageUrl;
+  }
 
   if (email) {
     updates.email = email;
@@ -186,6 +191,54 @@ export async function PATCH(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, member: updated.data });
+}
+
+async function uploadMemberProfileImage(
+  supabase: PortalSupabaseClient,
+  memberId: string,
+  upload: { name?: string; type?: string; dataUrl?: string },
+) {
+  const mimeType = normalizeOptionalText(upload.type) ?? "";
+  const dataUrl = normalizeOptionalText(upload.dataUrl) ?? "";
+  const allowedTypes = new Map([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+    ["image/gif", "gif"],
+  ]);
+  const extension = allowedTypes.get(mimeType);
+
+  if (!extension || !dataUrl.startsWith(`data:${mimeType};base64,`)) {
+    return { error: "La foto debe ser JPG, PNG, WEBP o GIF.", url: "" };
+  }
+
+  const base64 = dataUrl.split(",")[1] ?? "";
+  const buffer = Buffer.from(base64, "base64");
+
+  if (buffer.length === 0) {
+    return { error: "La imagen esta vacia.", url: "" };
+  }
+
+  if (buffer.length > 5 * 1024 * 1024) {
+    return { error: "La foto no puede superar 5 MB.", url: "" };
+  }
+
+  const storagePath = `members/${memberId}/profile-${Date.now()}.${extension}`;
+  const uploaded = await supabase.storage
+    .from("public-media")
+    .upload(storagePath, buffer, {
+      cacheControl: "31536000",
+      contentType: mimeType,
+      upsert: true,
+    });
+
+  if (uploaded.error) {
+    return { error: uploaded.error.message, url: "" };
+  }
+
+  const { data } = supabase.storage.from("public-media").getPublicUrl(storagePath);
+
+  return { error: "", url: data.publicUrl };
 }
 
 async function getPortalRequestContext(request: NextRequest) {
