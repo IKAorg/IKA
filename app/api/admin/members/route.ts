@@ -302,6 +302,37 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  const kenshiRole = await guard.admin
+    .from("roles")
+    .select("id")
+    .eq("key", "kenshi")
+    .single<{ id: string }>();
+
+  if (kenshiRole.error || !kenshiRole.data) {
+    return NextResponse.json(
+      { error: kenshiRole.error?.message ?? "No se encontro el rol Kenshi." },
+      { status: 500 },
+    );
+  }
+
+  const role = await guard.admin.from("user_roles").upsert(
+    {
+      profile_id: profile.data.id,
+      role_id: kenshiRole.data.id,
+      country_id: member.data.country_id,
+      dojo_id: member.data.dojo_id,
+      created_by: guard.profileId,
+    },
+    {
+      onConflict: "profile_id,role_id,country_id,dojo_id",
+      ignoreDuplicates: true,
+    },
+  );
+
+  if (role.error) {
+    return NextResponse.json({ error: role.error.message }, { status: 500 });
+  }
+
   const updated = await guard.admin
     .from("members")
     .update({
@@ -341,9 +372,6 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const rows = Array.isArray(body?.rows) ? (body.rows as ImportRow[]) : [];
-  // CSV imports never send portal invitations. Dojo managers will invite Kenshi manually.
-  const sendInvites = false;
-  const locale = normalizeText(body?.locale) || "es";
 
   if (rows.length === 0) {
     return NextResponse.json(
@@ -359,24 +387,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const [countriesResult, dojosResult, kenshiRoleResult] = await Promise.all([
+  const [countriesResult, dojosResult] = await Promise.all([
     guard.admin
       .from("countries")
       .select("id,code,country_translations(language_code,name)"),
     guard.admin
       .from("dojos")
       .select("id,country_id,city,dojo_translations(language_code,name)"),
-    guard.admin.from("roles").select("id").eq("key", "kenshi").single(),
   ]);
 
-  const firstError =
-    countriesResult.error ?? dojosResult.error ?? kenshiRoleResult.error;
+  const firstError = countriesResult.error ?? dojosResult.error;
 
-  if (firstError || !kenshiRoleResult.data) {
-    return NextResponse.json(
-      { error: firstError?.message ?? "No se encontro el rol Kenshi." },
-      { status: 500 },
-    );
+  if (firstError) {
+    return NextResponse.json({ error: firstError.message }, { status: 500 });
   }
 
   const countries = countriesResult.data ?? [];
@@ -525,75 +548,8 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    let authUserId: string | null = null;
-    let profileId: string | null = null;
-
-    if (row.email) {
-      authUserId = await findAuthUserIdByEmail(guard.admin, row.email);
-
-      if (!authUserId && sendInvites) {
-        const invite = await guard.admin.auth.admin.inviteUserByEmail(row.email, {
-          redirectTo: buildPublicRedirectUrl(request, locale, "portal"),
-        });
-
-        if (invite.error) {
-          result.skipped += 1;
-          result.errors.push({ row: rowNumber, error: invite.error.message });
-          continue;
-        }
-
-        authUserId = invite.data.user?.id ?? null;
-        result.invited += authUserId ? 1 : 0;
-      }
-
-      const profile = await guard.admin
-        .from("users_profiles")
-        .upsert(
-          {
-            email: row.email,
-            display_name: `${row.firstName} ${row.lastName}`,
-            auth_user_id: authUserId,
-            status: authUserId ? "invited" : "active",
-          },
-          { onConflict: "email" },
-        )
-        .select("id")
-        .single<{ id: string }>();
-
-      if (profile.error || !profile.data) {
-        result.skipped += 1;
-        result.errors.push({
-          row: rowNumber,
-          error: profile.error?.message ?? "No se pudo crear el perfil.",
-        });
-        continue;
-      }
-
-      profileId = profile.data.id;
-
-      const role = await guard.admin.from("user_roles").upsert(
-        {
-          profile_id: profileId,
-          role_id: kenshiRoleResult.data.id,
-          country_id: countryId,
-          dojo_id: dojoId,
-          created_by: guard.profileId,
-        },
-        {
-          onConflict: "profile_id,role_id,country_id,dojo_id",
-          ignoreDuplicates: true,
-        },
-      );
-
-      if (role.error) {
-        result.skipped += 1;
-        result.errors.push({ row: rowNumber, error: role.error.message });
-        continue;
-      }
-    }
-
     const member = await guard.admin.from("members").insert({
-      profile_id: profileId,
+      profile_id: null,
       first_name: row.firstName,
       last_name: row.lastName,
       birth_date: normalizeDate(row.birthDate),
