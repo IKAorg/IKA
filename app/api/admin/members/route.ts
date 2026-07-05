@@ -613,14 +613,14 @@ async function requireMembersAdmin(request: NextRequest) {
   const profile = await getMembersAdminProfile(
     admin,
     authenticatedUser.id,
-    authenticatedUser.email ?? "",
+    getAuthUserEmail(authenticatedUser),
   );
 
   if (!profile) {
     const diagnostics = await getMissingProfileDiagnostics(
       admin,
       authenticatedUser.id,
-      authenticatedUser.email ?? "",
+      getAuthUserEmail(authenticatedUser),
     );
 
     return {
@@ -1105,6 +1105,23 @@ function normalizeText(value: unknown) {
 
 function normalizeEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function getAuthUserEmail(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+  identities?: Array<{ identity_data?: Record<string, unknown> | null }> | null;
+}) {
+  return (
+    normalizeEmail(user.email) ||
+    normalizeEmail(user.user_metadata?.email) ||
+    normalizeEmail(user.user_metadata?.email_address) ||
+    normalizeEmail(
+      user.identities?.find((identity) =>
+        normalizeEmail(identity.identity_data?.email),
+      )?.identity_data?.email,
+    )
+  );
 }
 
 function normalizeComparable(value: string) {

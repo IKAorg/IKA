@@ -50,15 +50,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("users_profiles")
-    .select("id,email,display_name,status")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
-  }
+  const profile = await getPortalProfile(supabase, user.id, getAuthUserEmail(user));
 
   if (!profile) {
     return NextResponse.json({
@@ -397,6 +389,86 @@ function firstTranslationName(value: unknown) {
   }
 
   return (value[0]?.name as string | undefined) ?? "";
+}
+
+async function getPortalProfile(
+  supabase: PortalSupabaseClient,
+  authUserId: string,
+  email: string,
+) {
+  const byAuth = await supabase
+    .from("users_profiles")
+    .select("id,email,display_name,status")
+    .eq("auth_user_id", authUserId)
+    .limit(1);
+  const authProfile = ((byAuth.data ?? []) as Array<{
+    id: string;
+    email: string;
+    display_name: string | null;
+    status: string;
+  }>)[0];
+
+  if (authProfile) {
+    return authProfile;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const byEmail = await supabase
+    .from("users_profiles")
+    .select("id,email,display_name,status")
+    .ilike("email", normalizedEmail)
+    .order("auth_user_id", { ascending: false, nullsFirst: false })
+    .limit(1);
+  const emailProfile = ((byEmail.data ?? []) as Array<{
+    id: string;
+    email: string;
+    display_name: string | null;
+    status: string;
+  }>)[0];
+
+  if (!emailProfile) {
+    return null;
+  }
+
+  const linked = await supabase
+    .from("users_profiles")
+    .update({ auth_user_id: authUserId, status: "active" })
+    .eq("id", emailProfile.id)
+    .select("id,email,display_name,status")
+    .maybeSingle<{
+      id: string;
+      email: string;
+      display_name: string | null;
+      status: string;
+    }>();
+
+  return linked.data ?? emailProfile;
+}
+
+function normalizeEmail(value: unknown) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function getAuthUserEmail(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+  identities?: Array<{ identity_data?: Record<string, unknown> | null }> | null;
+}) {
+  return (
+    normalizeEmail(user.email) ||
+    normalizeEmail(user.user_metadata?.email) ||
+    normalizeEmail(user.user_metadata?.email_address) ||
+    normalizeEmail(
+      user.identities?.find((identity) =>
+        normalizeEmail(identity.identity_data?.email),
+      )?.identity_data?.email,
+    )
+  );
 }
 
 async function getMediaById(supabase: PortalSupabaseClient, ids: string[]) {
