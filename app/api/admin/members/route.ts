@@ -327,7 +327,7 @@ export async function PATCH(request: NextRequest) {
     {
       profile_id: profile.data.id,
       role_id: kenshiRole.data.id,
-      country_id: member.data.country_id,
+      country_id: member.data.dojo_id ? null : member.data.country_id,
       dojo_id: member.data.dojo_id,
       created_by: guard.profileId,
     },
