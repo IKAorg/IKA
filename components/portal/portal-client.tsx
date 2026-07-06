@@ -657,8 +657,9 @@ function getAuthRedirectParams() {
   const refreshToken =
     hashParams.get("refresh_token") ?? searchParams.get("refresh_token") ?? "";
   const type = hashParams.get("type") ?? searchParams.get("type") ?? "";
+  const code = hashParams.get("code") ?? searchParams.get("code") ?? "";
 
-  return { accessToken, refreshToken, type };
+  return { accessToken, refreshToken, type, code };
 }
 
 export function PortalClient({
@@ -676,7 +677,9 @@ export function PortalClient({
     () =>
       typeof window !== "undefined" &&
       (window.location.hash.includes("type=recovery") ||
-        window.location.search.includes("type=recovery")),
+        window.location.search.includes("type=recovery") ||
+        window.location.hash.includes("code=") ||
+        window.location.search.includes("code=")),
   );
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoveryPassword, setRecoveryPassword] = useState("");
@@ -717,7 +720,37 @@ export function PortalClient({
 
     async function initializePortalSession() {
       const redirectParams = getAuthRedirectParams();
-      const hasRecoveryHint = redirectParams?.type === "recovery";
+      const hasRecoveryHint =
+        redirectParams?.type === "recovery" || Boolean(redirectParams?.code);
+
+      if (redirectParams?.code && hasRecoveryHint) {
+        const exchangedSession = await supabase.auth.exchangeCodeForSession(
+          redirectParams.code,
+        );
+
+        if (!active) {
+          return;
+        }
+
+        if (exchangedSession.error) {
+          setRecoveryMode(true);
+          setMessage(exchangedSession.error.message);
+          setLoading(false);
+          return;
+        }
+
+        setSession(exchangedSession.data.session);
+        setRecoveryEmail(exchangedSession.data.session?.user.email ?? "");
+        setRecoveryMode(true);
+        setPortal(null);
+
+        if (typeof window !== "undefined") {
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+
+        setLoading(false);
+        return;
+      }
 
       if (redirectParams?.accessToken && redirectParams.refreshToken) {
         const nextSession = await supabase.auth.setSession({
@@ -742,6 +775,7 @@ export function PortalClient({
         }
 
         if (hasRecoveryHint) {
+          setRecoveryEmail(nextSession.data.session?.user.email ?? "");
           setRecoveryMode(true);
           setPortal(null);
           setLoading(false);
@@ -760,6 +794,12 @@ export function PortalClient({
 
       setSession(data.session);
       setLoading(false);
+      if (data.session && hasRecoveryHint) {
+        setRecoveryEmail(data.session.user.email ?? "");
+        setRecoveryMode(true);
+        setPortal(null);
+        return;
+      }
       if (data.session && !hasRecoveryHint) {
         void loadPortal();
       }
@@ -772,6 +812,7 @@ export function PortalClient({
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       if (event === "PASSWORD_RECOVERY") {
+        setRecoveryEmail(nextSession?.user.email ?? "");
         setRecoveryMode(true);
         setPortal(null);
         setMessage("");
@@ -913,6 +954,66 @@ export function PortalClient({
     session?.user.email ||
     "";
 
+  if (recoveryMode) {
+    return (
+      <section className="mt-10 grid gap-6 border border-[var(--line)] bg-white p-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+            Ficha IKA
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold">Crear nueva contrasena</h2>
+          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+            Introduce el email y una contrasena nueva para activar el acceso al
+            portal.
+          </p>
+        </div>
+
+        <div className="grid gap-3">
+          <input
+            value={recoveryEmail}
+            onChange={(event) => setRecoveryEmail(event.target.value)}
+            placeholder="Email del Kenshi"
+            type="email"
+            className="border border-[var(--line)] px-3 py-3"
+          />
+          <div className="grid grid-cols-[1fr_auto] border border-[var(--line)]">
+            <input
+              value={recoveryPassword}
+              onChange={(event) => setRecoveryPassword(event.target.value)}
+              placeholder="Nueva contrasena"
+              type={showRecoveryPassword ? "text" : "password"}
+              className="min-w-0 px-3 py-3 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowRecoveryPassword((current) => !current)}
+              className="inline-flex w-12 items-center justify-center border-l border-[var(--line)]"
+              aria-label={
+                showRecoveryPassword ? "Ocultar contrasena" : "Mostrar contrasena"
+              }
+              title={showRecoveryPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+            >
+              {showRecoveryPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+          <button
+            onClick={() => void saveRecoveryPassword()}
+            disabled={loading || !recoveryEmail || !recoveryPassword}
+            className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-5 py-3 font-semibold text-white disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+            Guardar contrasena
+          </button>
+          {message ? (
+            <p className="text-sm font-semibold text-[var(--accent)]">
+              {message}
+            </p>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
   if (!session) {
     return (
       <section className="mt-10 grid gap-6 border border-[var(--line)] bg-white p-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -967,65 +1068,6 @@ export function PortalClient({
             className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-5 py-3 font-semibold disabled:opacity-50"
           >
             {copy.requestAccess ?? "Create or recover credentials"}
-          </button>
-          {message ? (
-            <p className="text-sm font-semibold text-[var(--accent)]">
-              {message}
-            </p>
-          ) : null}
-        </div>
-      </section>
-    );
-  }
-
-  if (recoveryMode) {
-    return (
-      <section className="mt-10 grid gap-6 border border-[var(--line)] bg-white p-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-            Ficha IKA
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold">Crear nueva contrasena</h2>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-            Introduce una contrasena nueva para activar el acceso al portal.
-          </p>
-        </div>
-
-        <div className="grid gap-3">
-          <input
-            value={recoveryEmail}
-            onChange={(event) => setRecoveryEmail(event.target.value)}
-            placeholder="Email del Kenshi"
-            type="email"
-            className="border border-[var(--line)] px-3 py-3"
-          />
-          <div className="grid grid-cols-[1fr_auto] border border-[var(--line)]">
-            <input
-              value={recoveryPassword}
-              onChange={(event) => setRecoveryPassword(event.target.value)}
-              placeholder="Nueva contrasena"
-              type={showRecoveryPassword ? "text" : "password"}
-              className="min-w-0 px-3 py-3 outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setShowRecoveryPassword((current) => !current)}
-              className="inline-flex w-12 items-center justify-center border-l border-[var(--line)]"
-              aria-label={
-                showRecoveryPassword ? "Ocultar contrasena" : "Mostrar contrasena"
-              }
-              title={showRecoveryPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
-            >
-              {showRecoveryPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
-          <button
-            onClick={() => void saveRecoveryPassword()}
-            disabled={loading || !recoveryEmail || !recoveryPassword}
-            className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-5 py-3 font-semibold text-white disabled:opacity-50"
-          >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-            Guardar contrasena
           </button>
           {message ? (
             <p className="text-sm font-semibold text-[var(--accent)]">
