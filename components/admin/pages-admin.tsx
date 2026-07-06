@@ -50,7 +50,6 @@ type ContentBlockRow = {
 
 const editablePages: Array<{ key: PublicPageKey; label: string }> = [
   { key: "about", label: "About IKA" },
-  { key: "philosophy", label: "Philosophy" },
   { key: "countries", label: "Countries" },
   { key: "dojos", label: "Dojos" },
   { key: "news", label: "News" },

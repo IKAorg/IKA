@@ -15,7 +15,6 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
   const publicLinks = [
     { href: `/${locale}`, label: nav.home },
     { href: `/${locale}/about`, label: nav.about },
-    { href: `/${locale}/philosophy`, label: nav.philosophy },
     { href: `/${locale}/countries`, label: nav.countries },
     { href: `/${locale}/dojos`, label: nav.dojos },
     { href: `/${locale}/news`, label: nav.news },

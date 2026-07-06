@@ -1431,7 +1431,10 @@ function MemberPanel({
             </p>
           </div>
           <div className="flex flex-col items-start gap-3 md:items-end">
-            <div className="flex size-28 items-center justify-center overflow-hidden border border-white/25 bg-white/10">
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-white/70">
+              {copy.photo}
+            </p>
+            <div className="flex size-32 items-center justify-center overflow-hidden border border-white/30 bg-white/10">
               {profileImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -1440,7 +1443,10 @@ function MemberPanel({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <UserRound size={42} />
+                <div className="flex flex-col items-center gap-2 px-3 text-center text-white/70">
+                  <UserRound size={42} />
+                  <span className="text-xs">{copy.selectImage}</span>
+                </div>
               )}
             </div>
             <label className="inline-flex cursor-pointer items-center gap-2 border border-white/30 px-3 py-2 text-sm font-semibold">

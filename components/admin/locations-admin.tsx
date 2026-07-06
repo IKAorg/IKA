@@ -76,6 +76,7 @@ type CountryForm = {
   isPublic: boolean;
   name: string;
   slug: string;
+  slugTouched: boolean;
   description: string;
   responsiblePerson: string;
   responsibleEmail: string;
@@ -91,6 +92,7 @@ type DojoForm = {
   isPublic: boolean;
   name: string;
   slug: string;
+  slugTouched: boolean;
   description: string;
   city: string;
   address: string;
@@ -128,6 +130,7 @@ function createEmptyCountryForm(locale: Locale): CountryForm {
     isPublic: true,
     name: "",
     slug: "",
+    slugTouched: false,
     description: "",
     responsiblePerson: "",
     responsibleEmail: "",
@@ -144,6 +147,7 @@ function createEmptyDojoForm(locale: Locale): DojoForm {
     isPublic: true,
     name: "",
     slug: "",
+    slugTouched: false,
     description: "",
     city: "",
     address: "",
@@ -1163,7 +1167,7 @@ function CountryFormView({
             setForm((current) => ({
               ...current,
               name: value,
-              slug: current.slug || slugify(value),
+              slug: current.slugTouched ? current.slug : slugify(value),
             }))
           }
         />
@@ -1171,7 +1175,11 @@ function CountryFormView({
           label="Slug"
           value={form.slug}
           onChange={(value) =>
-            setForm((current) => ({ ...current, slug: slugify(value) }))
+            setForm((current) => ({
+              ...current,
+              slug: slugify(value),
+              slugTouched: true,
+            }))
           }
         />
         <TextArea
@@ -1316,7 +1324,7 @@ function DojoFormView({
             setForm((current) => ({
               ...current,
               name: value,
-              slug: current.slug || slugify(value),
+              slug: current.slugTouched ? current.slug : slugify(value),
             }))
           }
         />
@@ -1324,7 +1332,11 @@ function DojoFormView({
           label="Slug"
           value={form.slug}
           onChange={(value) =>
-            setForm((current) => ({ ...current, slug: slugify(value) }))
+            setForm((current) => ({
+              ...current,
+              slug: slugify(value),
+              slugTouched: true,
+            }))
           }
         />
         <TextArea
@@ -1622,6 +1634,7 @@ function hydrateCountryForm(
     isPublic: country.is_public,
     name: translation?.name ?? "",
     slug: translation?.slug ?? "",
+    slugTouched: false,
     description: translation?.description ?? "",
     responsiblePerson: country.responsible_person ?? "",
     responsibleEmail: country.responsible_email ?? "",
@@ -1647,6 +1660,7 @@ function hydrateDojoForm(
     isPublic: dojo.is_public,
     name: translation?.name ?? "",
     slug: translation?.slug ?? "",
+    slugTouched: false,
     description: translation?.description ?? "",
     city: dojo.city,
     address: dojo.address ?? "",
