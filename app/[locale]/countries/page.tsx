@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getPublicCountriesAndDojos } from "@/lib/content/locations-cms";
@@ -108,12 +107,6 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                         <h3 className="text-sm font-semibold">
                           {labels.countryDojos}
                         </h3>
-                        <Link
-                          href={`/${safeLocale}/dojos`}
-                          className="text-sm font-semibold text-[var(--accent)]"
-                        >
-                          {labels.openDirectory}
-                        </Link>
                       </div>
                       <div className="mt-3 grid gap-3">
                         {countryDojos.map((dojo) => (
@@ -132,9 +125,11 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                                 />
                               ) : null}
                               <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
-                                  {dojo.memberId || dojo.city}
-                                </p>
+                                {dojo.city ? (
+                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
+                                    {dojo.city}
+                                  </p>
+                                ) : null}
                                 <h4 className="mt-1 text-lg font-semibold">
                                   {dojo.name}
                                 </h4>
@@ -150,12 +145,6 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                                 <InfoLine
                                   label={labels.address}
                                   value={dojo.address}
-                                />
-                              ) : null}
-                              {dojo.memberId ? (
-                                <InfoLine
-                                  label={labels.memberId}
-                                  value={dojo.memberId}
                                 />
                               ) : null}
                               {dojo.responsibleInstructor ? (
@@ -218,7 +207,6 @@ const countryPageLabels: Record<
   {
     countryContact: string;
     countryDojos: string;
-    openDirectory: string;
     openCountry: string;
     closeCountry: string;
     backToCountries: string;
@@ -227,13 +215,11 @@ const countryPageLabels: Record<
     address: string;
     instructor: string;
     phone: string;
-    memberId: string;
   }
 > = {
   en: {
     countryContact: "Country contact",
     countryDojos: "Dojos in this country",
-    openDirectory: "Open dojo directory",
     openCountry: "Open",
     closeCountry: "Close",
     backToCountries: "Back to countries",
@@ -242,12 +228,10 @@ const countryPageLabels: Record<
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
-    memberId: "IKA ID",
   },
   es: {
     countryContact: "Responsable del pais",
     countryDojos: "Dojos de este pais",
-    openDirectory: "Abrir directorio de dojos",
     openCountry: "Abrir",
     closeCountry: "Cerrar",
     backToCountries: "Volver a paises",
@@ -256,12 +240,10 @@ const countryPageLabels: Record<
     address: "Direccion",
     instructor: "Instructor",
     phone: "Telefono",
-    memberId: "ID IKA",
   },
   it: {
     countryContact: "Responsabile del paese",
     countryDojos: "Dojo in questo paese",
-    openDirectory: "Apri directory dojo",
     openCountry: "Apri",
     closeCountry: "Chiudi",
     backToCountries: "Torna ai paesi",
@@ -270,12 +252,10 @@ const countryPageLabels: Record<
     address: "Indirizzo",
     instructor: "Istruttore",
     phone: "Telefono",
-    memberId: "ID IKA",
   },
   fr: {
     countryContact: "Responsable du pays",
     countryDojos: "Dojos dans ce pays",
-    openDirectory: "Ouvrir l'annuaire des dojos",
     openCountry: "Ouvrir",
     closeCountry: "Fermer",
     backToCountries: "Retour aux pays",
@@ -284,12 +264,10 @@ const countryPageLabels: Record<
     address: "Adresse",
     instructor: "Instructeur",
     phone: "Telephone",
-    memberId: "ID IKA",
   },
   ja: {
     countryContact: "Country contact",
     countryDojos: "Dojos in this country",
-    openDirectory: "Open dojo directory",
     openCountry: "Open",
     closeCountry: "Close",
     backToCountries: "Back to countries",
@@ -298,12 +276,10 @@ const countryPageLabels: Record<
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
-    memberId: "IKA ID",
   },
   zh: {
     countryContact: "Country contact",
     countryDojos: "Dojos in this country",
-    openDirectory: "Open dojo directory",
     openCountry: "Open",
     closeCountry: "Close",
     backToCountries: "Back to countries",
@@ -312,12 +288,10 @@ const countryPageLabels: Record<
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
-    memberId: "IKA ID",
   },
   cs: {
     countryContact: "Kontakt v zemi",
     countryDojos: "Dojo v teto zemi",
-    openDirectory: "Otevrit adresar dojo",
     openCountry: "Otevrit",
     closeCountry: "Zavrit",
     backToCountries: "Zpet na zeme",
@@ -326,7 +300,6 @@ const countryPageLabels: Record<
     address: "Adresa",
     instructor: "Instruktor",
     phone: "Telefon",
-    memberId: "IKA ID",
   },
 };
 

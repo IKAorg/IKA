@@ -16,7 +16,6 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
     { href: `/${locale}`, label: nav.home },
     { href: `/${locale}/about`, label: nav.about },
     { href: `/${locale}/countries`, label: nav.countries },
-    { href: `/${locale}/dojos`, label: nav.dojos },
     { href: `/${locale}/news`, label: nav.news },
     { href: `/${locale}/events`, label: nav.events },
     { href: `/${locale}/join`, label: nav.join },

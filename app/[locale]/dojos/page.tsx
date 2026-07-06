@@ -75,9 +75,11 @@ export default async function DojosPage({ params }: DojosPageProps) {
                             />
                           ) : null}
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
-                              {dojo.memberId || dojo.city}
-                            </p>
+                            {dojo.city ? (
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+                                {dojo.city}
+                              </p>
+                            ) : null}
                             <h3 className="mt-2 text-2xl font-semibold">
                               {dojo.name}
                             </h3>
@@ -91,9 +93,6 @@ export default async function DojosPage({ params }: DojosPageProps) {
                         <dl className="mt-5 grid gap-3 text-sm leading-6 text-[var(--muted)] sm:grid-cols-2">
                           {dojo.address ? (
                             <InfoLine label={labels.address} value={dojo.address} />
-                          ) : null}
-                          {dojo.memberId ? (
-                            <InfoLine label={labels.memberId} value={dojo.memberId} />
                           ) : null}
                           {dojo.responsibleInstructor ? (
                             <InfoLine
@@ -145,7 +144,6 @@ const dojoPageLabels: Record<
     address: string;
     instructor: string;
     phone: string;
-    memberId: string;
   }
 > = {
   en: {
@@ -153,49 +151,42 @@ const dojoPageLabels: Record<
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
-    memberId: "IKA ID",
   },
   es: {
     empty: "Aun no hay dojos publicos.",
     address: "Direccion",
     instructor: "Instructor",
     phone: "Telefono",
-    memberId: "ID IKA",
   },
   it: {
     empty: "Non ci sono ancora dojo pubblici.",
     address: "Indirizzo",
     instructor: "Istruttore",
     phone: "Telefono",
-    memberId: "ID IKA",
   },
   fr: {
     empty: "Aucun dojo public pour le moment.",
     address: "Adresse",
     instructor: "Instructeur",
     phone: "Telephone",
-    memberId: "ID IKA",
   },
   ja: {
     empty: "There are no public dojos yet.",
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
-    memberId: "IKA ID",
   },
   zh: {
     empty: "There are no public dojos yet.",
     address: "Address",
     instructor: "Instructor",
     phone: "Phone",
-    memberId: "IKA ID",
   },
   cs: {
     empty: "Zatim nejsou zverejnena zadna dojo.",
     address: "Adresa",
     instructor: "Instruktor",
     phone: "Telefon",
-    memberId: "IKA ID",
   },
 };
 
