@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
   }
 
   const assignableRoles = getAssignableRoles(guard.scope);
-  const [roles, countries, dojos, profiles, assignments] = await Promise.all([
+  const [roles, countries, dojos, profiles, assignments, members] = await Promise.all([
     guard.admin
       .from("roles")
       .select("id,key,name")
@@ -94,6 +94,9 @@ export async function GET(request: NextRequest) {
         "id,profile_id,role_id,country_id,dojo_id,roles(key,name),countries(id,code,country_translations(language_code,name)),dojos(id,country_id,city,dojo_translations(language_code,name))",
       )
       .order("created_at", { ascending: false }),
+    guard.admin
+      .from("members")
+      .select("profile_id,email,ika_number,first_name,last_name,country_id,dojo_id"),
   ]);
 
   const error =
@@ -101,7 +104,8 @@ export async function GET(request: NextRequest) {
     countries.error ??
     dojos.error ??
     profiles.error ??
-    assignments.error;
+    assignments.error ??
+    members.error;
 
   if (error) {
     return jsonError(error.message, 500);
@@ -121,11 +125,38 @@ export async function GET(request: NextRequest) {
   const visibleProfileIds = new Set(
     scopedAssignments.map((assignment) => assignment.profile_id),
   );
+  const memberRows = (members.data ?? []) as Array<{
+    profile_id: string | null;
+    email: string | null;
+    ika_number: string | null;
+    first_name: string | null;
+    last_name: string | null;
+  }>;
+  const visibleProfiles = (profiles.data ?? []).filter((profile) =>
+    visibleProfileIds.has(profile.id as string),
+  );
 
   return NextResponse.json({
-    profiles: (profiles.data ?? []).filter((profile) =>
-      visibleProfileIds.has(profile.id as string),
-    ),
+    profiles: visibleProfiles.map((profile) => {
+      const profileEmail = normalizeEmail(profile.email);
+      const linkedMembers = memberRows.filter(
+        (member) =>
+          member.profile_id === profile.id ||
+          (profileEmail && normalizeEmail(member.email) === profileEmail),
+      );
+
+      return {
+        ...profile,
+        kenshiIds: linkedMembers
+          .map((member) => member.ika_number)
+          .filter((value): value is string => Boolean(value)),
+        kenshiNames: linkedMembers
+          .map((member) =>
+            [member.first_name, member.last_name].filter(Boolean).join(" ").trim(),
+          )
+          .filter(Boolean),
+      };
+    }),
     roles: roles.data ?? [],
     assignments: scopedAssignments,
     countries: scopedCountries,

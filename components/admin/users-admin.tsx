@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import {
+  Loader2,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
@@ -13,6 +20,8 @@ type Profile = {
   email: string;
   display_name: string | null;
   status: string;
+  kenshiIds?: string[];
+  kenshiNames?: string[];
 };
 
 type Role = {
@@ -117,6 +126,7 @@ export function UsersAdmin({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [permissionSearch, setPermissionSearch] = useState("");
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -288,6 +298,93 @@ export function UsersAdmin({
 
     return map;
   }, [payload.assignments]);
+  const profileRows = useMemo(
+    () =>
+      payload.profiles.map((profile) => ({
+        profile,
+        assignments: assignmentsByProfile.get(profile.id) ?? [],
+      })),
+    [assignmentsByProfile, payload.profiles],
+  );
+  const filteredProfileRows = useMemo(() => {
+    const query = normalizeSearchText(permissionSearch);
+
+    if (!query) {
+      return profileRows;
+    }
+
+    return profileRows.filter(({ profile, assignments }) => {
+      const searchableText = [
+        profile.email,
+        profile.display_name,
+        profile.status,
+        ...(profile.kenshiIds ?? []),
+        ...(profile.kenshiNames ?? []),
+        ...assignments.flatMap((assignment) => [
+          getRoleLabel(assignment.roles),
+          assignment.countries ? countryLabel(assignment.countries, initialLocale) : "",
+          assignment.dojos ? dojoLabel(assignment.dojos, initialLocale) : "",
+        ]),
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return normalizeSearchText(searchableText).includes(query);
+    });
+  }, [initialLocale, permissionSearch, profileRows]);
+  const hierarchicalPermissions = useMemo(() => {
+    const knownCountryIds = new Set(payload.countries.map((country) => country.id));
+    const knownDojoIds = new Set(payload.dojos.map((dojo) => dojo.id));
+    const globalAssignments = filteredProfileRows.flatMap((row) =>
+      row.assignments
+        .filter((assignment) => !assignment.country_id && !assignment.dojo_id)
+        .map((assignment) => ({ row, assignment })),
+    );
+    const countrySections = payload.countries
+      .map((country) => {
+        const countryDojos = payload.dojos.filter(
+          (dojo) => dojo.country_id === country.id,
+        );
+        const countryAssignments = filteredProfileRows.flatMap((row) =>
+          row.assignments
+            .filter(
+              (assignment) =>
+                assignment.country_id === country.id && !assignment.dojo_id,
+            )
+            .map((assignment) => ({ row, assignment })),
+        );
+        const dojoSections = countryDojos
+          .map((dojo) => ({
+            dojo,
+            assignments: filteredProfileRows.flatMap((row) =>
+              row.assignments
+                .filter((assignment) => assignment.dojo_id === dojo.id)
+                .map((assignment) => ({ row, assignment })),
+            ),
+          }))
+          .filter((section) => section.assignments.length > 0);
+        const total =
+          countryAssignments.length +
+          dojoSections.reduce(
+            (count, section) => count + section.assignments.length,
+            0,
+          );
+
+        return { country, countryAssignments, dojoSections, total };
+      })
+      .filter((section) => section.total > 0);
+    const unlocatedAssignments = filteredProfileRows.flatMap((row) =>
+      row.assignments
+        .filter(
+          (assignment) =>
+            (assignment.country_id && !knownCountryIds.has(assignment.country_id)) ||
+            (assignment.dojo_id && !knownDojoIds.has(assignment.dojo_id)),
+        )
+        .map((assignment) => ({ row, assignment })),
+    );
+
+    return { globalAssignments, countrySections, unlocatedAssignments };
+  }, [filteredProfileRows, payload.countries, payload.dojos]);
   const canSave =
     Boolean(form.email && form.roleKey) &&
     (form.roleKey !== "country_admin" || Boolean(form.countryId)) &&
@@ -492,76 +589,209 @@ export function UsersAdmin({
       </section>
 
       <section className="border border-[var(--line)] bg-white p-5">
-        <div className="flex items-center gap-3">
-          <ShieldCheck size={22} className="text-[var(--accent)]" />
-          <h2 className="text-2xl font-semibold">Usuarios y permisos</h2>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <ShieldCheck size={22} className="text-[var(--accent)]" />
+            <div>
+              <h2 className="text-2xl font-semibold">Usuarios y permisos</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Organizado por pais, dojo y usuario para evitar listas inmensas.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={loadUsers}
+            className="inline-flex items-center justify-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold"
+          >
+            <RefreshCw size={16} />
+            Recargar
+          </button>
+        </div>
+
+        <label className="mt-5 grid gap-2 text-sm font-semibold">
+          Busqueda general
+          <span className="flex items-center border border-[var(--line)] bg-white px-3">
+            <Search size={16} className="text-[var(--muted)]" />
+            <input
+              value={permissionSearch}
+              onChange={(event) => setPermissionSearch(event.target.value)}
+              placeholder="Buscar por email, nombre, rol, pais, dojo o ID Kenshi"
+              className="h-11 min-w-0 flex-1 px-3 font-normal outline-none"
+            />
+          </span>
+        </label>
+
+        <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--muted)]">
+          <span className="border border-[var(--line)] px-2 py-1">
+            {filteredProfileRows.length} usuarios visibles
+          </span>
+          <span className="border border-[var(--line)] px-2 py-1">
+            {filteredProfileRows.reduce(
+              (count, row) => count + row.assignments.length,
+              0,
+            )}{" "}
+            roles
+          </span>
         </div>
 
         <div className="mt-5 grid gap-3">
           {loading ? (
             <p className="text-sm text-[var(--muted)]">Cargando permisos...</p>
-          ) : payload.profiles.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">No hay usuarios visibles.</p>
+          ) : filteredProfileRows.length === 0 ? (
+            <p className="border border-[var(--line)] bg-[var(--paper)] p-4 text-sm text-[var(--muted)]">
+              No hay usuarios que coincidan con la busqueda.
+            </p>
           ) : (
-            payload.profiles.map((profile) => {
-              const assignments = assignmentsByProfile.get(profile.id) ?? [];
-
-              return (
-                <article key={profile.id} className="border border-[var(--line)] p-4">
-                  <h3 className="font-semibold">
-                    {profile.display_name || profile.email}
-                  </h3>
-                  <p className="mt-1 text-sm text-[var(--muted)]">
-                    {profile.email} · {profile.status}
-                  </p>
-
-                  <div className="mt-4 grid gap-2">
-                    {assignments.length === 0 ? (
-                      <p className="text-sm text-[var(--muted)]">
-                        Sin roles asignados.
-                      </p>
-                    ) : (
-                      assignments.map((assignment) => (
-                        <div
-                          key={assignment.id}
-                          className="flex flex-wrap items-center justify-between gap-3 bg-[var(--paper)] px-3 py-2 text-sm"
-                        >
-                          <span>
-                            <strong>
-                              {assignment.roles?.key
-                                ? roleLabels[assignment.roles.key as RoleKey] ??
-                                  assignment.roles.name
-                                : "Rol"}
-                            </strong>
-                            {assignment.countries
-                              ? ` · ${countryLabel(
-                                  assignment.countries,
-                                  initialLocale,
-                                )}`
-                              : ""}
-                            {assignment.dojos
-                              ? ` · ${dojoLabel(assignment.dojos, initialLocale)}`
-                              : ""}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => deleteAssignment(assignment.id)}
-                            className="inline-flex items-center gap-2 text-[var(--accent)]"
-                          >
-                            <Trash2 size={15} />
-                            Quitar
-                          </button>
-                        </div>
-                      ))
-                    )}
+            <>
+              {hierarchicalPermissions.globalAssignments.length > 0 ? (
+                <details open className="border border-[var(--line)] bg-white">
+                  <summary className="cursor-pointer list-none p-4 font-semibold marker:hidden">
+                    Administracion global - {hierarchicalPermissions.globalAssignments.length} roles
+                  </summary>
+                  <div className="grid gap-2 border-t border-[var(--line)] p-3">
+                    {hierarchicalPermissions.globalAssignments.map(({ row, assignment }) => (
+                      <PermissionAssignmentRow
+                        key={assignment.id}
+                        profile={row.profile}
+                        assignment={assignment}
+                        locale={initialLocale}
+                        onDelete={deleteAssignment}
+                      />
+                    ))}
                   </div>
-                </article>
-              );
-            })
+                </details>
+              ) : null}
+
+              {hierarchicalPermissions.countrySections.map((countrySection) => (
+                <details key={countrySection.country.id} className="border border-[var(--line)] bg-white">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 marker:hidden">
+                    <span className="font-semibold">
+                      {countryLabel(countrySection.country, initialLocale)}
+                    </span>
+                    <span className="text-sm text-[var(--muted)]">
+                      {countrySection.total} roles - {countrySection.dojoSections.length} dojos
+                    </span>
+                  </summary>
+
+                  <div className="grid gap-3 border-t border-[var(--line)] p-3">
+                    {countrySection.countryAssignments.length > 0 ? (
+                      <details open className="bg-[var(--paper)]">
+                        <summary className="cursor-pointer list-none p-3 text-sm font-semibold marker:hidden">
+                          Administradores de pais - {countrySection.countryAssignments.length}
+                        </summary>
+                        <div className="grid gap-2 px-3 pb-3">
+                          {countrySection.countryAssignments.map(({ row, assignment }) => (
+                            <PermissionAssignmentRow
+                              key={assignment.id}
+                              profile={row.profile}
+                              assignment={assignment}
+                              locale={initialLocale}
+                              onDelete={deleteAssignment}
+                            />
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
+
+                    {countrySection.dojoSections.map((dojoSection) => (
+                      <details key={dojoSection.dojo.id} className="bg-[var(--paper)]">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 marker:hidden">
+                          <span className="text-sm font-semibold">
+                            {dojoLabel(dojoSection.dojo, initialLocale)}
+                          </span>
+                          <span className="text-xs text-[var(--muted)]">
+                            {dojoSection.assignments.length} roles
+                          </span>
+                        </summary>
+                        <div className="grid gap-2 px-3 pb-3">
+                          {dojoSection.assignments.map(({ row, assignment }) => (
+                            <PermissionAssignmentRow
+                              key={assignment.id}
+                              profile={row.profile}
+                              assignment={assignment}
+                              locale={initialLocale}
+                              onDelete={deleteAssignment}
+                            />
+                          ))}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </details>
+              ))}
+
+              {hierarchicalPermissions.unlocatedAssignments.length > 0 ? (
+                <details className="border border-[var(--line)] bg-white">
+                  <summary className="cursor-pointer list-none p-4 font-semibold marker:hidden">
+                    Roles sin ubicacion visible - {hierarchicalPermissions.unlocatedAssignments.length}
+                  </summary>
+                  <div className="grid gap-2 border-t border-[var(--line)] p-3">
+                    {hierarchicalPermissions.unlocatedAssignments.map(({ row, assignment }) => (
+                      <PermissionAssignmentRow
+                        key={assignment.id}
+                        profile={row.profile}
+                        assignment={assignment}
+                        locale={initialLocale}
+                        onDelete={deleteAssignment}
+                      />
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+            </>
           )}
         </div>
       </section>
     </div>
+  );
+}
+
+function PermissionAssignmentRow({
+  profile,
+  assignment,
+  locale,
+  onDelete,
+}: {
+  profile: Profile;
+  assignment: Assignment;
+  locale: Locale;
+  onDelete: (id: string) => void;
+}) {
+  const kenshiIds = profile.kenshiIds ?? [];
+  const kenshiNames = profile.kenshiNames ?? [];
+
+  return (
+    <article className="border border-[var(--line)] bg-white p-3 text-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-semibold">{profile.display_name || profile.email}</h3>
+          <p className="mt-1 break-all text-[var(--muted)]">
+            {profile.email} - {profile.status}
+          </p>
+          {kenshiIds.length > 0 || kenshiNames.length > 0 ? (
+            <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
+              {[...kenshiNames, ...kenshiIds].join(" - ")}
+            </p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => onDelete(assignment.id)}
+          className="inline-flex items-center gap-2 text-[var(--accent)]"
+        >
+          <Trash2 size={15} />
+          Quitar
+        </button>
+      </div>
+      <p className="mt-3 bg-[var(--paper)] px-3 py-2">
+        <strong>{getRoleLabel(assignment.roles)}</strong>
+        {assignment.countries
+          ? ` - ${countryLabel(assignment.countries, locale)}`
+          : ""}
+        {assignment.dojos ? ` - ${dojoLabel(assignment.dojos, locale)}` : ""}
+      </p>
+    </article>
   );
 }
 
@@ -640,4 +870,20 @@ function dojoLabel(dojo: DojoOption, locale: Locale) {
     dojo.dojo_translations?.[0]?.name ??
     dojo.city
   );
+}
+
+function getRoleLabel(role: Assignment["roles"]) {
+  if (!role) {
+    return "Rol";
+  }
+
+  return roleLabels[role.key as RoleKey] ?? role.name;
+}
+
+function normalizeSearchText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
