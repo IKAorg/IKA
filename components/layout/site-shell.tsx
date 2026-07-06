@@ -127,10 +127,10 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
             </h2>
             <div className="mt-4 space-y-3">
               <Link
-                href="mailto:internationalkempoassociation@gmail.com"
-                className="block break-words font-semibold text-[var(--foreground)]"
+                href={`/${locale}/contact`}
+                className="inline-flex border border-[var(--line)] px-4 py-2 font-semibold text-[var(--ink-blue)]"
               >
-                internationalkempoassociation@gmail.com
+                {nav.contact}
               </Link>
               <Link
                 href={`/${locale}/portal`}

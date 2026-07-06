@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Mail, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { PublicContentBlocks } from "@/components/public/public-content-blocks";
@@ -27,7 +26,7 @@ const formLabels: Record<
     email: "Email",
     message: "Message",
     submit: "Submit",
-    note: "The message will open in your email application before sending.",
+    note: "Your message will be sent to the IKA contact team.",
   },
   es: {
     required: "indica campo obligatorio",
@@ -35,7 +34,7 @@ const formLabels: Record<
     email: "Email",
     message: "Mensaje",
     submit: "Enviar",
-    note: "El mensaje se abrirá en tu aplicación de email antes de enviarse.",
+    note: "Tu mensaje se enviara al equipo de contacto de IKA.",
   },
   it: {
     required: "indica campo obbligatorio",
@@ -43,7 +42,7 @@ const formLabels: Record<
     email: "Email",
     message: "Messaggio",
     submit: "Invia",
-    note: "Il messaggio si aprirà nella tua applicazione email prima dell'invio.",
+    note: "Il messaggio sara inviato al team di contatto IKA.",
   },
   fr: {
     required: "indique un champ obligatoire",
@@ -51,7 +50,7 @@ const formLabels: Record<
     email: "Email",
     message: "Message",
     submit: "Envoyer",
-    note: "Le message s'ouvrira dans votre application email avant l'envoi.",
+    note: "Votre message sera envoye a l'equipe de contact IKA.",
   },
   ja: {
     required: "必須項目",
@@ -59,7 +58,7 @@ const formLabels: Record<
     email: "Email",
     message: "メッセージ",
     submit: "送信",
-    note: "送信前にメールアプリでメッセージが開きます。",
+    note: "Your message will be sent to the IKA contact team.",
   },
   zh: {
     required: "必填字段",
@@ -67,7 +66,7 @@ const formLabels: Record<
     email: "Email",
     message: "信息",
     submit: "提交",
-    note: "发送前，信息将在你的电子邮件应用中打开。",
+    note: "Your message will be sent to the IKA contact team.",
   },
   cs: {
     required: "označuje povinné pole",
@@ -75,7 +74,7 @@ const formLabels: Record<
     email: "Email",
     message: "Zpráva",
     submit: "Odeslat",
-    note: "Zpráva se před odesláním otevře ve vaší emailové aplikaci.",
+    note: "Zprava bude odeslana kontaktnimu tymu IKA.",
   },
 };
 
@@ -102,32 +101,19 @@ export default async function ContactPage({ params }: ContactPageProps) {
             {content.intro}
           </p>
           <PublicContentBlocks blocks={content.blocks} />
-          <div className="mt-8 border border-[var(--line)] bg-white p-6">
-            <div className="flex items-center gap-3">
-              <span className="flex size-11 items-center justify-center bg-[var(--ink-blue)] text-white">
-                <Mail size={20} aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-sm text-[var(--muted)]">
-                  {content.emailLabel}
-                </p>
-                <Link
-                  href="mailto:internationalkempoassociation@gmail.com"
-                  className="break-words font-semibold"
-                >
-                  internationalkempoassociation@gmail.com
-                </Link>
-              </div>
-            </div>
-          </div>
         </div>
 
         <form
-          action="mailto:internationalkempoassociation@gmail.com"
+          action="https://www.weebly.com/weebly/apps/formSubmit.php"
           method="post"
-          encType="text/plain"
+          encType="multipart/form-data"
           className="border border-[var(--line)] bg-white p-6 md:p-8"
         >
+          <input type="hidden" name="wsite_subject" value="IKA website contact" />
+          <input type="hidden" name="form_version" value="2" />
+          <input type="hidden" name="wsite_approved" value="approved" />
+          <input type="hidden" name="ucfid" value="974784864271926947" />
+          <input type="hidden" name="recaptcha_token" value="" />
           <p className="text-sm italic text-[var(--muted)]">
             <span className="text-[var(--accent)]">*</span> {labels.required}
           </p>
@@ -138,7 +124,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
                 {labels.name} <span className="text-[var(--accent)]">*</span>
               </span>
               <input
-                name="name"
+                name="_u946283888663309420"
                 required
                 autoComplete="name"
                 className="mt-3 w-full border border-[#9c9c9c] bg-white px-4 py-4 outline-none transition focus:border-[var(--accent)]"
@@ -150,7 +136,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
                 {labels.email} <span className="text-[var(--accent)]">*</span>
               </span>
               <input
-                name="email"
+                name="_u586897620777281584"
                 type="email"
                 required
                 autoComplete="email"
@@ -164,7 +150,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
                 <span className="text-[var(--accent)]">*</span>
               </span>
               <textarea
-                name="message"
+                name="_u612625839544163071"
                 required
                 rows={9}
                 className="mt-3 w-full resize-y border border-[#9c9c9c] bg-white px-4 py-4 outline-none transition focus:border-[var(--accent)]"
