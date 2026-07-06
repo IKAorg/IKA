@@ -1194,54 +1194,72 @@ function AdminDashboard({
                                 </span>
                               </span>
                             </summary>
-                            <div className="mt-3 max-h-80 overflow-y-auto">
-                              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                                <thead>
-                                  <tr className="border-b border-[var(--line)]">
-                                    <th className="py-2 pr-4">IKA</th>
-                                    <th className="py-2 pr-4">Nombre</th>
-                                    <th className="py-2 pr-4">Grupo</th>
-                                    <th className="py-2 pr-4">Email</th>
-                                    <th className="py-2 pr-4">Grado</th>
-                                    <th className="py-2 pr-4">Estado</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {dojoMembers.length === 0 ? (
-                                    <tr>
-                                      <td className="py-3 text-[var(--muted)]" colSpan={6}>
-                                        No hay Kenshi en este dojo.
-                                      </td>
+                            <div className="mt-3 border border-[var(--line)] bg-white">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-semibold">
+                                <span>Kenshi del dojo</span>
+                                <span className="text-[var(--muted)]">
+                                  {dojoMembers.length} registros
+                                </span>
+                              </div>
+                              <div
+                                className="overflow-auto"
+                                style={{ maxHeight: "28rem" }}
+                              >
+                                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                                  <thead className="sticky top-0 z-10 bg-white">
+                                    <tr className="border-b border-[var(--line)]">
+                                      <th className="py-2 pl-3 pr-4">IKA</th>
+                                      <th className="py-2 pr-4">Nombre</th>
+                                      <th className="py-2 pr-4">Grupo</th>
+                                      <th className="py-2 pr-4">Email</th>
+                                      <th className="py-2 pr-4">Grado</th>
+                                      <th className="py-2 pr-4">Estado</th>
                                     </tr>
-                                  ) : (
-                                    dojoMembers.map((member) => (
-                                      <tr
-                                        key={member.id}
-                                        className="border-b border-[var(--line)]"
-                                      >
-                                        <td className="py-2 pr-4">
-                                          {member.ika_number ?? "-"}
+                                  </thead>
+                                  <tbody>
+                                    {dojoMembers.length === 0 ? (
+                                      <tr>
+                                        <td
+                                          className="py-3 pl-3 text-[var(--muted)]"
+                                          colSpan={6}
+                                        >
+                                          No hay Kenshi en este dojo.
                                         </td>
-                                        <td className="py-2 pr-4">
-                                          {member.first_name} {member.last_name}
-                                        </td>
-                                        <td className="py-2 pr-4">
-                                          {member.member_group === "child"
-                                            ? "Nino"
-                                            : member.member_group === "adult"
-                                              ? "Adulto"
-                                              : "-"}
-                                        </td>
-                                        <td className="py-2 pr-4">{member.email ?? "-"}</td>
-                                        <td className="py-2 pr-4">
-                                          {member.current_grade ?? "-"}
-                                        </td>
-                                        <td className="py-2 pr-4">{member.status}</td>
                                       </tr>
-                                    ))
-                                  )}
-                                </tbody>
-                              </table>
+                                    ) : (
+                                      dojoMembers.map((member) => (
+                                        <tr
+                                          key={member.id}
+                                          className="border-b border-[var(--line)]"
+                                        >
+                                          <td className="py-2 pl-3 pr-4">
+                                            {member.ika_number ?? "-"}
+                                          </td>
+                                          <td className="py-2 pr-4">
+                                            {member.first_name} {member.last_name}
+                                          </td>
+                                          <td className="py-2 pr-4">
+                                            {member.member_group === "child"
+                                              ? "Nino"
+                                              : member.member_group === "adult"
+                                                ? "Adulto"
+                                                : "-"}
+                                          </td>
+                                          <td className="py-2 pr-4">
+                                            {member.email ?? "-"}
+                                          </td>
+                                          <td className="py-2 pr-4">
+                                            {member.current_grade ?? "-"}
+                                          </td>
+                                          <td className="py-2 pr-4">
+                                            {member.status}
+                                          </td>
+                                        </tr>
+                                      ))
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           </details>
                         );
