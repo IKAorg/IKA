@@ -171,26 +171,26 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       eyebrow: "Member countries",
       title: "IKA around the world",
       intro:
-        "IKA brings together member organisations across countries and continents. This directory will become fully editable from the CMS.",
+        "IKA brings together member organisations across countries and continents. Explore the countries connected through the International Kempo Association.",
       countries: memberCountriesByLocale.en,
     },
     dojos: {
       eyebrow: "Dojos",
       title: "Find an IKA dojo",
       intro:
-        "The public dojo directory will list official dojos by country and city once the CMS and country administration tools are connected.",
+        "Explore official IKA dojos by country and city.",
     },
     news: {
       eyebrow: "News",
       title: "Latest IKA news",
       intro:
-        "Latest reports migrated from the current IKA website. These will be editable from the CMS once the news module is connected.",
+        "Read the latest news, reports, and updates from the International Kempo Association.",
     },
     events: {
       eyebrow: "Events",
       title: "Seminars, courses, and gatherings",
       intro:
-        "Public events will be listed here. Courses and taikais will remain separate modules in the private administration system.",
+        "Find public IKA seminars, courses, taikais, and international gatherings.",
     },
     join: {
       eyebrow: "Join IKA",
@@ -279,26 +279,26 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       eyebrow: "Países miembros",
       title: "IKA alrededor del mundo",
       intro:
-        "IKA reúne organizaciones miembro en distintos países y continentes. Este directorio será completamente editable desde el CMS.",
+        "IKA reune organizaciones miembro en distintos paises y continentes. Explora los paises conectados a traves de la International Kempo Association.",
       countries: memberCountriesByLocale.es,
     },
     dojos: {
       eyebrow: "Dojos",
       title: "Encuentra un dojo IKA",
       intro:
-        "El directorio público de dojos mostrará dojos oficiales por país y ciudad cuando el CMS y las herramientas de administración estén conectadas.",
+        "Explora los dojos oficiales de IKA por pais y ciudad.",
     },
     news: {
       eyebrow: "Noticias",
       title: "Últimas noticias de IKA",
       intro:
-        "Últimos informes migrados desde la web actual de IKA. Serán editables desde el CMS cuando el módulo de noticias esté conectado.",
+        "Lee las ultimas noticias, informes y novedades de la International Kempo Association.",
     },
     events: {
       eyebrow: "Eventos",
       title: "Seminarios, cursos y encuentros",
       intro:
-        "Los eventos públicos aparecerán aquí. Los cursos y taikais seguirán siendo módulos separados dentro de la administración privada.",
+        "Consulta seminarios, cursos, taikais y encuentros internacionales de IKA.",
     },
     join: {
       eyebrow: "Unirse a IKA",
@@ -387,26 +387,26 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       eyebrow: "Paesi membri",
       title: "IKA nel mondo",
       intro:
-        "IKA riunisce organizzazioni membro in paesi e continenti diversi. Questo direttorio sarà completamente modificabile dal CMS.",
+        "IKA riunisce organizzazioni membro in paesi e continenti diversi. Esplora i paesi collegati attraverso la International Kempo Association.",
       countries: memberCountriesByLocale.it,
     },
     dojos: {
       eyebrow: "Dojo",
       title: "Trova un dojo IKA",
       intro:
-        "Il direttorio pubblico dei dojo mostrerà i dojo ufficiali per paese e città quando il CMS e gli strumenti amministrativi saranno collegati.",
+        "Esplora i dojo ufficiali IKA per paese e citta.",
     },
     news: {
       eyebrow: "Notizie",
       title: "Ultime notizie IKA",
       intro:
-        "Ultimi report migrati dall'attuale sito IKA. Saranno modificabili dal CMS quando il modulo notizie sarà collegato.",
+        "Leggi le ultime notizie, i report e gli aggiornamenti della International Kempo Association.",
     },
     events: {
       eyebrow: "Eventi",
       title: "Seminari, corsi e incontri",
       intro:
-        "Gli eventi pubblici appariranno qui. Corsi e taikai resteranno moduli separati nell'amministrazione privata.",
+        "Consulta seminari, corsi, taikai e incontri internazionali IKA.",
     },
     join: {
       eyebrow: "Unisciti a IKA",
@@ -495,26 +495,26 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       eyebrow: "Pays membres",
       title: "IKA dans le monde",
       intro:
-        "IKA réunit des organisations membres à travers pays et continents. Ce répertoire sera entièrement modifiable depuis le CMS.",
+        "IKA reunit des organisations membres a travers pays et continents. Explorez les pays relies par la International Kempo Association.",
       countries: memberCountriesByLocale.fr,
     },
     dojos: {
       eyebrow: "Dojos",
       title: "Trouver un dojo IKA",
       intro:
-        "Le répertoire public des dojos affichera les dojos officiels par pays et ville lorsque le CMS et les outils d'administration seront connectés.",
+        "Explorez les dojos officiels IKA par pays et par ville.",
     },
     news: {
       eyebrow: "Actualités",
       title: "Dernières actualités IKA",
       intro:
-        "Derniers rapports migrés depuis le site IKA actuel. Ils seront modifiables depuis le CMS lorsque le module d'actualités sera connecté.",
+        "Lisez les dernieres actualites, rapports et mises a jour de la International Kempo Association.",
     },
     events: {
       eyebrow: "Événements",
       title: "Séminaires, cours et rencontres",
       intro:
-        "Les événements publics apparaîtront ici. Les cours et taikais resteront des modules séparés dans l'administration privée.",
+        "Consultez les seminaires, cours, taikais et rencontres internationales IKA.",
     },
     join: {
       eyebrow: "Rejoindre IKA",
@@ -602,26 +602,26 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       eyebrow: "加盟国",
       title: "世界のIKA",
       intro:
-        "IKAは国と大陸を越えて加盟団体を結びます。この一覧はCMSから完全に編集できるようになります。",
+        "IKA connects member organisations across countries and continents.",
       countries: memberCountriesByLocale.ja,
     },
     dojos: {
       eyebrow: "道場",
       title: "IKA道場を探す",
       intro:
-        "CMSと管理ツールの接続後、公式道場一覧は国と都市別に表示されます。",
+        "Explore official IKA dojos by country and city.",
     },
     news: {
       eyebrow: "ニュース",
       title: "IKA最新ニュース",
       intro:
-        "現在のIKAウェブサイトから移行した最新レポートです。ニュースモジュール接続後はCMSから編集できます。",
+        "Read the latest news, reports, and updates from IKA.",
     },
     events: {
       eyebrow: "イベント",
       title: "セミナー、講習、集まり",
       intro:
-        "公開イベントはここに表示されます。講習と大会は専用管理システム内の別モジュールとして扱われます。",
+        "Find IKA seminars, courses, taikais, and international gatherings.",
     },
     join: {
       eyebrow: "IKAに参加",
@@ -709,26 +709,26 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       eyebrow: "成员国家",
       title: "世界各地的 IKA",
       intro:
-        "IKA 连接多个国家和大陆的成员组织。该目录未来可从 CMS 完全编辑。",
+        "IKA connects member organisations across countries and continents.",
       countries: memberCountriesByLocale.zh,
     },
     dojos: {
       eyebrow: "道场",
       title: "寻找 IKA 道场",
       intro:
-        "连接 CMS 和管理工具后，公开道场目录将按国家和城市显示官方道场。",
+        "Explore official IKA dojos by country and city.",
     },
     news: {
       eyebrow: "新闻",
       title: "IKA 最新新闻",
       intro:
-        "从当前 IKA 网站迁移的最新报告。新闻模块连接后，可从 CMS 编辑。",
+        "Read the latest news, reports, and updates from IKA.",
     },
     events: {
       eyebrow: "活动",
       title: "研讨会、课程与聚会",
       intro:
-        "公开活动将在此显示。课程和大会将作为私人管理系统中的独立模块。",
+        "Find IKA seminars, courses, taikais, and international gatherings.",
     },
     join: {
       eyebrow: "加入 IKA",
@@ -816,26 +816,26 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
       eyebrow: "Členské země",
       title: "IKA ve světě",
       intro:
-        "IKA spojuje členské organizace napříč zeměmi a kontinenty. Tento adresář bude plně upravitelný z CMS.",
+        "IKA spojuje clenske organizace napric zememi a kontinenty. Prohlednete si zeme propojene International Kempo Association.",
       countries: memberCountriesByLocale.cs,
     },
     dojos: {
       eyebrow: "Dódžó",
       title: "Najít IKA dódžó",
       intro:
-        "Veřejný adresář dódžó zobrazí oficiální dódžó podle země a města po připojení CMS a administračních nástrojů.",
+        "Prohlednete si oficialni IKA dodzo podle zeme a mesta.",
     },
     news: {
       eyebrow: "Novinky",
       title: "Nejnovější zprávy IKA",
       intro:
-        "Nejnovější zprávy převedené ze současného webu IKA. Po připojení modulu novinek budou upravitelné z CMS.",
+        "Prectete si nejnovejsi novinky, zpravy a aktuality International Kempo Association.",
     },
     events: {
       eyebrow: "Události",
       title: "Semináře, kurzy a setkání",
       intro:
-        "Veřejné události se zobrazí zde. Kurzy a taikai zůstanou samostatnými moduly v soukromé administraci.",
+        "Najdete verejne seminare, kurzy, taikai a mezinarodni setkani IKA.",
     },
     join: {
       eyebrow: "Připojit se k IKA",

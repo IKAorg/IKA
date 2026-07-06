@@ -21,84 +21,76 @@ const newsLabels: Record<
     archiveTitle: string;
     archiveText: string;
     archiveAction: string;
-    cmsBadge: string;
   }
 > = {
   en: {
     newEyebrow: "Current news",
     emptyTitle: "New IKA news will appear here.",
     emptyText:
-      "This section is reserved for new articles published from the administration panel. The historical posts from the old website remain available in the archive.",
+      "New IKA articles will be published here. Historical reports remain available in the archive.",
     archiveTitle: "Old news archive",
     archiveText:
-      "Historical IKA reports migrated from the previous website, organised by date and month.",
+      "Historical IKA reports, organised by date and month.",
     archiveAction: "Open archive",
-    cmsBadge: "CMS ready",
   },
   es: {
     newEyebrow: "Noticias actuales",
     emptyTitle: "Las nuevas noticias de IKA aparecerán aquí.",
     emptyText:
-      "Esta sección queda reservada para los artículos nuevos publicados desde el panel de administración. Las publicaciones históricas de la web antigua siguen disponibles en el archivo.",
+      "Las nuevas noticias de IKA se publicaran aqui. Los informes historicos siguen disponibles en el archivo.",
     archiveTitle: "Archivo de noticias antiguas",
     archiveText:
-      "Informes históricos de IKA migrados desde la web anterior, organizados por fecha y mes.",
+      "Informes historicos de IKA, organizados por fecha y mes.",
     archiveAction: "Abrir archivo",
-    cmsBadge: "Preparado para CMS",
   },
   it: {
     newEyebrow: "Notizie attuali",
     emptyTitle: "Le nuove notizie IKA appariranno qui.",
     emptyText:
-      "Questa sezione è riservata agli articoli nuovi pubblicati dal pannello di amministrazione. I post storici del vecchio sito restano disponibili nell'archivio.",
+      "Le nuove notizie IKA saranno pubblicate qui. I report storici restano disponibili nell'archivio.",
     archiveTitle: "Archivio vecchie notizie",
     archiveText:
-      "Report storici IKA migrati dal sito precedente, organizzati per data e mese.",
+      "Report storici IKA, organizzati per data e mese.",
     archiveAction: "Apri archivio",
-    cmsBadge: "Pronto per CMS",
   },
   fr: {
     newEyebrow: "Actualités courantes",
     emptyTitle: "Les nouvelles actualités IKA apparaîtront ici.",
     emptyText:
-      "Cette section est réservée aux nouveaux articles publiés depuis le panneau d'administration. Les anciens posts du site précédent restent disponibles dans l'archive.",
+      "Les nouvelles actualites IKA seront publiees ici. Les rapports historiques restent disponibles dans l'archive.",
     archiveTitle: "Archive des anciennes actualités",
     archiveText:
-      "Rapports historiques IKA migrés depuis l'ancien site, organisés par date et par mois.",
+      "Rapports historiques IKA, organises par date et par mois.",
     archiveAction: "Ouvrir l'archive",
-    cmsBadge: "Prêt pour le CMS",
   },
   ja: {
     newEyebrow: "現在のニュース",
     emptyTitle: "新しいIKAニュースはここに表示されます。",
     emptyText:
-      "このセクションは管理画面から公開される新しい記事用です。旧ウェブサイトの過去投稿はアーカイブで閲覧できます。",
+      "New IKA news will be published here. Historical reports remain available in the archive.",
     archiveTitle: "旧ニュースアーカイブ",
     archiveText:
-      "以前のウェブサイトから移行したIKAの過去レポートを日付と月別に整理しています。",
+      "Historical IKA reports, organised by date and month.",
     archiveAction: "アーカイブを開く",
-    cmsBadge: "CMS準備済み",
   },
   zh: {
     newEyebrow: "当前新闻",
     emptyTitle: "新的 IKA 新闻将显示在这里。",
     emptyText:
-      "该区域保留给从管理面板发布的新文章。旧网站的历史文章仍可在档案中查看。",
+      "New IKA news will be published here. Historical reports remain available in the archive.",
     archiveTitle: "旧新闻档案",
     archiveText: "从旧网站迁移的 IKA 历史报告，按日期和月份整理。",
     archiveAction: "打开档案",
-    cmsBadge: "CMS 就绪",
   },
   cs: {
     newEyebrow: "Aktuální novinky",
     emptyTitle: "Nové zprávy IKA se zobrazí zde.",
     emptyText:
-      "Tato sekce je vyhrazena pro nové články publikované z administračního panelu. Historické příspěvky ze starého webu zůstávají dostupné v archivu.",
+      "Nove zpravy IKA budou publikovany zde. Historicke zpravy zustavaji dostupne v archivu.",
     archiveTitle: "Archiv starých novinek",
     archiveText:
-      "Historické zprávy IKA převedené z předchozího webu, uspořádané podle data a měsíce.",
+      "Historicke zpravy IKA usporadane podle data a mesice.",
     archiveAction: "Otevřít archiv",
-    cmsBadge: "Připraveno pro CMS",
   },
 };
 
@@ -171,10 +163,7 @@ export default async function NewsPage({ params }: NewsPageProps) {
         </div>
 
         <aside className="border border-[var(--line)] bg-[var(--background)] p-8">
-          <p className="inline-flex border border-[var(--line)] bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
-            {labels.cmsBadge}
-          </p>
-          <h2 className="mt-5 text-2xl font-semibold">{labels.archiveTitle}</h2>
+          <h2 className="text-2xl font-semibold">{labels.archiveTitle}</h2>
           <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
             {labels.archiveText}
           </p>

@@ -17,7 +17,7 @@ export const archiveLabels: Record<
     eyebrow: "Old news archive",
     title: "Historical IKA news",
     intro:
-      "Archive of reports migrated from the previous IKA website. New articles will be published in the main news section from the admin panel.",
+      "Archive of historical IKA reports, organised by date and month.",
     all: "All",
     months: "Archives",
     category: "Category",
@@ -28,7 +28,7 @@ export const archiveLabels: Record<
     eyebrow: "Archivo de noticias antiguas",
     title: "Noticias históricas de IKA",
     intro:
-      "Archivo de informes migrados desde la web anterior de IKA. Las noticias nuevas se publicarán en la sección principal desde el panel de administración.",
+      "Archivo de informes historicos de IKA, organizados por fecha y mes.",
     all: "Todas",
     months: "Archivos",
     category: "Categoría",
@@ -39,7 +39,7 @@ export const archiveLabels: Record<
     eyebrow: "Archivio vecchie notizie",
     title: "Notizie storiche IKA",
     intro:
-      "Archivio dei report migrati dal precedente sito IKA. I nuovi articoli saranno pubblicati nella sezione notizie principale dal pannello admin.",
+      "Archivio dei report storici IKA, organizzati per data e mese.",
     all: "Tutte",
     months: "Archivi",
     category: "Categoria",
@@ -50,7 +50,7 @@ export const archiveLabels: Record<
     eyebrow: "Archive des anciennes actualités",
     title: "Actualités historiques IKA",
     intro:
-      "Archive des rapports migrés depuis l'ancien site IKA. Les nouveaux articles seront publiés dans la section actualités principale depuis l'administration.",
+      "Archive des rapports historiques IKA, organisee par date et par mois.",
     all: "Toutes",
     months: "Archives",
     category: "Catégorie",
@@ -61,7 +61,7 @@ export const archiveLabels: Record<
     eyebrow: "旧ニュースアーカイブ",
     title: "IKA過去ニュース",
     intro:
-      "以前のIKAウェブサイトから移行したレポートのアーカイブです。新しい記事は管理画面からメインニュースに公開されます。",
+      "Archive of historical IKA reports, organised by date and month.",
     all: "すべて",
     months: "アーカイブ",
     category: "カテゴリー",
@@ -72,7 +72,7 @@ export const archiveLabels: Record<
     eyebrow: "旧新闻档案",
     title: "IKA 历史新闻",
     intro:
-      "从旧 IKA 网站迁移的报告档案。新文章将从管理面板发布到主新闻区域。",
+      "Archive of historical IKA reports, organised by date and month.",
     all: "全部",
     months: "档案",
     category: "类别",
@@ -83,7 +83,7 @@ export const archiveLabels: Record<
     eyebrow: "Archiv starých novinek",
     title: "Historické novinky IKA",
     intro:
-      "Archiv zpráv převedených z předchozího webu IKA. Nové články budou publikovány v hlavní sekci novinek z administračního panelu.",
+      "Archiv historickych zprav IKA usporadany podle data a mesice.",
     all: "Vše",
     months: "Archiv",
     category: "Kategorie",
