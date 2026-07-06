@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import type { Session } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/browser";
+import { createPortalClient } from "@/lib/supabase/portal-browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 
 type RoleKey =
@@ -668,7 +668,7 @@ export function PortalClient({
   locale?: Locale;
 }) {
   const copy = portalCopies[locale] ?? portalCopies[defaultLocale];
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => createPortalClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -734,7 +734,11 @@ export function PortalClient({
 
         if (exchangedSession.error) {
           setRecoveryMode(true);
-          setMessage(exchangedSession.error.message);
+          setMessage(
+            exchangedSession.error.message.includes("code verifier")
+              ? "Este enlace antiguo usa un codigo PKCE que ya no esta disponible. Solicita un nuevo email de recuperacion y abre el enlace nuevo."
+              : exchangedSession.error.message,
+          );
           setLoading(false);
           return;
         }
@@ -1340,7 +1344,7 @@ function MemberPanel({
   grades: GradeHistory[];
   locale: Locale;
   copy: PortalCopy;
-  supabase: ReturnType<typeof createClient>;
+  supabase: ReturnType<typeof createPortalClient>;
   getAuthHeaders: () => Promise<Record<string, string>>;
   onMemberUpdated: (member: PortalMember) => void;
 }) {
