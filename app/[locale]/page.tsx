@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Globe2, Handshake, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowRight, Globe2, Handshake, MapPin } from "lucide-react";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { getLatestReports } from "@/lib/content/latest-reports";
@@ -87,7 +87,7 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-5 py-16 lg:grid-cols-3">
+      <section className="mx-auto grid max-w-7xl gap-8 px-5 py-16 lg:grid-cols-2">
         <PublicPillar
           icon={<Globe2 size={24} />}
           title={dictionary.home.familyTitle}
@@ -97,11 +97,6 @@ export default async function HomePage({ params }: HomePageProps) {
           icon={<Handshake size={24} />}
           title={dictionary.home.practiceTitle}
           text={dictionary.home.practiceText}
-        />
-        <PublicPillar
-          icon={<ShieldCheck size={24} />}
-          title={dictionary.home.accessTitle}
-          text={dictionary.home.accessText}
         />
       </section>
 
