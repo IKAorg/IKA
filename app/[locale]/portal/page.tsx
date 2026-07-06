@@ -17,43 +17,43 @@ const portalPageCopy: Record<
 > = {
   en: {
     eyebrow: "Private access",
-    title: "Kenshi Portal",
+    title: "IKA Portal",
     intro:
       "Sign in to view your record and manage IKA data according to your role.",
   },
   es: {
     eyebrow: "Acceso privado",
-    title: "Portal Kenshi",
+    title: "Portal IKA",
     intro:
       "Entra con tu usuario para ver y gestionar los datos IKA segun tu rol.",
   },
   it: {
     eyebrow: "Accesso privato",
-    title: "Portale Kenshi",
+    title: "Portale IKA",
     intro:
       "Accedi per vedere e gestire i dati IKA secondo il tuo ruolo.",
   },
   fr: {
     eyebrow: "Acces prive",
-    title: "Portail Kenshi",
+    title: "Portail IKA",
     intro:
       "Connectez-vous pour voir et gerer les donnees IKA selon votre role.",
   },
   ja: {
     eyebrow: "Private access",
-    title: "Kenshi Portal",
+    title: "IKA Portal",
     intro:
       "Sign in to view and manage IKA data according to your role.",
   },
   zh: {
     eyebrow: "Private access",
-    title: "Kenshi Portal",
+    title: "IKA Portal",
     intro:
       "Sign in to view and manage IKA data according to your role.",
   },
   cs: {
     eyebrow: "Soukromy pristup",
-    title: "Portal Kenshi",
+    title: "Portal IKA",
     intro:
       "Prihlaste se a spravujte data IKA podle sve role.",
   },

@@ -68,7 +68,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       events: "Events",
       contact: "Contact",
       admin: "Admin",
-      portal: "Kenshi Portal",
+      portal: "IKA Portal",
     },
     home: {
       eyebrow: "International Kempo Association",
@@ -130,7 +130,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       events: "Eventos",
       contact: "Contacto",
       admin: "Admin",
-      portal: "Portal Kenshi",
+      portal: "Portal IKA",
     },
     home: {
       eyebrow: "International Kempo Association",
@@ -192,7 +192,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       events: "Eventi",
       contact: "Contatti",
       admin: "Admin",
-      portal: "Portale Kenshi",
+      portal: "Portale IKA",
     },
     home: {
       eyebrow: "International Kempo Association",
@@ -254,7 +254,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       events: "Événements",
       contact: "Contact",
       admin: "Admin",
-      portal: "Portail Kenshi",
+      portal: "Portail IKA",
     },
     home: {
       eyebrow: "International Kempo Association",

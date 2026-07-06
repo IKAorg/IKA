@@ -194,33 +194,6 @@ export function LocationsAdmin({
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
-  const loadMedia = useCallback(
-    async (nextCountries: CountryRow[], nextDojos: DojoRow[]) => {
-      const ids = [
-        ...nextCountries.flatMap((country) => [
-          country.flag_media_id,
-          country.main_image_media_id,
-        ]),
-        ...nextDojos.map((dojo) => dojo.main_image_media_id),
-      ].filter(Boolean) as string[];
-
-      if (ids.length === 0) {
-        setMediaById(new Map());
-        return;
-      }
-
-      const { data } = await supabase
-        .from("media_library")
-        .select("id,storage_path,alt_text")
-        .in("id", Array.from(new Set(ids)));
-
-      setMediaById(
-        new Map(((data ?? []) as MediaRow[]).map((media) => [media.id, media])),
-      );
-    },
-    [supabase],
-  );
-
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -248,51 +221,28 @@ export function LocationsAdmin({
       return;
     }
 
-    setCountries((data.countries ?? []) as CountryRow[]);
-    setDojos((data.dojos ?? []) as DojoRow[]);
-    setMediaById(
-      new Map(
-        ((data.media ?? []) as MediaRow[]).map((media) => [media.id, media]),
-      ),
+    const nextCountries = (data.countries ?? []) as CountryRow[];
+    const nextDojos = (data.dojos ?? []) as DojoRow[];
+    const nextScope = (data.scope ?? null) as LocationScope | null;
+
+    const nextMediaById = new Map(
+      ((data.media ?? []) as MediaRow[]).map((media) => [media.id, media]),
     );
-    setScope((data.scope ?? null) as LocationScope | null);
-    setLoading(false);
-    return;
 
-    const [countriesResult, dojosResult] = await Promise.all([
-      supabase
-        .from("countries")
-        .select(
-          "id,code,ika_country_id,status,is_public,responsible_person,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
-        )
-        .order("code", { ascending: true }),
-      supabase
-        .from("dojos")
-        .select(
-          "id,country_id,ika_dojo_id,city,address,responsible_instructor,email,phone,website,status,is_public,main_image_media_id,dojo_translations(language_code,name,slug,description)",
-        )
-        .order("city", { ascending: true }),
-    ]);
-
-    if (countriesResult.error || dojosResult.error) {
-      setMessage(
-        countriesResult.error?.message ??
-          dojosResult.error?.message ??
-          "No se pudieron cargar países y dojos.",
-      );
-      setCountries([]);
-      setDojos([]);
-      setLoading(false);
-      return;
-    }
-
-    const nextCountries = (countriesResult.data ?? []) as CountryRow[];
-    const nextDojos = (dojosResult.data ?? []) as DojoRow[];
     setCountries(nextCountries);
     setDojos(nextDojos);
-    await loadMedia(nextCountries, nextDojos);
+    setMediaById(nextMediaById);
+    setScope(nextScope);
+    if (nextScope?.isGlobal === false && nextCountries.length === 1) {
+      setCountryForm((current) =>
+        current.id
+          ? current
+          : hydrateCountryForm(nextCountries[0], current.locale, nextMediaById),
+      );
+    }
     setLoading(false);
-  }, [getAuthHeaders, loadMedia, supabase]);
+    return;
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -829,6 +779,7 @@ export function LocationsAdmin({
   }
 
   const isGlobalScope = scope?.isGlobal === true;
+  const canEditCountry = isGlobalScope || (scope?.countryIds.length ?? 0) > 0;
 
   if (!session) {
     return (
@@ -859,13 +810,15 @@ export function LocationsAdmin({
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <div className="grid gap-5">
-          {isGlobalScope ? (
+          {canEditCountry ? (
             <CountryList
               countries={countries}
               mediaById={mediaById}
               displayLocale={countryForm.locale}
               loading={loading}
               saving={saving}
+              canImport={isGlobalScope}
+              canDelete={isGlobalScope}
               onImportExisting={importExistingCountries}
               onEdit={editCountry}
               onDelete={deleteCountry}
@@ -882,11 +835,12 @@ export function LocationsAdmin({
         </div>
 
         <div className="grid gap-5">
-          {isGlobalScope ? (
+          {canEditCountry ? (
             <CountryFormView
               form={countryForm}
               setForm={setCountryForm}
               onLocaleChange={changeCountryFormLocale}
+              canCreate={isGlobalScope}
               saving={saving}
               uploadingField={uploadingField}
               onUploadImage={uploadPublicImage}
@@ -926,6 +880,8 @@ function CountryList({
   displayLocale,
   loading,
   saving,
+  canImport,
+  canDelete,
   onImportExisting,
   onEdit,
   onDelete,
@@ -935,6 +891,8 @@ function CountryList({
   displayLocale: Locale;
   loading: boolean;
   saving: boolean;
+  canImport: boolean;
+  canDelete: boolean;
   onImportExisting: () => void;
   onEdit: (country: CountryRow) => void;
   onDelete: (id: string) => void;
@@ -944,16 +902,22 @@ function CountryList({
       <summary className="cursor-pointer text-xl font-semibold">
         Países ({countries.length})
       </summary>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <button
-          onClick={onImportExisting}
-          disabled={saving || loading}
-          className="inline-flex items-center gap-2 bg-[var(--ink-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          Importar países existentes
-        </button>
-      </div>
+      {canImport ? (
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            onClick={onImportExisting}
+            disabled={saving || loading}
+            className="inline-flex items-center gap-2 bg-[var(--ink-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Plus size={16} />
+            )}
+            Importar países existentes
+          </button>
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-3">
         {loading ? (
           <p className="text-sm text-[var(--muted)]">Cargando países...</p>
@@ -1001,13 +965,15 @@ function CountryList({
                   >
                     Editar
                   </button>
-                  <button
-                    onClick={() => onDelete(country.id)}
-                    className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
-                  >
-                    <Trash2 size={15} />
-                    Borrar
-                  </button>
+                  {canDelete ? (
+                    <button
+                      onClick={() => onDelete(country.id)}
+                      className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
+                    >
+                      <Trash2 size={15} />
+                      Borrar
+                    </button>
+                  ) : null}
                 </div>
               </article>
             );
@@ -1100,6 +1066,7 @@ function CountryFormView({
   form,
   setForm,
   onLocaleChange,
+  canCreate,
   saving,
   uploadingField,
   onUploadImage,
@@ -1109,6 +1076,7 @@ function CountryFormView({
   form: CountryForm;
   setForm: React.Dispatch<React.SetStateAction<CountryForm>>;
   onLocaleChange: (locale: Locale) => void;
+  canCreate: boolean;
   saving: boolean;
   uploadingField: string | null;
   onUploadImage: UploadImageFn;
@@ -1119,11 +1087,16 @@ function CountryFormView({
     <details className="border border-[var(--line)] p-4">
       <summary className="cursor-pointer">
         <span className="inline-flex items-center gap-2 text-xl font-semibold">
-        <Flag size={20} className="text-[var(--accent)]" />
-          {form.id ? "Editar país" : "Nuevo país"}
+          <Flag size={20} className="text-[var(--accent)]" />
+          {form.id ? "Editar país" : canCreate ? "Nuevo país" : "Selecciona país"}
         </span>
       </summary>
       <div className="mt-4 grid gap-3">
+        {!canCreate && !form.id ? (
+          <p className="text-sm font-semibold text-[var(--accent)]">
+            Selecciona tu país en la lista para editarlo.
+          </p>
+        ) : null}
         <AdminSelect
           label="Idioma"
           value={form.locale}
@@ -1220,7 +1193,7 @@ function CountryFormView({
         />
         <FormButtons
           saving={saving}
-          disabled={!form.code || !form.name}
+          disabled={!form.code || !form.name || (!canCreate && !form.id)}
           onSave={onSave}
           onReset={onReset}
         />

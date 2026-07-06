@@ -173,9 +173,11 @@ async function saveCountry(
   scope: LocationScope,
   input: NonNullable<LocationBody["country"]>,
 ) {
-  if (!scope.isGlobal) {
+  const countryId = normalizeText(input.id);
+
+  if (!scope.isGlobal && (!countryId || !canManageCountry(scope, countryId))) {
     return NextResponse.json(
-      { error: "Solo super admin puede modificar paises." },
+      { error: "Solo puedes modificar tu propio pais." },
       { status: 403 },
     );
   }
@@ -200,11 +202,11 @@ async function saveCountry(
     flag_media_id: input.flagMediaId ?? null,
     main_image_media_id: null,
   };
-  const country = input.id
+  const country = countryId
     ? await admin
         .from("countries")
         .update(payload)
-        .eq("id", input.id)
+        .eq("id", countryId)
         .select("id")
         .single<{ id: string }>()
     : await admin
