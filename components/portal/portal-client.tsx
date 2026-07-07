@@ -18,6 +18,7 @@ import {
 import Image from "next/image";
 import type { Session } from "@supabase/supabase-js";
 import { createPortalClient } from "@/lib/supabase/portal-browser";
+import { saveAdminSessionBridge } from "@/lib/supabase/admin-session-bridge";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 
 type RoleKey =
@@ -1116,7 +1117,11 @@ export function PortalClient({
       {portal && !loading ? (
         <div className="grid gap-5">
           {portal.dashboard ? (
-            <AdminDashboard dashboard={portal.dashboard} locale={locale} />
+            <AdminDashboard
+              dashboard={portal.dashboard}
+              locale={locale}
+              session={session}
+            />
           ) : (
             <>
               <MemberPanel
@@ -1140,9 +1145,11 @@ export function PortalClient({
 function AdminDashboard({
   dashboard,
   locale,
+  session,
 }: {
   dashboard: PortalDashboard | null;
   locale: Locale;
+  session: Session | null;
 }) {
   if (!dashboard) {
     return null;
@@ -1172,6 +1179,11 @@ function AdminDashboard({
           <h3 className="text-2xl font-semibold">Gestion por pais y dojo</h3>
           <a
             href={`/${locale}/admin`}
+            onClick={() => {
+              if (session) {
+                saveAdminSessionBridge(session);
+              }
+            }}
             className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
           >
             <ExternalLink size={15} />

@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
+import { getAdminSessionBridgeHeaders } from "@/lib/supabase/admin-session-bridge";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
@@ -196,7 +197,9 @@ export function LocationsAdmin({
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
 
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return token
+      ? { Authorization: `Bearer ${token}` }
+      : getAdminSessionBridgeHeaders();
   }, [supabase]);
 
   const loadLocations = useCallback(async () => {

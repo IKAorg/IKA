@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { Locale } from "@/lib/i18n/config";
 import { createClient } from "@/lib/supabase/browser";
+import { getAdminSessionBridgeHeaders } from "@/lib/supabase/admin-session-bridge";
 
 type CountryOption = {
   id: string;
@@ -137,7 +138,9 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     const user = data.session?.user;
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = token
+      ? {}
+      : getAdminSessionBridgeHeaders();
 
     if (token) {
       headers.Authorization = `Bearer ${token}`;

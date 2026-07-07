@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { Locale } from "@/lib/i18n/config";
 import { createClient } from "@/lib/supabase/browser";
+import { getAdminSessionBridgeHeaders } from "@/lib/supabase/admin-session-bridge";
 
 const EventsAdmin = dynamic(
   () => import("@/components/admin/events-admin").then((mod) => mod.EventsAdmin),
@@ -92,7 +93,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
         const token = data.session?.access_token;
         const headers: Record<string, string> = token
           ? { Authorization: `Bearer ${token}` }
-          : {};
+          : getAdminSessionBridgeHeaders();
 
         return Promise.all([
           fetch("/api/portal/me", {
