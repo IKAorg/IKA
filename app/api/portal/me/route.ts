@@ -54,7 +54,12 @@ export async function GET(request: NextRequest) {
     email: string;
     display_name: string | null;
     status: string;
+    role_profile_ids?: string[];
   };
+  const roleProfileIds =
+    portalProfile.role_profile_ids && portalProfile.role_profile_ids.length > 0
+      ? portalProfile.role_profile_ids
+      : [portalProfile.id];
 
   const [rolesResult, memberResult] = await Promise.all([
     supabase
@@ -62,7 +67,7 @@ export async function GET(request: NextRequest) {
       .select(
         "id,country_id,dojo_id,roles(key,name),countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
-      .eq("profile_id", portalProfile.id),
+      .in("profile_id", roleProfileIds),
     getPortalMember(supabase, portalProfile.id, portalProfile.email),
   ]);
 
@@ -536,6 +541,7 @@ async function getPortalProfile(
   authUserId: string,
   email: string,
 ) {
+  const normalizedEmail = normalizeEmail(email);
   const byAuth = await supabase
     .from("users_profiles")
     .select("id,email,display_name,status")
@@ -549,10 +555,24 @@ async function getPortalProfile(
   }>)[0];
 
   if (authProfile) {
-    return authProfile;
-  }
+    const emailProfiles = normalizedEmail
+      ? await supabase
+          .from("users_profiles")
+          .select("id")
+          .ilike("email", normalizedEmail)
+          .limit(5)
+      : { data: [], error: null };
+    const roleProfileIds = Array.from(
+      new Set([
+        authProfile.id,
+        ...(((emailProfiles.data ?? []) as Array<{ id: string }>).map(
+          (profile) => profile.id,
+        )),
+      ]),
+    );
 
-  const normalizedEmail = normalizeEmail(email);
+    return { ...authProfile, role_profile_ids: roleProfileIds };
+  }
 
   if (!normalizedEmail) {
     return null;
@@ -587,7 +607,9 @@ async function getPortalProfile(
       status: string;
     }>();
 
-  return linked.data ?? emailProfile;
+  const linkedProfile = linked.data ?? emailProfile;
+
+  return { ...linkedProfile, role_profile_ids: [linkedProfile.id] };
 }
 
 async function getPortalMember(

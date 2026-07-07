@@ -264,7 +264,13 @@ async function saveDojo(
     );
   }
 
-  if (input.id && !scope.isGlobal && scope.dojoIds.length > 0 && !scope.dojoIds.includes(input.id)) {
+  if (
+    input.id &&
+    !scope.isGlobal &&
+    !scope.countryIds.includes(countryId) &&
+    scope.dojoIds.length > 0 &&
+    !scope.dojoIds.includes(input.id)
+  ) {
     return NextResponse.json(
       { error: "No puedes modificar ese dojo." },
       { status: 403 },
@@ -481,6 +487,7 @@ async function getAdminProfile(
   authUserId: string,
   email: string,
 ) {
+  const normalizedEmail = normalizeEmail(email);
   const byAuth = await admin
     .from("users_profiles")
     .select("id")
@@ -491,10 +498,24 @@ async function getAdminProfile(
   }>)[0];
 
   if (authProfile) {
-    return withProfileRoles(admin, authProfile.id);
-  }
+    const emailProfiles = normalizedEmail
+      ? await admin
+          .from("users_profiles")
+          .select("id")
+          .ilike("email", normalizedEmail)
+          .limit(5)
+      : { data: [], error: null };
+    const profileIds = Array.from(
+      new Set([
+        authProfile.id,
+        ...(((emailProfiles.data ?? []) as Array<{ id: string }>).map(
+          (profile) => profile.id,
+        )),
+      ]),
+    );
 
-  const normalizedEmail = normalizeEmail(email);
+    return withProfileRoles(admin, profileIds);
+  }
 
   if (!normalizedEmail) {
     return null;
@@ -526,11 +547,23 @@ async function getAdminProfile(
   return withProfileRoles(admin, linked.data?.id ?? emailProfile.id);
 }
 
-async function withProfileRoles(admin: SupabaseAdminClient, profileId: string) {
+async function withProfileRoles(
+  admin: SupabaseAdminClient,
+  profileIdOrIds: string | string[],
+) {
+  const profileIds = Array.isArray(profileIdOrIds)
+    ? profileIdOrIds
+    : [profileIdOrIds];
+  const primaryProfileId = profileIds[0] ?? "";
+
+  if (!primaryProfileId) {
+    return null;
+  }
+
   const assignments = await admin
     .from("user_roles")
     .select("country_id,dojo_id,role_id")
-    .eq("profile_id", profileId);
+    .in("profile_id", profileIds);
 
   if (assignments.error) {
     return null;
@@ -561,7 +594,7 @@ async function withProfileRoles(admin: SupabaseAdminClient, profileId: string) {
   );
 
   return {
-    id: profileId,
+    id: primaryProfileId,
     user_roles: rows.map((assignment) => ({
       country_id: assignment.country_id,
       dojo_id: assignment.dojo_id,

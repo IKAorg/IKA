@@ -717,6 +717,7 @@ async function getMembersAdminProfile(
   authUserId: string,
   email: string,
 ) {
+  const normalizedEmail = normalizeEmail(email);
   const byAuth = await admin
     .from("users_profiles")
     .select("id")
@@ -728,10 +729,24 @@ async function getMembersAdminProfile(
   }>)[0];
 
   if (byAuthProfile) {
-    return withProfileRoles(admin, byAuthProfile.id);
-  }
+    const emailProfiles = normalizedEmail
+      ? await admin
+          .from("users_profiles")
+          .select("id")
+          .ilike("email", normalizedEmail)
+          .limit(5)
+      : { data: [], error: null };
+    const profileIds = Array.from(
+      new Set([
+        byAuthProfile.id,
+        ...(((emailProfiles.data ?? []) as Array<{ id: string }>).map(
+          (profile) => profile.id,
+        )),
+      ]),
+    );
 
-  const normalizedEmail = normalizeEmail(email);
+    return withProfileRoles(admin, profileIds);
+  }
 
   if (!normalizedEmail) {
     return null;
@@ -764,11 +779,23 @@ async function getMembersAdminProfile(
   return withProfileRoles(admin, linked.data?.id ?? byEmailProfile.id);
 }
 
-async function withProfileRoles(admin: SupabaseAdminClient, profileId: string) {
+async function withProfileRoles(
+  admin: SupabaseAdminClient,
+  profileIdOrIds: string | string[],
+) {
+  const profileIds = Array.isArray(profileIdOrIds)
+    ? profileIdOrIds
+    : [profileIdOrIds];
+  const primaryProfileId = profileIds[0] ?? "";
+
+  if (!primaryProfileId) {
+    return null;
+  }
+
   const assignments = await admin
     .from("user_roles")
     .select("country_id,dojo_id,role_id")
-    .eq("profile_id", profileId);
+    .in("profile_id", profileIds);
 
   if (assignments.error) {
     return null;
@@ -799,7 +826,7 @@ async function withProfileRoles(admin: SupabaseAdminClient, profileId: string) {
   );
 
   return {
-    id: profileId,
+    id: primaryProfileId,
     user_roles: rows.map((assignment) => ({
       country_id: assignment.country_id,
       dojo_id: assignment.dojo_id,

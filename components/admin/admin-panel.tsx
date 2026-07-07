@@ -101,8 +101,10 @@ export function AdminPanel({ locale }: AdminPanelProps) {
           return;
         }
 
-        const nextScope = (portal?.dashboard?.scope ??
-          members?.scope) as AdminScope | undefined;
+        const nextScope = mergeScopes(
+          portal?.dashboard?.scope as AdminScope | undefined,
+          members?.scope as AdminScope | undefined,
+        );
         setScope(nextScope ?? null);
         setLoadingScope(false);
       })
@@ -172,6 +174,23 @@ export function AdminPanel({ locale }: AdminPanelProps) {
       ) : null}
     </>
   );
+}
+
+function mergeScopes(...scopes: Array<AdminScope | undefined>) {
+  const validScopes = scopes.filter(Boolean) as AdminScope[];
+
+  if (validScopes.length === 0) {
+    return null;
+  }
+
+  return {
+    roleKeys: Array.from(new Set(validScopes.flatMap((scope) => scope.roleKeys ?? []))),
+    isGlobal: validScopes.some((scope) => scope.isGlobal),
+    countryIds: Array.from(
+      new Set(validScopes.flatMap((scope) => scope.countryIds ?? [])),
+    ),
+    dojoIds: Array.from(new Set(validScopes.flatMap((scope) => scope.dojoIds ?? []))),
+  };
 }
 
 function AdminModule({
