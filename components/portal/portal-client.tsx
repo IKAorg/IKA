@@ -194,7 +194,242 @@ type PortalCopy = {
   saveFicha: string;
   fichaUpdated: string;
   fichaCredentialsUpdated: string;
+  oldPkceLink: string;
+  emailPasswordRequired: string;
+  emailCredentialsRequired: string;
+  kenshiEmailRequired: string;
+  passwordMinLength: string;
+  invalidRecoverySession: string;
+  recoveryLinkMismatch: (activeEmail: string, expectedEmail: string) => string;
+  passwordUpdated: string;
+  recoveryEyebrow: string;
+  recoveryTitle: string;
+  recoveryText: string;
+  kenshiEmailPlaceholder: string;
+  showPassword: string;
+  hidePassword: string;
+  savePassword: string;
   roleLabels: Record<RoleKey, string>;
+};
+
+type AdminDashboardCopy = {
+  metrics: {
+    countries: string;
+    dojos: string;
+    activeMembers: string;
+    totalMembers: string;
+    activeAdults: string;
+    activeChildren: string;
+  };
+  managementTitle: string;
+  editInfo: string;
+  noCountries: string;
+  activeKenshi: string;
+  adults: string;
+  children: string;
+  noDojos: string;
+  dojoKenshi: string;
+  noKenshi: string;
+  total: string;
+  records: string;
+  name: string;
+  group: string;
+  grade: string;
+  status: string;
+  childSingular: string;
+  adultSingular: string;
+};
+
+const adminDashboardCopies: Record<Locale, AdminDashboardCopy> = {
+  en: {
+    metrics: {
+      countries: "Countries",
+      dojos: "Dojos",
+      activeMembers: "Active Kenshi",
+      totalMembers: "Total Kenshi",
+      activeAdults: "Active adults",
+      activeChildren: "Active children",
+    },
+    managementTitle: "Management by country and dojo",
+    editInfo: "Edit information",
+    noCountries: "There are no countries in this scope.",
+    activeKenshi: "active Kenshi",
+    adults: "Adults",
+    children: "Children",
+    noDojos: "There are no dojos in this country.",
+    dojoKenshi: "Dojo Kenshi",
+    noKenshi: "There are no Kenshi in this dojo.",
+    total: "total",
+    records: "records",
+    name: "Name",
+    group: "Group",
+    grade: "Grade",
+    status: "Status",
+    childSingular: "Child",
+    adultSingular: "Adult",
+  },
+  es: {
+    metrics: {
+      countries: "Paises",
+      dojos: "Dojos",
+      activeMembers: "Kenshi activos",
+      totalMembers: "Kenshi total",
+      activeAdults: "Adultos activos",
+      activeChildren: "Ninos activos",
+    },
+    managementTitle: "Gestion por pais y dojo",
+    editInfo: "Editar informacion",
+    noCountries: "No hay paises en este alcance.",
+    activeKenshi: "Kenshi activos",
+    adults: "Adultos",
+    children: "Ninos",
+    noDojos: "No hay dojos en este pais.",
+    dojoKenshi: "Kenshi del dojo",
+    noKenshi: "No hay Kenshi en este dojo.",
+    total: "total",
+    records: "registros",
+    name: "Nombre",
+    group: "Grupo",
+    grade: "Grado",
+    status: "Estado",
+    childSingular: "Nino",
+    adultSingular: "Adulto",
+  },
+  it: {
+    metrics: {
+      countries: "Paesi",
+      dojos: "Dojo",
+      activeMembers: "Kenshi attivi",
+      totalMembers: "Kenshi totali",
+      activeAdults: "Adulti attivi",
+      activeChildren: "Bambini attivi",
+    },
+    managementTitle: "Gestione per paese e dojo",
+    editInfo: "Modifica informazioni",
+    noCountries: "Non ci sono paesi in questo ambito.",
+    activeKenshi: "Kenshi attivi",
+    adults: "Adulti",
+    children: "Bambini",
+    noDojos: "Non ci sono dojo in questo paese.",
+    dojoKenshi: "Kenshi del dojo",
+    noKenshi: "Non ci sono Kenshi in questo dojo.",
+    total: "totali",
+    records: "record",
+    name: "Nome",
+    group: "Gruppo",
+    grade: "Grado",
+    status: "Stato",
+    childSingular: "Bambino",
+    adultSingular: "Adulto",
+  },
+  fr: {
+    metrics: {
+      countries: "Pays",
+      dojos: "Dojos",
+      activeMembers: "Kenshi actifs",
+      totalMembers: "Total Kenshi",
+      activeAdults: "Adultes actifs",
+      activeChildren: "Enfants actifs",
+    },
+    managementTitle: "Gestion par pays et dojo",
+    editInfo: "Modifier les informations",
+    noCountries: "Aucun pays dans ce perimetre.",
+    activeKenshi: "Kenshi actifs",
+    adults: "Adultes",
+    children: "Enfants",
+    noDojos: "Aucun dojo dans ce pays.",
+    dojoKenshi: "Kenshi du dojo",
+    noKenshi: "Aucun Kenshi dans ce dojo.",
+    total: "total",
+    records: "fiches",
+    name: "Nom",
+    group: "Groupe",
+    grade: "Grade",
+    status: "Statut",
+    childSingular: "Enfant",
+    adultSingular: "Adulte",
+  },
+  ja: {
+    metrics: {
+      countries: "国",
+      dojos: "道場",
+      activeMembers: "在籍拳士",
+      totalMembers: "拳士合計",
+      activeAdults: "在籍大人",
+      activeChildren: "在籍子ども",
+    },
+    managementTitle: "国・道場別管理",
+    editInfo: "情報を編集",
+    noCountries: "この範囲に国はありません。",
+    activeKenshi: "在籍拳士",
+    adults: "大人",
+    children: "子ども",
+    noDojos: "この国に道場はありません。",
+    dojoKenshi: "道場の拳士",
+    noKenshi: "この道場に拳士はいません。",
+    total: "合計",
+    records: "件",
+    name: "氏名",
+    group: "区分",
+    grade: "級段",
+    status: "状態",
+    childSingular: "子ども",
+    adultSingular: "大人",
+  },
+  zh: {
+    metrics: {
+      countries: "国家",
+      dojos: "道场",
+      activeMembers: "在籍拳士",
+      totalMembers: "拳士总数",
+      activeAdults: "在籍成人",
+      activeChildren: "在籍儿童",
+    },
+    managementTitle: "按国家和道场管理",
+    editInfo: "编辑信息",
+    noCountries: "此范围内没有国家。",
+    activeKenshi: "在籍拳士",
+    adults: "成人",
+    children: "儿童",
+    noDojos: "此国家没有道场。",
+    dojoKenshi: "道场拳士",
+    noKenshi: "此道场没有拳士。",
+    total: "总计",
+    records: "条记录",
+    name: "姓名",
+    group: "组别",
+    grade: "级别",
+    status: "状态",
+    childSingular: "儿童",
+    adultSingular: "成人",
+  },
+  cs: {
+    metrics: {
+      countries: "Zeme",
+      dojos: "Dojo",
+      activeMembers: "Aktivni Kenshi",
+      totalMembers: "Kenshi celkem",
+      activeAdults: "Aktivni dospeli",
+      activeChildren: "Aktivni deti",
+    },
+    managementTitle: "Sprava podle zeme a dojo",
+    editInfo: "Upravit informace",
+    noCountries: "V tomto rozsahu nejsou zadne zeme.",
+    activeKenshi: "aktivni Kenshi",
+    adults: "Dospeli",
+    children: "Deti",
+    noDojos: "V teto zemi nejsou zadna dojo.",
+    dojoKenshi: "Kenshi dojo",
+    noKenshi: "V tomto dojo nejsou zadni Kenshi.",
+    total: "celkem",
+    records: "zaznamu",
+    name: "Jmeno",
+    group: "Skupina",
+    grade: "Stupen",
+    status: "Stav",
+    childSingular: "Dite",
+    adultSingular: "Dospely",
+  },
 };
 
 const portalCopies: Record<Locale, PortalCopy> = {
@@ -254,6 +489,25 @@ const portalCopies: Record<Locale, PortalCopy> = {
     saveFicha: "Save IKA record",
     fichaUpdated: "IKA record updated.",
     fichaCredentialsUpdated: "IKA record and credentials updated.",
+    oldPkceLink:
+      "This old link uses a PKCE code that is no longer available. Request a new recovery email and open the new link.",
+    emailPasswordRequired: "Enter your email and password.",
+    emailCredentialsRequired: "Enter your email to receive credentials.",
+    kenshiEmailRequired: "Enter the Kenshi email.",
+    passwordMinLength: "The password must contain at least 6 characters.",
+    invalidRecoverySession:
+      "The recovery link did not open a valid session. Request a new email and open it in a private window.",
+    recoveryLinkMismatch: (activeEmail, expectedEmail) =>
+      `This link is active for ${activeEmail}, not for ${expectedEmail}. Sign out of the current account or open the email in a private window.`,
+    passwordUpdated: "Password updated.",
+    recoveryEyebrow: "IKA record",
+    recoveryTitle: "Create a new password",
+    recoveryText:
+      "Enter the email and a new password to activate portal access.",
+    kenshiEmailPlaceholder: "Kenshi email",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    savePassword: "Save password",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Global admin",
@@ -318,6 +572,25 @@ const portalCopies: Record<Locale, PortalCopy> = {
     saveFicha: "Guardar ficha IKA",
     fichaUpdated: "Ficha IKA actualizada.",
     fichaCredentialsUpdated: "Ficha IKA y credenciales actualizadas.",
+    oldPkceLink:
+      "Este enlace antiguo usa un codigo PKCE que ya no esta disponible. Solicita un nuevo email de recuperacion y abre el enlace nuevo.",
+    emailPasswordRequired: "Introduce email y contrasena.",
+    emailCredentialsRequired: "Introduce tu email para recibir credenciales.",
+    kenshiEmailRequired: "Introduce el email del Kenshi.",
+    passwordMinLength: "La contrasena debe tener al menos 6 caracteres.",
+    invalidRecoverySession:
+      "El enlace de recuperacion no ha abierto una sesion valida. Solicita un nuevo email y abrelo en una ventana privada.",
+    recoveryLinkMismatch: (activeEmail, expectedEmail) =>
+      `Este enlace esta activo para ${activeEmail}, no para ${expectedEmail}. Sal de la cuenta actual o abre el email en una ventana privada.`,
+    passwordUpdated: "Contrasena actualizada.",
+    recoveryEyebrow: "Ficha IKA",
+    recoveryTitle: "Crear nueva contrasena",
+    recoveryText:
+      "Introduce el email y una contrasena nueva para activar el acceso al portal.",
+    kenshiEmailPlaceholder: "Email del Kenshi",
+    showPassword: "Mostrar contrasena",
+    hidePassword: "Ocultar contrasena",
+    savePassword: "Guardar contrasena",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Admin global",
@@ -381,6 +654,25 @@ const portalCopies: Record<Locale, PortalCopy> = {
     saveFicha: "Salva scheda IKA",
     fichaUpdated: "Scheda IKA aggiornata.",
     fichaCredentialsUpdated: "Scheda IKA e credenziali aggiornate.",
+    oldPkceLink:
+      "Questo vecchio link usa un codice PKCE non piu disponibile. Richiedi una nuova email di recupero e apri il nuovo link.",
+    emailPasswordRequired: "Inserisci email e password.",
+    emailCredentialsRequired: "Inserisci la tua email per ricevere le credenziali.",
+    kenshiEmailRequired: "Inserisci l'email del Kenshi.",
+    passwordMinLength: "La password deve contenere almeno 6 caratteri.",
+    invalidRecoverySession:
+      "Il link di recupero non ha aperto una sessione valida. Richiedi una nuova email e aprila in una finestra privata.",
+    recoveryLinkMismatch: (activeEmail, expectedEmail) =>
+      `Questo link e attivo per ${activeEmail}, non per ${expectedEmail}. Esci dall'account attuale o apri l'email in una finestra privata.`,
+    passwordUpdated: "Password aggiornata.",
+    recoveryEyebrow: "Scheda IKA",
+    recoveryTitle: "Crea una nuova password",
+    recoveryText:
+      "Inserisci l'email e una nuova password per attivare l'accesso al portale.",
+    kenshiEmailPlaceholder: "Email del Kenshi",
+    showPassword: "Mostra password",
+    hidePassword: "Nascondi password",
+    savePassword: "Salva password",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Admin globale",
@@ -444,6 +736,25 @@ const portalCopies: Record<Locale, PortalCopy> = {
     saveFicha: "Enregistrer la fiche IKA",
     fichaUpdated: "Fiche IKA mise a jour.",
     fichaCredentialsUpdated: "Fiche IKA et identifiants mis a jour.",
+    oldPkceLink:
+      "Cet ancien lien utilise un code PKCE qui n'est plus disponible. Demandez un nouvel email de recuperation et ouvrez le nouveau lien.",
+    emailPasswordRequired: "Saisissez votre email et votre mot de passe.",
+    emailCredentialsRequired: "Saisissez votre email pour recevoir vos identifiants.",
+    kenshiEmailRequired: "Saisissez l'email du Kenshi.",
+    passwordMinLength: "Le mot de passe doit contenir au moins 6 caracteres.",
+    invalidRecoverySession:
+      "Le lien de recuperation n'a pas ouvert de session valide. Demandez un nouvel email et ouvrez-le dans une fenetre privee.",
+    recoveryLinkMismatch: (activeEmail, expectedEmail) =>
+      `Ce lien est actif pour ${activeEmail}, pas pour ${expectedEmail}. Deconnectez-vous du compte actuel ou ouvrez l'email dans une fenetre privee.`,
+    passwordUpdated: "Mot de passe mis a jour.",
+    recoveryEyebrow: "Fiche IKA",
+    recoveryTitle: "Creer un nouveau mot de passe",
+    recoveryText:
+      "Saisissez l'email et un nouveau mot de passe pour activer l'acces au portail.",
+    kenshiEmailPlaceholder: "Email du Kenshi",
+    showPassword: "Afficher le mot de passe",
+    hidePassword: "Masquer le mot de passe",
+    savePassword: "Enregistrer le mot de passe",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Admin global",
@@ -507,6 +818,25 @@ const portalCopies: Record<Locale, PortalCopy> = {
     saveFicha: "IKA記録を保存",
     fichaUpdated: "IKA記録を更新しました。",
     fichaCredentialsUpdated: "IKA記録と認証情報を更新しました。",
+    oldPkceLink:
+      "この古いリンクのPKCEコードは利用できません。新しい復旧メールをリクエストし、新しいリンクを開いてください。",
+    emailPasswordRequired: "メールアドレスとパスワードを入力してください。",
+    emailCredentialsRequired: "認証情報を受け取るメールアドレスを入力してください。",
+    kenshiEmailRequired: "拳士のメールアドレスを入力してください。",
+    passwordMinLength: "パスワードは6文字以上で入力してください。",
+    invalidRecoverySession:
+      "復旧リンクで有効なセッションを開けませんでした。新しいメールをリクエストし、プライベートウィンドウで開いてください。",
+    recoveryLinkMismatch: (activeEmail, expectedEmail) =>
+      `このリンクは${activeEmail}用で、${expectedEmail}用ではありません。現在のアカウントからログアウトするか、メールをプライベートウィンドウで開いてください。`,
+    passwordUpdated: "パスワードを更新しました。",
+    recoveryEyebrow: "IKA記録",
+    recoveryTitle: "新しいパスワードを作成",
+    recoveryText:
+      "ポータルアクセスを有効にするため、メールアドレスと新しいパスワードを入力してください。",
+    kenshiEmailPlaceholder: "拳士のメール",
+    showPassword: "パスワードを表示",
+    hidePassword: "パスワードを隠す",
+    savePassword: "パスワードを保存",
     roleLabels: {
       super_admin: "スーパー管理者",
       global_admin: "グローバル管理者",
@@ -569,6 +899,24 @@ const portalCopies: Record<Locale, PortalCopy> = {
     saveFicha: "保存IKA档案",
     fichaUpdated: "IKA档案已更新。",
     fichaCredentialsUpdated: "IKA档案和登录凭据已更新。",
+    oldPkceLink:
+      "此旧链接使用的PKCE代码已不可用。请重新请求恢复邮件并打开新的链接。",
+    emailPasswordRequired: "请输入邮箱和密码。",
+    emailCredentialsRequired: "请输入邮箱以接收登录凭据。",
+    kenshiEmailRequired: "请输入拳士邮箱。",
+    passwordMinLength: "密码至少需要6个字符。",
+    invalidRecoverySession:
+      "恢复链接未打开有效会话。请重新请求邮件，并在隐私窗口中打开。",
+    recoveryLinkMismatch: (activeEmail, expectedEmail) =>
+      `此链接适用于${activeEmail}，不适用于${expectedEmail}。请退出当前账号，或在隐私窗口中打开邮件。`,
+    passwordUpdated: "密码已更新。",
+    recoveryEyebrow: "IKA档案",
+    recoveryTitle: "创建新密码",
+    recoveryText: "请输入邮箱和新密码以启用门户访问。",
+    kenshiEmailPlaceholder: "拳士邮箱",
+    showPassword: "显示密码",
+    hidePassword: "隐藏密码",
+    savePassword: "保存密码",
     roleLabels: {
       super_admin: "超级管理员",
       global_admin: "全局管理员",
@@ -632,6 +980,25 @@ const portalCopies: Record<Locale, PortalCopy> = {
     saveFicha: "Ulozit zaznam IKA",
     fichaUpdated: "Zaznam IKA byl aktualizovan.",
     fichaCredentialsUpdated: "Zaznam IKA a prihlasovaci udaje byly aktualizovany.",
+    oldPkceLink:
+      "Tento stary odkaz pouziva kod PKCE, ktery uz neni dostupny. Pozadejte o novy obnovovaci email a otevete novy odkaz.",
+    emailPasswordRequired: "Zadejte email a heslo.",
+    emailCredentialsRequired: "Zadejte email pro prijeti prihlasovacich udaju.",
+    kenshiEmailRequired: "Zadejte email Kenshi.",
+    passwordMinLength: "Heslo musi mit alespon 6 znaku.",
+    invalidRecoverySession:
+      "Obnovovaci odkaz neotevrel platnou relaci. Pozadejte o novy email a otevete ho v soukromem okne.",
+    recoveryLinkMismatch: (activeEmail, expectedEmail) =>
+      `Tento odkaz je aktivni pro ${activeEmail}, ne pro ${expectedEmail}. Odhlaste se z aktualniho uctu nebo otevete email v soukromem okne.`,
+    passwordUpdated: "Heslo bylo aktualizovano.",
+    recoveryEyebrow: "Zaznam IKA",
+    recoveryTitle: "Vytvorit nove heslo",
+    recoveryText:
+      "Zadejte email a nove heslo pro aktivaci pristupu do portalu.",
+    kenshiEmailPlaceholder: "Email Kenshi",
+    showPassword: "Zobrazit heslo",
+    hidePassword: "Skryt heslo",
+    savePassword: "Ulozit heslo",
     roleLabels: {
       super_admin: "Super admin",
       global_admin: "Global admin",
@@ -737,7 +1104,7 @@ export function PortalClient({
           setRecoveryMode(true);
           setMessage(
             exchangedSession.error.message.includes("code verifier")
-              ? "Este enlace antiguo usa un codigo PKCE que ya no esta disponible. Solicita un nuevo email de recuperacion y abre el enlace nuevo."
+              ? copy.oldPkceLink
               : exchangedSession.error.message,
           );
           setLoading(false);
@@ -838,11 +1205,11 @@ export function PortalClient({
       active = false;
       subscription.unsubscribe();
     };
-  }, [loadPortal, recoveryMode, supabase]);
+  }, [copy.oldPkceLink, loadPortal, recoveryMode, supabase]);
 
   async function signIn() {
     if (!email || !password) {
-      setMessage("Introduce email y contrasena.");
+      setMessage(copy.emailPasswordRequired);
       return;
     }
 
@@ -860,7 +1227,7 @@ export function PortalClient({
 
   async function requestCredentials() {
     if (!email) {
-      setMessage("Introduce tu email para recibir credenciales.");
+      setMessage(copy.emailCredentialsRequired);
       return;
     }
 
@@ -895,12 +1262,12 @@ export function PortalClient({
     const currentEmail = normalizeEmail(session?.user.email);
 
     if (!expectedEmail) {
-      setMessage("Introduce el email del Kenshi.");
+      setMessage(copy.kenshiEmailRequired);
       return;
     }
 
     if (!recoveryPassword || recoveryPassword.length < 6) {
-      setMessage("La contrasena debe tener al menos 6 caracteres.");
+      setMessage(copy.passwordMinLength);
       return;
     }
 
@@ -913,16 +1280,17 @@ export function PortalClient({
     );
 
     if (!currentSession.data.session) {
-      setMessage(
-        "El enlace de recuperacion no ha abierto una sesion valida. Solicita un nuevo email y abrelo en una ventana privada.",
-      );
+      setMessage(copy.invalidRecoverySession);
       setLoading(false);
       return;
     }
 
     if (recoverySessionEmail !== expectedEmail) {
       setMessage(
-        `Este enlace esta activo para ${recoverySessionEmail || currentEmail || "otra cuenta"}, no para ${expectedEmail}. Sal de la cuenta actual o abre el email en una ventana privada.`,
+        copy.recoveryLinkMismatch(
+          recoverySessionEmail || currentEmail || session?.user.email || "-",
+          expectedEmail,
+        ),
       );
       setLoading(false);
       return;
@@ -941,7 +1309,7 @@ export function PortalClient({
     setRecoveryEmail("");
     setRecoveryPassword("");
     setRecoveryMode(false);
-    setMessage("Contrasena actualizada.");
+    setMessage(copy.passwordUpdated);
     await loadPortal();
   }
 
@@ -964,12 +1332,11 @@ export function PortalClient({
       <section className="mt-10 grid gap-6 border border-[var(--line)] bg-white p-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-            Ficha IKA
+            {copy.recoveryEyebrow}
           </p>
-          <h2 className="mt-3 text-3xl font-semibold">Crear nueva contrasena</h2>
+          <h2 className="mt-3 text-3xl font-semibold">{copy.recoveryTitle}</h2>
           <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-            Introduce el email y una contrasena nueva para activar el acceso al
-            portal.
+            {copy.recoveryText}
           </p>
         </div>
 
@@ -977,7 +1344,7 @@ export function PortalClient({
           <input
             value={recoveryEmail}
             onChange={(event) => setRecoveryEmail(event.target.value)}
-            placeholder="Email del Kenshi"
+            placeholder={copy.kenshiEmailPlaceholder}
             type="email"
             className="border border-[var(--line)] px-3 py-3"
           />
@@ -985,7 +1352,7 @@ export function PortalClient({
             <input
               value={recoveryPassword}
               onChange={(event) => setRecoveryPassword(event.target.value)}
-              placeholder="Nueva contrasena"
+              placeholder={copy.newPassword}
               type={showRecoveryPassword ? "text" : "password"}
               className="min-w-0 px-3 py-3 outline-none"
             />
@@ -994,9 +1361,9 @@ export function PortalClient({
               onClick={() => setShowRecoveryPassword((current) => !current)}
               className="inline-flex w-12 items-center justify-center border-l border-[var(--line)]"
               aria-label={
-                showRecoveryPassword ? "Ocultar contrasena" : "Mostrar contrasena"
+                showRecoveryPassword ? copy.hidePassword : copy.showPassword
               }
-              title={showRecoveryPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+              title={showRecoveryPassword ? copy.hidePassword : copy.showPassword}
             >
               {showRecoveryPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -1007,7 +1374,7 @@ export function PortalClient({
             className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-5 py-3 font-semibold text-white disabled:opacity-50"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-            Guardar contrasena
+            {copy.savePassword}
           </button>
           {message ? (
             <p className="text-sm font-semibold text-[var(--accent)]">
@@ -1052,8 +1419,8 @@ export function PortalClient({
               type="button"
               onClick={() => setShowPassword((current) => !current)}
               className="inline-flex w-12 items-center justify-center border-l border-[var(--line)]"
-              aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
-              title={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+              aria-label={showPassword ? copy.hidePassword : copy.showPassword}
+              title={showPassword ? copy.hidePassword : copy.showPassword}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -1163,20 +1530,22 @@ function AdminDashboard({
     );
   }
 
+  const copy = adminDashboardCopies[locale] ?? adminDashboardCopies.en;
+
   return (
     <section className="grid gap-5">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Paises" value={dashboard.totals.countries} />
-        <MetricCard label="Dojos" value={dashboard.totals.dojos} />
-        <MetricCard label="Kenshi activos" value={dashboard.totals.activeMembers} />
-        <MetricCard label="Kenshi total" value={dashboard.totals.members} />
-        <MetricCard label="Adultos activos" value={dashboard.totals.activeAdults} />
-        <MetricCard label="Ninos activos" value={dashboard.totals.activeChildren} />
+        <MetricCard label={copy.metrics.countries} value={dashboard.totals.countries} />
+        <MetricCard label={copy.metrics.dojos} value={dashboard.totals.dojos} />
+        <MetricCard label={copy.metrics.activeMembers} value={dashboard.totals.activeMembers} />
+        <MetricCard label={copy.metrics.totalMembers} value={dashboard.totals.members} />
+        <MetricCard label={copy.metrics.activeAdults} value={dashboard.totals.activeAdults} />
+        <MetricCard label={copy.metrics.activeChildren} value={dashboard.totals.activeChildren} />
       </div>
 
       <section className="border border-[var(--line)] bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-2xl font-semibold">Gestion por pais y dojo</h3>
+          <h3 className="text-2xl font-semibold">{copy.managementTitle}</h3>
           <a
             href={`/${locale}/admin`}
             onClick={() => {
@@ -1187,12 +1556,12 @@ function AdminDashboard({
             className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
           >
             <ExternalLink size={15} />
-            Editar informacion
+            {copy.editInfo}
           </a>
         </div>
         <div className="mt-4 grid gap-3">
           {dashboard.membersByCountry.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">No hay paises en este alcance.</p>
+            <p className="text-sm text-[var(--muted)]">{copy.noCountries}</p>
           ) : (
             dashboard.membersByCountry.map((country) => {
               const countryDojos = dashboard.membersByDojo.filter(
@@ -1214,16 +1583,18 @@ function AdminDashboard({
                         />
                       ) : null}
                       <span>
-                        {country.countryName} · {country.dojoCount} dojos ·{" "}
-                        {country.activeMembers} Kenshi activos · Adultos{" "}
-                        {country.activeAdults} / Ninos {country.activeChildren}
+                        {country.countryName} · {country.dojoCount}{" "}
+                        {copy.metrics.dojos} · {country.activeMembers}{" "}
+                        {copy.activeKenshi} · {copy.adults}{" "}
+                        {country.activeAdults} / {copy.children}{" "}
+                        {country.activeChildren}
                       </span>
                     </span>
                   </summary>
                   <div className="mt-3 grid gap-3">
                     {countryDojos.length === 0 ? (
                       <p className="text-sm text-[var(--muted)]">
-                        No hay dojos en este pais.
+                        {copy.noDojos}
                       </p>
                     ) : (
                       countryDojos.map((dojo) => {
@@ -1246,17 +1617,18 @@ function AdminDashboard({
                                   />
                                 ) : null}
                                 <span>
-                                  {dojo.dojoName} · {dojo.activeMembers} activos /{" "}
-                                  {dojo.totalMembers} total · Adultos {dojo.activeAdults} / Ninos{" "}
-                                  {dojo.activeChildren}
+                                  {dojo.dojoName} · {dojo.activeMembers}{" "}
+                                  {copy.activeKenshi} / {dojo.totalMembers}{" "}
+                                  {copy.total} · {copy.adults} {dojo.activeAdults} /{" "}
+                                  {copy.children} {dojo.activeChildren}
                                 </span>
                               </span>
                             </summary>
                             <div className="mt-3 border border-[var(--line)] bg-white">
                               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-semibold">
-                                <span>Kenshi del dojo</span>
+                                <span>{copy.dojoKenshi}</span>
                                 <span className="text-[var(--muted)]">
-                                  {dojoMembers.length} registros
+                                  {dojoMembers.length} {copy.records}
                                 </span>
                               </div>
                               <div
@@ -1267,11 +1639,11 @@ function AdminDashboard({
                                   <thead className="sticky top-0 z-10 bg-white">
                                     <tr className="border-b border-[var(--line)]">
                                       <th className="py-2 pl-3 pr-4">IKA</th>
-                                      <th className="py-2 pr-4">Nombre</th>
-                                      <th className="py-2 pr-4">Grupo</th>
+                                      <th className="py-2 pr-4">{copy.name}</th>
+                                      <th className="py-2 pr-4">{copy.group}</th>
                                       <th className="py-2 pr-4">Email</th>
-                                      <th className="py-2 pr-4">Grado</th>
-                                      <th className="py-2 pr-4">Estado</th>
+                                      <th className="py-2 pr-4">{copy.grade}</th>
+                                      <th className="py-2 pr-4">{copy.status}</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -1281,7 +1653,7 @@ function AdminDashboard({
                                           className="py-3 pl-3 text-[var(--muted)]"
                                           colSpan={6}
                                         >
-                                          No hay Kenshi en este dojo.
+                                          {copy.noKenshi}
                                         </td>
                                       </tr>
                                     ) : (
@@ -1298,9 +1670,9 @@ function AdminDashboard({
                                           </td>
                                           <td className="py-2 pr-4">
                                             {member.member_group === "child"
-                                              ? "Nino"
+                                              ? copy.childSingular
                                               : member.member_group === "adult"
-                                                ? "Adulto"
+                                                ? copy.adultSingular
                                                 : "-"}
                                           </td>
                                           <td className="py-2 pr-4">
@@ -1634,9 +2006,9 @@ function MemberPanel({
                   onClick={() => setShowNewPassword((current) => !current)}
                   className="inline-flex w-11 items-center justify-center border-l border-[var(--line)]"
                   aria-label={
-                    showNewPassword ? "Ocultar contrasena" : "Mostrar contrasena"
+                    showNewPassword ? copy.hidePassword : copy.showPassword
                   }
-                  title={showNewPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+                  title={showNewPassword ? copy.hidePassword : copy.showPassword}
                 >
                   {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>

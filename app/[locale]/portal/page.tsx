@@ -40,16 +40,16 @@ const portalPageCopy: Record<
       "Connectez-vous pour voir et gerer les donnees IKA selon votre role.",
   },
   ja: {
-    eyebrow: "Private access",
-    title: "IKA Portal",
+    eyebrow: "プライベートアクセス",
+    title: "IKAポータル",
     intro:
-      "Sign in to view and manage IKA data according to your role.",
+      "ログインして、役割に応じたIKAデータを確認・管理します。",
   },
   zh: {
-    eyebrow: "Private access",
-    title: "IKA Portal",
+    eyebrow: "私人访问",
+    title: "IKA门户",
     intro:
-      "Sign in to view and manage IKA data according to your role.",
+      "登录后可根据你的角色查看和管理IKA数据。",
   },
   cs: {
     eyebrow: "Soukromy pristup",
