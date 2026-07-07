@@ -12,7 +12,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
@@ -178,7 +177,6 @@ export function LocationsAdmin({
   initialLocale?: Locale;
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const [session, setSession] = useState<Session | null>(null);
   const [countries, setCountries] = useState<CountryRow[]>([]);
   const [dojos, setDojos] = useState<DojoRow[]>([]);
   const [mediaById, setMediaById] = useState<Map<string, MediaRow>>(new Map());
@@ -245,25 +243,14 @@ export function LocationsAdmin({
   }, [getAuthHeaders]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) {
-        void loadLocations();
-      } else {
-        setLoading(false);
-      }
+    supabase.auth.getSession().then(() => {
+      void loadLocations();
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      if (nextSession) {
-        void loadLocations();
-      } else {
-        setCountries([]);
-        setDojos([]);
-      }
+    } = supabase.auth.onAuthStateChange(() => {
+      void loadLocations();
     });
 
     return () => subscription.unsubscribe();
@@ -780,17 +767,6 @@ export function LocationsAdmin({
 
   const isGlobalScope = scope?.isGlobal === true;
   const canEditCountry = isGlobalScope || (scope?.countryIds.length ?? 0) > 0;
-
-  if (!session) {
-    return (
-      <section className="mt-8 border border-[var(--line)] bg-white p-5">
-        <h2 className="text-2xl font-semibold">Países y dojos</h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          Entra primero en el admin para editar países y dojos.
-        </p>
-      </section>
-    );
-  }
 
   return (
     <section className="mt-8 border border-[var(--line)] bg-white p-5">

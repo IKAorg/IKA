@@ -94,14 +94,6 @@ export function AdminPanel({ locale }: AdminPanelProps) {
           ? { Authorization: `Bearer ${token}` }
           : {};
 
-        if (!token) {
-          return Promise.resolve([
-            { error: "No autenticado." },
-            { error: "No autenticado." },
-            { error: "No autenticado." },
-          ] as [AdminScopePayload, AdminScopePayload, AdminScopePayload]);
-        }
-
         return Promise.all([
           fetch("/api/portal/me", {
             cache: "no-store",
