@@ -69,10 +69,19 @@ type AdminScope = {
   dojoIds: string[];
 };
 
+type AdminScopePayload = {
+  error?: string;
+  scope?: AdminScope;
+  dashboard?: {
+    scope?: AdminScope;
+  } | null;
+};
+
 export function AdminPanel({ locale }: AdminPanelProps) {
   const supabase = useMemo(() => createClient(), []);
   const [scope, setScope] = useState<AdminScope | null>(null);
   const [loadingScope, setLoadingScope] = useState(true);
+  const [scopeMessage, setScopeMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -85,18 +94,36 @@ export function AdminPanel({ locale }: AdminPanelProps) {
           ? { Authorization: `Bearer ${token}` }
           : {};
 
+        if (!token) {
+          return Promise.resolve([
+            { error: "No autenticado." },
+            { error: "No autenticado." },
+            { error: "No autenticado." },
+          ] as [AdminScopePayload, AdminScopePayload, AdminScopePayload]);
+        }
+
         return Promise.all([
           fetch("/api/portal/me", {
             cache: "no-store",
             headers,
-          }).then((response) => response.json().catch(() => ({}))),
+          }).then((response) =>
+            response.json().catch(() => ({})) as Promise<AdminScopePayload>,
+          ),
           fetch("/api/admin/members", {
             cache: "no-store",
             headers,
-          }).then((response) => response.json().catch(() => ({}))),
+          }).then((response) =>
+            response.json().catch(() => ({})) as Promise<AdminScopePayload>,
+          ),
+          fetch("/api/admin/locations", {
+            cache: "no-store",
+            headers,
+          }).then((response) =>
+            response.json().catch(() => ({})) as Promise<AdminScopePayload>,
+          ),
         ]);
       })
-      .then(([portal, members]) => {
+      .then(([portal, members, locations]) => {
         if (!active) {
           return;
         }
@@ -104,8 +131,17 @@ export function AdminPanel({ locale }: AdminPanelProps) {
         const nextScope = mergeScopes(
           portal?.dashboard?.scope as AdminScope | undefined,
           members?.scope as AdminScope | undefined,
+          locations?.scope as AdminScope | undefined,
         );
         setScope(nextScope ?? null);
+        setScopeMessage(
+          nextScope
+            ? ""
+            : portal?.error ??
+                members?.error ??
+                locations?.error ??
+                "No se encontro ningun permiso de administracion para esta cuenta.",
+        );
         setLoadingScope(false);
       })
       .catch(() => {
@@ -122,6 +158,14 @@ export function AdminPanel({ locale }: AdminPanelProps) {
 
   if (loadingScope) {
     return <AdminLoading />;
+  }
+
+  if (!scope) {
+    return (
+      <div className="border border-[var(--line)] bg-[var(--paper)] p-5 text-sm font-semibold text-[var(--accent)]">
+        {scopeMessage || "No se encontraron permisos de administracion."}
+      </div>
+    );
   }
 
   const roleKeys = scope?.roleKeys ?? [];
