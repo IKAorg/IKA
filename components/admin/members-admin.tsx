@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileUp, Loader2, Mail, Pencil, Save, Send, UsersRound, X } from "lucide-react";
+import {
+  FileUp,
+  Loader2,
+  Mail,
+  Pencil,
+  Save,
+  Send,
+  Trash2,
+  UsersRound,
+  X,
+} from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import type { Locale } from "@/lib/i18n/config";
 import { createClient } from "@/lib/supabase/browser";
@@ -117,6 +127,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [inviteSendingId, setInviteSendingId] = useState("");
+  const [deletingMemberId, setDeletingMemberId] = useState("");
   const [editingMemberId, setEditingMemberId] = useState("");
   const [savingMemberId, setSavingMemberId] = useState("");
   const [memberForm, setMemberForm] = useState<MemberEditForm | null>(null);
@@ -222,13 +233,6 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   }, [loadMembers, supabase]);
 
   const rows = useMemo(() => parseCsvRows(csvText, payload), [csvText, payload]);
-  const eligibleDojos = useMemo(
-    () =>
-      payload.dojos.filter(
-        (dojo) => dojo.has_country_admin && dojo.has_dojo_admin,
-      ),
-    [payload.dojos],
-  );
   const isGlobalScope = payload.scope?.isGlobal === true;
   const isLockedToSingleDojo = !isGlobalScope && payload.dojos.length === 1;
   const effectiveSelectedDojoId = isLockedToSingleDojo
@@ -236,9 +240,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     : selectedDojoId;
   const selectedDojo =
     payload.dojos.find((dojo) => dojo.id === effectiveSelectedDojoId) ?? null;
-  const selectedDojoReady =
-    selectedDojo?.has_country_admin === true &&
-    selectedDojo?.has_dojo_admin === true;
+  const selectedDojoReady = Boolean(selectedDojo);
 
   const validRows = useMemo(
     () =>
@@ -427,6 +429,48 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     setMessage("Kenshi actualizado.");
   }
 
+  async function deleteMember(member: MemberRow) {
+    const memberName = `${member.first_name} ${member.last_name}`.trim();
+
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(`Eliminar definitivamente a ${memberName}?`)
+    ) {
+      return;
+    }
+
+    setDeletingMemberId(member.id);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "delete_member",
+        memberId: member.id,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo eliminar el Kenshi.");
+      setDeletingMemberId("");
+      return;
+    }
+
+    setPayload((current) => ({
+      ...current,
+      members: current.members.filter((item) => item.id !== member.id),
+    }));
+    setEditingMemberId("");
+    setMemberForm(null);
+    setDeletingMemberId("");
+    setMessage("Kenshi eliminado.");
+  }
+
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
@@ -475,7 +519,6 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             >
               <option value="">Selecciona dojo</option>
               {payload.dojos.map((dojo) => {
-                const ready = dojo.has_country_admin && dojo.has_dojo_admin;
                 const countryLabelText = countryLabelById(
                   payload,
                   dojo.country_id,
@@ -483,10 +526,9 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                 );
 
                 return (
-                  <option key={dojo.id} value={dojo.id} disabled={!ready}>
+                  <option key={dojo.id} value={dojo.id}>
                     {dojoLabel(dojo, initialLocale)}
                     {countryLabelText ? ` · ${countryLabelText}` : ""}
-                    {ready ? "" : " · falta admin pais o dojo"}
                   </option>
                 );
               })}
@@ -497,11 +539,6 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               {loading
                 ? "Cargando dojos..."
                 : message || "No hay dojos disponibles para tu rol."}
-            </span>
-          ) : !isLockedToSingleDojo && eligibleDojos.length === 0 ? (
-            <span className="text-sm text-[var(--accent)]">
-              Primero crea el admin de pais y el admin de dojo antes de importar
-              Kenshi.
             </span>
           ) : null}
           <button
@@ -673,6 +710,19 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                     >
                       <Pencil size={16} />
                       Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteMember(member)}
+                      disabled={deletingMemberId === member.id}
+                      className="inline-flex h-9 items-center justify-center gap-2 border border-[var(--line)] px-3 font-semibold text-[var(--accent)] disabled:opacity-50"
+                    >
+                      {deletingMemberId === member.id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                      Eliminar
                     </button>
                     <button
                       type="button"

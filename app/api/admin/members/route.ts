@@ -188,6 +188,19 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  if (body.action === "delete_member") {
+    const deleted = await guard.admin
+      .from("members")
+      .delete()
+      .eq("id", member.data.id);
+
+    if (deleted.error) {
+      return NextResponse.json({ error: deleted.error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, memberId: member.data.id });
+  }
+
   if (body.action === "update_member") {
     const input = body.member ?? {};
     const firstName = normalizeText(input.firstName);
@@ -433,7 +446,6 @@ export async function POST(request: NextRequest) {
 
   const countries = countriesResult.data ?? [];
   const dojos = dojosResult.data ?? [];
-  const readiness = await getAdminReadiness(guard.admin);
   const result = {
     imported: 0,
     invited: 0,
@@ -492,26 +504,6 @@ export async function POST(request: NextRequest) {
       result.errors.push({
         row: rowNumber,
         error: "No tienes permisos para ese pais o dojo.",
-      });
-      continue;
-    }
-
-    if (!readiness.countryIdsWithAdmin.has(countryId)) {
-      result.skipped += 1;
-      result.errors.push({
-        row: rowNumber,
-        error:
-          "Antes de importar Kenshi debe existir un administrador de pais.",
-      });
-      continue;
-    }
-
-    if (!readiness.dojoIdsWithAdmin.has(dojoId)) {
-      result.skipped += 1;
-      result.errors.push({
-        row: rowNumber,
-        error:
-          "Antes de importar Kenshi debe existir un administrador de dojo.",
       });
       continue;
     }
