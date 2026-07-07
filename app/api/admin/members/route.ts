@@ -683,6 +683,7 @@ async function requireMembersAdmin(request: NextRequest) {
     .filter(Boolean) as string[];
   const scope = {
     isGlobal: roleKeys.includes("super_admin") || roleKeys.includes("global_admin"),
+    roleKeys,
     countryIds: Array.from(new Set(explicitCountryIds)),
     dojoIds,
   };

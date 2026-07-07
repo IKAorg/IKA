@@ -99,6 +99,7 @@ type MembersPayload = {
   members: MemberRow[];
   scope?: {
     isGlobal: boolean;
+    roleKeys?: string[];
     countryIds: string[];
     dojoIds: string[];
   };

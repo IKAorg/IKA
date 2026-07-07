@@ -1225,6 +1225,8 @@ function DojoFormView({
   onSave: () => void;
   onReset: () => void;
 }) {
+  const effectiveCountryId = lockCountry ? countries[0]?.id ?? "" : form.countryId;
+
   return (
     <details className="border border-[var(--line)] p-4">
       <summary className="cursor-pointer">
@@ -1236,7 +1238,7 @@ function DojoFormView({
       <div className="mt-4 grid gap-3">
         <AdminSelect
           label="País"
-          value={lockCountry ? countries[0]?.id ?? "" : form.countryId}
+          value={effectiveCountryId}
           disabled={lockCountry}
           onChange={(value) =>
             setForm((current) => ({ ...current, countryId: value }))
@@ -1374,7 +1376,7 @@ function DojoFormView({
         />
         <FormButtons
           saving={saving}
-          disabled={!form.countryId || !form.city || !form.name}
+          disabled={!effectiveCountryId || !form.city || !form.name}
           onSave={onSave}
           onReset={onReset}
         />

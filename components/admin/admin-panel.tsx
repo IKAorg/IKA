@@ -125,12 +125,15 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   }
 
   const roleKeys = scope?.roleKeys ?? [];
+  const countryIds = scope?.countryIds ?? [];
+  const dojoIds = scope?.dojoIds ?? [];
   const isGlobal =
     Boolean(scope?.isGlobal) ||
     roleKeys.includes("super_admin") ||
     roleKeys.includes("global_admin");
-  const isCountryAdmin = roleKeys.includes("country_admin");
-  const isDojoAdmin = roleKeys.includes("dojo_admin") && !isCountryAdmin;
+  const isCountryAdmin = roleKeys.includes("country_admin") || countryIds.length > 0;
+  const isDojoAdmin =
+    (roleKeys.includes("dojo_admin") || dojoIds.length > 0) && !isCountryAdmin;
   const canManageUsers = isGlobal;
   const canManageMembers = isGlobal || isCountryAdmin || isDojoAdmin;
   const canManageLocations = isGlobal || isCountryAdmin;
