@@ -391,33 +391,54 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     setUploadingMemberImageId(member.id);
     setMessage("");
 
-    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const safeName =
-      slugify(file.name.replace(/\.[^.]+$/, "")) || `foto-${Date.now()}`;
-    const storagePath = `members/${member.id}/profile-${Date.now()}-${safeName}.${extension}`;
+    let imageDataUrl = "";
 
-    const { error } = await supabase.storage
-      .from("public-media")
-      .upload(storagePath, file, {
-        cacheControl: "31536000",
-        contentType: file.type,
-        upsert: true,
-      });
-
-    if (error) {
-      setMessage(error.message);
+    try {
+      imageDataUrl = await fileToDataUrl(file);
+    } catch {
+      setMessage(copy.uploadPhotoError);
       setUploadingMemberImageId("");
       return;
     }
 
-    const { data } = supabase.storage
-      .from("public-media")
-      .getPublicUrl(storagePath);
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "upload_profile_image",
+        memberId: member.id,
+        profileImageUpload: {
+          name: file.name,
+          type: file.type,
+          dataUrl: imageDataUrl,
+        },
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
 
-    const publicUrl = data.publicUrl;
+    if (!response.ok) {
+      setMessage(data.error ?? copy.uploadPhotoError);
+      setUploadingMemberImageId("");
+      return;
+    }
+
+    const updatedMember = data.member as MemberRow;
+
+    setPayload((current) => ({
+      ...current,
+      members: current.members.map((item) =>
+        item.id === updatedMember.id ? updatedMember : item,
+      ),
+    }));
     setMemberForm((current) =>
-      current ? { ...current, profileImageUrl: publicUrl } : current,
+      current
+        ? { ...current, profileImageUrl: updatedMember.profile_image_url ?? "" }
+        : current,
     );
+    setMessage(copy.photoUpdated);
     setUploadingMemberImageId("");
   }
 
@@ -1185,16 +1206,6 @@ function isActiveImportStatus(value: string) {
   return ["active", "activo", "activa"].includes(normalizeComparable(value));
 }
 
-function slugify(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 function memberToForm(member: MemberRow): MemberEditForm {
   return {
     firstName: member.first_name,
@@ -1212,6 +1223,15 @@ function memberToForm(member: MemberRow): MemberEditForm {
     notes: member.internal_notes ?? "",
     profileImageUrl: member.profile_image_url ?? "",
   };
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function EditField({
@@ -1275,6 +1295,8 @@ function membersAdminCopy(locale: Locale) {
       es ? `Email enviado al email ${email}.` : `Email sent to ${email}.`,
     selectImageFile: es ? "Selecciona un archivo de imagen." : "Select an image file.",
     saveMemberError: es ? "No se pudo guardar el Kenshi." : "The Kenshi could not be saved.",
+    uploadPhotoError: es ? "No se pudo subir la foto." : "The photo could not be uploaded.",
+    photoUpdated: es ? "Foto de perfil actualizada." : "Profile photo updated.",
     memberUpdated: es ? "Kenshi actualizado." : "Kenshi updated.",
     confirmDelete: (name: string) =>
       es ? `Eliminar definitivamente a ${name}?` : `Permanently delete ${name}?`,

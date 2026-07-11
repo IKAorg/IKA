@@ -53,6 +53,11 @@ type ImportRow = {
 type MemberPatchBody = {
   action?: string;
   memberId?: string;
+  profileImageUpload?: {
+    name?: string;
+    type?: string;
+    dataUrl?: string;
+  };
   member?: {
     firstName?: string;
     lastName?: string;
@@ -200,6 +205,39 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, memberId: member.data.id });
+  }
+
+  if (body.action === "upload_profile_image") {
+    const uploaded = await uploadMemberProfileImage(
+      guard.admin,
+      member.data.id,
+      body.profileImageUpload,
+    );
+
+    if ("error" in uploaded) {
+      return NextResponse.json({ error: uploaded.error }, { status: 400 });
+    }
+
+    const updated = await guard.admin
+      .from("members")
+      .update({
+        profile_image_url: uploaded.url,
+        updated_by: guard.profileId,
+      })
+      .eq("id", member.data.id)
+      .select(
+        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,profile_image_url,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
+      )
+      .single();
+
+    if (updated.error || !updated.data) {
+      return NextResponse.json(
+        { error: updated.error?.message ?? "No se pudo guardar la foto." },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ ok: true, member: updated.data });
   }
 
   if (body.action === "update_member") {
@@ -1223,6 +1261,65 @@ function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+async function uploadMemberProfileImage(
+  supabase: SupabaseAdminClient,
+  memberId: string,
+  upload:
+    | {
+        name?: string;
+        type?: string;
+        dataUrl?: string;
+      }
+    | undefined,
+) {
+  const dataUrl = normalizeText(upload?.dataUrl);
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+
+  if (!match) {
+    return { error: "Selecciona una imagen valida." };
+  }
+
+  const detectedType = match[1].toLowerCase();
+  const requestedType = normalizeText(upload?.type).toLowerCase();
+  const mimeType = requestedType || detectedType;
+  const extensionByMime: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+  const extension = extensionByMime[mimeType];
+
+  if (!extension) {
+    return { error: "Formato de imagen no permitido." };
+  }
+
+  const buffer = Buffer.from(match[2], "base64");
+
+  if (buffer.byteLength > 5 * 1024 * 1024) {
+    return { error: "La imagen no puede superar 5 MB." };
+  }
+
+  const safeName = slugify(normalizeText(upload?.name).replace(/\.[^.]+$/, "")) || "foto";
+  const storagePath = `members/${memberId}/profile-${Date.now()}-${safeName}.${extension}`;
+  const stored = await supabase.storage
+    .from("public-media")
+    .upload(storagePath, buffer, {
+      cacheControl: "31536000",
+      contentType: mimeType,
+      upsert: true,
+    });
+
+  if (stored.error) {
+    return { error: stored.error.message };
+  }
+
+  const { data } = supabase.storage.from("public-media").getPublicUrl(storagePath);
+
+  return { url: data.publicUrl };
+}
+
 function normalizeEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
@@ -1250,6 +1347,16 @@ function normalizeComparable(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function slugify(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function normalizeDate(value: string) {

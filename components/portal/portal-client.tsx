@@ -1754,6 +1754,8 @@ function MemberPanel({
   }
 
   const currentMember = member;
+  const displayedProfileImageUrl =
+    profileImageUrl || currentMember.profile_image_url || "";
 
   async function uploadProfileImage(file: File) {
     if (!file.type.startsWith("image/")) {
@@ -1764,35 +1766,39 @@ function MemberPanel({
     setUploading(true);
     setPanelMessage("");
 
-    const imageDataUrl = await fileToDataUrl(file);
-    const response = await fetch("/api/portal/me", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...(await getAuthHeaders()),
-      },
-      body: JSON.stringify({
-        email: contactEmail,
-        phone,
-        profileImageUpload: {
-          name: file.name,
-          type: file.type,
-          dataUrl: imageDataUrl,
+    try {
+      const imageDataUrl = await fileToDataUrl(file);
+      const response = await fetch("/api/portal/me", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
         },
-      }),
-    });
-    const data = await response.json().catch(() => ({}));
+        body: JSON.stringify({
+          email: contactEmail,
+          phone,
+          profileImageUpload: {
+            name: file.name,
+            type: file.type,
+            dataUrl: imageDataUrl,
+          },
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
 
-    setUploading(false);
+      if (!response.ok) {
+        setPanelMessage(data.error ?? "No se pudo subir la foto.");
+        return;
+      }
 
-    if (!response.ok) {
-      setPanelMessage(data.error ?? "No se pudo subir la foto.");
-      return;
+      onMemberUpdated(data.member as PortalMember);
+      setProfileImageUrl((data.member as PortalMember).profile_image_url ?? "");
+      setPanelMessage(copy.fichaUpdated);
+    } catch {
+      setPanelMessage("No se pudo leer la imagen seleccionada.");
+    } finally {
+      setUploading(false);
     }
-
-    onMemberUpdated(data.member as PortalMember);
-    setProfileImageUrl((data.member as PortalMember).profile_image_url ?? "");
-    setPanelMessage(copy.fichaUpdated);
   }
 
   async function saveFicha() {
@@ -1808,7 +1814,7 @@ function MemberPanel({
       body: JSON.stringify({
         email: contactEmail,
         phone,
-        profileImageUrl,
+        profileImageUrl: displayedProfileImageUrl,
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -1883,10 +1889,10 @@ function MemberPanel({
               {copy.photo}
             </p>
             <div className="flex size-32 items-center justify-center overflow-hidden border border-white/30 bg-white/10">
-              {profileImageUrl ? (
+              {displayedProfileImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={profileImageUrl}
+                  src={displayedProfileImageUrl}
                   alt=""
                   className="h-full w-full object-cover"
                 />
