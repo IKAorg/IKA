@@ -12,9 +12,11 @@ type SiteShellProps = {
 
 export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
   const nav = dictionary.nav;
+  const instructorsLabel = instructorNavLabels[locale];
   const publicLinks = [
     { href: `/${locale}`, label: nav.home },
     { href: `/${locale}/about`, label: nav.about },
+    { href: `/${locale}/instructors`, label: instructorsLabel },
     { href: `/${locale}/countries`, label: nav.countries },
     { href: `/${locale}/news`, label: nav.news },
     { href: `/${locale}/events`, label: nav.events },
@@ -147,3 +149,13 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
     </div>
   );
 }
+
+const instructorNavLabels: Record<Locale, string> = {
+  en: "Official instructors",
+  es: "Instructores oficiales",
+  it: "Istruttori ufficiali",
+  fr: "Instructeurs officiels",
+  ja: "公認指導者",
+  zh: "IKA 正式教练",
+  cs: "Oficialni instruktori",
+};
