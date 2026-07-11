@@ -321,8 +321,12 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       ),
     [courseRows],
   );
+  const importableCourseRows = useMemo(
+    () => (validCourseRows.length > 0 ? validCourseRows : courseRows.filter((row) => row.courseTitle && row.courseDate)),
+    [courseRows, validCourseRows],
+  );
   const skippedRows = rows.length - validRows.length;
-  const skippedCourseRows = courseRows.length - validCourseRows.length;
+  const skippedCourseRows = courseRows.length - importableCourseRows.length;
   const filteredMembers = useMemo(() => {
     const wanted = normalizeComparable(memberSearch);
 
@@ -395,7 +399,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       },
       body: JSON.stringify({
         action: "import_courses",
-        rows: validCourseRows,
+        rows: importableCourseRows,
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -960,7 +964,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           <button
             type="button"
             onClick={importCourseRows}
-            disabled={importingCourses || validCourseRows.length === 0}
+            disabled={importingCourses || importableCourseRows.length === 0}
             className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
             {importingCourses ? (
@@ -968,7 +972,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             ) : (
               <Send size={16} />
             )}
-            {copy.importCourses(validCourseRows.length)}
+            {copy.importCourses(importableCourseRows.length)}
           </button>
         </div>
 
@@ -984,7 +988,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               </tr>
             </thead>
             <tbody>
-              {validCourseRows.slice(0, 20).map((row, index) => (
+              {importableCourseRows.slice(0, 20).map((row, index) => (
                 <tr key={`${row.ikaNumber}-${row.email}-${index}`} className="border-b border-[var(--line)]">
                   <td className="py-2 pr-4">{row.ikaNumber || "-"}</td>
                   <td className="py-2 pr-4">{row.email || "-"}</td>
@@ -1000,7 +1004,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
         </div>
         {courseRows.length > 0 ? (
           <p className="text-sm text-[var(--muted)]">
-            {copy.courseRowsSummary(validCourseRows.length, skippedCourseRows)}
+            {copy.courseRowsSummary(importableCourseRows.length, skippedCourseRows)}
           </p>
         ) : null}
       </section>
