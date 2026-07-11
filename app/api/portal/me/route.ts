@@ -92,12 +92,29 @@ export async function GET(request: NextRequest) {
   }>;
   const scope = await getPortalScope(supabase, roles);
   const dashboard = await getPortalDashboard(supabase, scope);
+  const portalMemberId =
+    ((memberResult.data as { id?: string } | null)?.id ?? "").trim();
+  const gradeHistory =
+    portalMemberId
+      ? await supabase
+          .from("grade_history")
+          .select("id,grade,exam_date,exam_place,examiner")
+          .eq("member_id", portalMemberId)
+          .order("exam_date", { ascending: false })
+      : { data: [], error: null };
+
+  if (gradeHistory.error) {
+    return NextResponse.json(
+      { error: gradeHistory.error.message },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({
     profile: portalProfile,
     roles,
     member: memberResult.data ?? null,
-    gradeHistory: [],
+    gradeHistory: gradeHistory.data ?? [],
     dashboard,
   });
 }

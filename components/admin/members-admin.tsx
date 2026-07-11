@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CalendarRange,
   FileUp,
   ImagePlus,
   Loader2,
@@ -79,6 +80,33 @@ type ImportRow = {
   memberGroup: string;
 };
 
+type CourseHistory = {
+  id: string;
+  member_id: string;
+  grade: string;
+  exam_date: string;
+  exam_place: string | null;
+  examiner: string | null;
+  notes: string | null;
+};
+
+type CourseImportRow = {
+  ikaNumber: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  countryId: string;
+  countryCode: string;
+  countryName: string;
+  dojoId: string;
+  dojoName: string;
+  courseTitle: string;
+  courseDate: string;
+  coursePlace: string;
+  instructor: string;
+  notes: string;
+};
+
 type MemberEditForm = {
   firstName: string;
   lastName: string;
@@ -96,10 +124,19 @@ type MemberEditForm = {
   profileImageUrl: string;
 };
 
+type CourseEditForm = {
+  title: string;
+  date: string;
+  place: string;
+  instructor: string;
+  notes: string;
+};
+
 type MembersPayload = {
   countries: CountryOption[];
   dojos: DojoOption[];
   members: MemberRow[];
+  courseHistory: CourseHistory[];
   scope?: {
     isGlobal: boolean;
     roleKeys?: string[];
@@ -116,25 +153,44 @@ const emptyPayload: MembersPayload = {
   countries: [],
   dojos: [],
   members: [],
+  courseHistory: [],
 };
 
 const csvTemplate =
   "first_name,last_name,email,current_grade,joined_date,phone\n" +
   "Ane,Gonzalez,ane@example.com,3 kyu,2026-01-10,+34 600 000 000\n";
 
+const courseCsvTemplate =
+  "ika_number,email,course_title,course_date,course_place,instructor,notes\n" +
+  "IKA-000001,ane@example.com,IKA Summer Course,2026-07-01,Madrid,Mizuno Sensei,Participacion completa\n";
+
+const emptyCourseForm: CourseEditForm = {
+  title: "",
+  date: "",
+  place: "",
+  instructor: "",
+  notes: "",
+};
+
 export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const copy = useMemo(() => membersAdminCopy(initialLocale), [initialLocale]);
   const supabase = useMemo(() => createClient(), []);
   const [payload, setPayload] = useState<MembersPayload>(emptyPayload);
   const [csvText, setCsvText] = useState(csvTemplate);
+  const [courseCsvText, setCourseCsvText] = useState(courseCsvTemplate);
   const [selectedDojoId, setSelectedDojoId] = useState("");
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [importingCourses, setImportingCourses] = useState(false);
   const [inviteSendingId, setInviteSendingId] = useState("");
   const [deletingMemberId, setDeletingMemberId] = useState("");
   const [editingMemberId, setEditingMemberId] = useState("");
   const [savingMemberId, setSavingMemberId] = useState("");
   const [uploadingMemberImageId, setUploadingMemberImageId] = useState("");
+  const [savingCourseId, setSavingCourseId] = useState("");
+  const [deletingCourseId, setDeletingCourseId] = useState("");
+  const [memberCourses, setMemberCourses] = useState<CourseHistory[]>([]);
+  const [newCourseForm, setNewCourseForm] = useState<CourseEditForm>(emptyCourseForm);
   const [memberForm, setMemberForm] = useState<MemberEditForm | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [message, setMessage] = useState("");
@@ -226,6 +282,10 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   }, [loadMembers, supabase]);
 
   const rows = useMemo(() => parseCsvRows(csvText, payload), [csvText, payload]);
+  const courseRows = useMemo(
+    () => parseCourseCsvRows(courseCsvText, payload),
+    [courseCsvText, payload],
+  );
   const isGlobalScope = payload.scope?.isGlobal === true;
   const isLockedToSingleDojo = !isGlobalScope && payload.dojos.length === 1;
   const effectiveSelectedDojoId = isLockedToSingleDojo
@@ -245,7 +305,20 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       ),
     [rows],
   );
+  const validCourseRows = useMemo(
+    () =>
+      courseRows.filter(
+        (row) =>
+          row.courseTitle &&
+          row.courseDate &&
+          (row.ikaNumber ||
+            row.email ||
+            (row.firstName && row.lastName)),
+      ),
+    [courseRows],
+  );
   const skippedRows = rows.length - validRows.length;
+  const skippedCourseRows = courseRows.length - validCourseRows.length;
   const filteredMembers = useMemo(() => {
     const wanted = normalizeComparable(memberSearch);
 
@@ -306,6 +379,42 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     setImporting(false);
   }
 
+  async function importCourseRows() {
+    setImportingCourses(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "import_courses",
+        rows: validCourseRows,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.importCoursesError);
+      setImportingCourses(false);
+      return;
+    }
+
+    const errors = Array.isArray(data.errors) ? data.errors.length : 0;
+    setMessage(
+      copy.coursesImported(
+        data.imported ?? 0,
+        data.updated ?? 0,
+        data.skipped ?? 0,
+        errors,
+      ),
+    );
+    await loadMembers();
+    setImportingCourses(false);
+  }
+
   async function loadCsvFile(file: File) {
     setMessage("");
 
@@ -315,6 +424,17 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     }
 
     setCsvText(await file.text());
+  }
+
+  async function loadCourseCsvFile(file: File) {
+    setMessage("");
+
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setMessage(copy.csvOnly);
+      return;
+    }
+
+    setCourseCsvText(await file.text());
   }
 
   async function sendPortalInvite(member: MemberRow) {
@@ -368,6 +488,12 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   function startEditingMember(member: MemberRow) {
     setEditingMemberId(member.id);
     setMemberForm(memberToForm(member));
+    setMemberCourses(
+      payload.courseHistory
+        .filter((course) => course.member_id === member.id)
+        .sort((left, right) => right.exam_date.localeCompare(left.exam_date)),
+    );
+    setNewCourseForm(emptyCourseForm);
     setMessage("");
   }
 
@@ -380,6 +506,34 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           }
         : current,
     );
+  }
+
+  function updateCourseForm(
+    courseId: string,
+    field: keyof CourseEditForm,
+    value: string,
+  ) {
+    setMemberCourses((current) =>
+      current.map((course) =>
+        course.id === courseId
+          ? {
+              ...course,
+              grade: field === "title" ? value : course.grade,
+              exam_date: field === "date" ? value : course.exam_date,
+              exam_place: field === "place" ? value : course.exam_place,
+              examiner: field === "instructor" ? value : course.examiner,
+              notes: field === "notes" ? value : course.notes,
+            }
+          : course,
+      ),
+    );
+  }
+
+  function updateNewCourseForm(field: keyof CourseEditForm, value: string) {
+    setNewCourseForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
   }
 
   async function uploadMemberProfileImage(member: MemberRow, file: File) {
@@ -480,6 +634,132 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     setMemberForm(null);
     setSavingMemberId("");
     setMessage(copy.memberUpdated);
+  }
+
+  async function addCourse(member: MemberRow) {
+    if (!newCourseForm.title || !newCourseForm.date) {
+      setMessage(copy.courseTitleDateRequired);
+      return;
+    }
+
+    setSavingCourseId("new");
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "add_course",
+        memberId: member.id,
+        course: newCourseForm,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.courseSaveError);
+      setSavingCourseId("");
+      return;
+    }
+
+    const nextCourse = data.course as CourseHistory;
+    setPayload((current) => ({
+      ...current,
+      courseHistory: [nextCourse, ...current.courseHistory],
+    }));
+    setMemberCourses((current) =>
+      [nextCourse, ...current].sort((left, right) =>
+        right.exam_date.localeCompare(left.exam_date),
+      ),
+    );
+    setNewCourseForm(emptyCourseForm);
+    setSavingCourseId("");
+    setMessage(copy.courseAdded);
+  }
+
+  async function saveCourse(member: MemberRow, course: CourseHistory) {
+    setSavingCourseId(course.id);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "update_course",
+        memberId: member.id,
+        courseId: course.id,
+        course: {
+          title: course.grade,
+          date: course.exam_date,
+          place: course.exam_place ?? "",
+          instructor: course.examiner ?? "",
+          notes: course.notes ?? "",
+        },
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.courseSaveError);
+      setSavingCourseId("");
+      return;
+    }
+
+    const nextCourse = data.course as CourseHistory;
+    setPayload((current) => ({
+      ...current,
+      courseHistory: current.courseHistory.map((item) =>
+        item.id === nextCourse.id ? nextCourse : item,
+      ),
+    }));
+    setMemberCourses((current) =>
+      current
+        .map((item) => (item.id === nextCourse.id ? nextCourse : item))
+        .sort((left, right) => right.exam_date.localeCompare(left.exam_date)),
+    );
+    setSavingCourseId("");
+    setMessage(copy.courseUpdated);
+  }
+
+  async function deleteCourse(member: MemberRow, courseId: string) {
+    setDeletingCourseId(courseId);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "delete_course",
+        memberId: member.id,
+        courseId,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.courseDeleteError);
+      setDeletingCourseId("");
+      return;
+    }
+
+    setPayload((current) => ({
+      ...current,
+      courseHistory: current.courseHistory.filter((item) => item.id !== courseId),
+    }));
+    setMemberCourses((current) =>
+      current.filter((item) => item.id !== (data.courseId as string)),
+    );
+    setDeletingCourseId("");
+    setMessage(copy.courseDeleted);
   }
 
   async function deleteMember(member: MemberRow) {
@@ -629,6 +909,95 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
 
         {message ? (
           <p className="text-sm font-semibold text-[var(--accent)]">{message}</p>
+        ) : null}
+      </section>
+
+      <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <CalendarRange size={22} className="text-[var(--accent)]" />
+              <h2 className="text-2xl font-semibold">{copy.coursesTitle}</h2>
+            </div>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+              {copy.coursesHelp}
+            </p>
+          </div>
+
+          <label className="inline-flex cursor-pointer items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold">
+            <FileUp size={16} />
+            {copy.uploadCoursesCsv}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  void loadCourseCsvFile(file);
+                }
+              }}
+            />
+          </label>
+        </div>
+
+        <textarea
+          value={courseCsvText}
+          onChange={(event) => setCourseCsvText(event.target.value)}
+          rows={8}
+          className="w-full border border-[var(--line)] p-3 font-mono text-sm"
+        />
+
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+          <p className="text-sm font-semibold text-[var(--muted)]">
+            {copy.coursesCsvHint}
+          </p>
+
+          <button
+            type="button"
+            onClick={importCourseRows}
+            disabled={importingCourses || validCourseRows.length === 0}
+            className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+          >
+            {importingCourses ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Send size={16} />
+            )}
+            {copy.importCourses(validCourseRows.length)}
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-[var(--line)]">
+                <th className="py-2 pr-4">IKA ID</th>
+                <th className="py-2 pr-4">Email</th>
+                <th className="py-2 pr-4">{copy.courseName}</th>
+                <th className="py-2 pr-4">{copy.courseDate}</th>
+                <th className="py-2 pr-4">Dojo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {validCourseRows.slice(0, 20).map((row, index) => (
+                <tr key={`${row.ikaNumber}-${row.email}-${index}`} className="border-b border-[var(--line)]">
+                  <td className="py-2 pr-4">{row.ikaNumber || "-"}</td>
+                  <td className="py-2 pr-4">{row.email || "-"}</td>
+                  <td className="py-2 pr-4">{row.courseTitle}</td>
+                  <td className="py-2 pr-4">{row.courseDate}</td>
+                  <td className="py-2 pr-4">
+                    {row.dojoName || dojoLabelById(payload, row.dojoId, initialLocale) || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {courseRows.length > 0 ? (
+          <p className="text-sm text-[var(--muted)]">
+            {copy.courseRowsSummary(validCourseRows.length, skippedCourseRows)}
+          </p>
         ) : null}
       </section>
 
@@ -943,6 +1312,151 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                         </div>
                       </div>
                     </div>
+                    <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
+                      <div className="flex items-center gap-2">
+                        <CalendarRange size={18} className="text-[var(--accent)]" />
+                        <span>{copy.memberCourses}</span>
+                      </div>
+
+                      <div className="grid gap-3">
+                        {memberCourses.length === 0 ? (
+                          <p className="text-sm font-normal text-[var(--muted)]">
+                            {copy.noCourses}
+                          </p>
+                        ) : (
+                          memberCourses.map((course) => (
+                            <div
+                              key={course.id}
+                              className="grid gap-3 border border-[var(--line)] bg-white p-3"
+                            >
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <EditField
+                                  label={copy.courseName}
+                                  value={course.grade}
+                                  onChange={(value) =>
+                                    updateCourseForm(course.id, "title", value)
+                                  }
+                                />
+                                <EditField
+                                  label={copy.courseDate}
+                                  type="date"
+                                  value={course.exam_date}
+                                  onChange={(value) =>
+                                    updateCourseForm(course.id, "date", value)
+                                  }
+                                />
+                                <EditField
+                                  label={copy.coursePlace}
+                                  value={course.exam_place ?? ""}
+                                  onChange={(value) =>
+                                    updateCourseForm(course.id, "place", value)
+                                  }
+                                />
+                                <EditField
+                                  label={copy.courseInstructor}
+                                  value={course.examiner ?? ""}
+                                  onChange={(value) =>
+                                    updateCourseForm(course.id, "instructor", value)
+                                  }
+                                />
+                              </div>
+                              <label className="grid gap-1 font-semibold">
+                                {copy.notes}
+                                <textarea
+                                  value={course.notes ?? ""}
+                                  onChange={(event) =>
+                                    updateCourseForm(course.id, "notes", event.target.value)
+                                  }
+                                  rows={2}
+                                  className="border border-[var(--line)] px-3 py-2 font-normal"
+                                />
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void saveCourse(member, course)}
+                                  disabled={savingCourseId === course.id}
+                                  className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                >
+                                  {savingCourseId === course.id ? (
+                                    <Loader2 size={16} className="animate-spin" />
+                                  ) : (
+                                    <Save size={16} />
+                                  )}
+                                  {copy.saveCourse}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void deleteCourse(member, course.id)}
+                                  disabled={deletingCourseId === course.id}
+                                  className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)] disabled:opacity-50"
+                                >
+                                  {deletingCourseId === course.id ? (
+                                    <Loader2 size={16} className="animate-spin" />
+                                  ) : (
+                                    <Trash2 size={16} />
+                                  )}
+                                  {copy.deleteCourse}
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="grid gap-3 border border-dashed border-[var(--line)] bg-white p-3">
+                        <span className="font-semibold">{copy.addCourse}</span>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <EditField
+                            label={copy.courseName}
+                            value={newCourseForm.title}
+                            onChange={(value) => updateNewCourseForm("title", value)}
+                          />
+                          <EditField
+                            label={copy.courseDate}
+                            type="date"
+                            value={newCourseForm.date}
+                            onChange={(value) => updateNewCourseForm("date", value)}
+                          />
+                          <EditField
+                            label={copy.coursePlace}
+                            value={newCourseForm.place}
+                            onChange={(value) => updateNewCourseForm("place", value)}
+                          />
+                          <EditField
+                            label={copy.courseInstructor}
+                            value={newCourseForm.instructor}
+                            onChange={(value) =>
+                              updateNewCourseForm("instructor", value)
+                            }
+                          />
+                        </div>
+                        <label className="grid gap-1 font-semibold">
+                          {copy.notes}
+                          <textarea
+                            value={newCourseForm.notes}
+                            onChange={(event) =>
+                              updateNewCourseForm("notes", event.target.value)
+                            }
+                            rows={2}
+                            className="border border-[var(--line)] px-3 py-2 font-normal"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void addCourse(member)}
+                          disabled={savingCourseId === "new"}
+                          className="inline-flex w-fit items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+                        >
+                          {savingCourseId === "new" ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Save size={16} />
+                          )}
+                          {copy.addCourse}
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -962,6 +1476,8 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                         onClick={() => {
                           setEditingMemberId("");
                           setMemberForm(null);
+                          setMemberCourses([]);
+                          setNewCourseForm(emptyCourseForm);
                         }}
                         className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
                       >
@@ -1055,6 +1571,74 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
       isMinor: getValue(record, "is_minor") || getValue(record, "menor"),
       notes: getValue(record, "notes") || getValue(record, "notas"),
       memberGroup,
+    };
+  });
+}
+
+function parseCourseCsvRows(csv: string, payload: MembersPayload): CourseImportRow[] {
+  const lines = csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    return [];
+  }
+
+  const delimiter = detectCsvDelimiter(lines[0]);
+  const headers = splitCsvLine(lines[0], delimiter).map((header) =>
+    normalizeHeader(header),
+  );
+
+  return lines.slice(1).map((line) => {
+    const values = splitCsvLine(line, delimiter);
+    const record = new Map(headers.map((header, index) => [header, values[index] ?? ""]));
+    const countryInput =
+      getValue(record, "country") || getValue(record, "pais") || getValue(record, "paÃ­s");
+    const dojoInput = getValue(record, "dojo") || getValue(record, "club");
+    const country = resolveCountryInput(payload, countryInput);
+    const dojo = resolveDojoInput(payload, dojoInput, country?.id ?? "");
+
+    return {
+      ikaNumber:
+        getValue(record, "ika_number") ||
+        getValue(record, "ika_id") ||
+        getValue(record, "kenshi_id"),
+      email: getValue(record, "email") || getValue(record, "correo"),
+      firstName:
+        getValue(record, "first_name") ||
+        getValue(record, "firstname") ||
+        getValue(record, "nombre"),
+      lastName:
+        getValue(record, "last_name") ||
+        getValue(record, "lastname") ||
+        getValue(record, "apellido") ||
+        getValue(record, "apellidos"),
+      countryId: getValue(record, "country_id") || country?.id || "",
+      countryCode:
+        getValue(record, "country_code") ||
+        getValue(record, "codigo_pais") ||
+        (!country ? countryInput.toUpperCase() : ""),
+      countryName: country ? "" : countryInput,
+      dojoId: getValue(record, "dojo_id") || dojo?.id || "",
+      dojoName: dojo ? "" : dojoInput,
+      courseTitle:
+        getValue(record, "course_title") ||
+        getValue(record, "course") ||
+        getValue(record, "curso"),
+      courseDate:
+        getValue(record, "course_date") ||
+        getValue(record, "date") ||
+        getValue(record, "fecha"),
+      coursePlace:
+        getValue(record, "course_place") ||
+        getValue(record, "place") ||
+        getValue(record, "lugar"),
+      instructor:
+        getValue(record, "instructor") ||
+        getValue(record, "teacher") ||
+        getValue(record, "sensei"),
+      notes: getValue(record, "notes") || getValue(record, "notas"),
     };
   });
 }
@@ -1303,13 +1887,18 @@ function membersAdminCopy(locale: Locale) {
     deleteMemberError: es ? "No se pudo eliminar el Kenshi." : "The Kenshi could not be deleted.",
     memberDeleted: es ? "Kenshi eliminado." : "Kenshi deleted.",
     importTitle: es ? "Importacion Kenshi" : "Kenshi import",
+    coursesTitle: es ? "Importacion de cursos IKA" : "IKA course import",
     lockedDojoHelp: es
       ? "Tu usuario esta limitado a este dojo. Sube el CSV y se importara solo aqui."
       : "Your user is limited to this dojo. Upload the CSV and it will be imported only here.",
     importHelp: es
       ? "Selecciona primero el dojo y despues importa muchos practicantes a la vez desde Excel exportado como CSV."
       : "Select the dojo first, then import many practitioners at once from an Excel CSV export.",
+    coursesHelp: es
+      ? "Importa cursos masivamente usando IKA ID, email o nombre+dojo. El sistema colocara cada curso en el Kenshi correspondiente dentro de tu ambito."
+      : "Import courses in bulk using IKA ID, email, or name plus dojo. The system will place each course on the matching Kenshi within your scope.",
     uploadCsv: es ? "Subir CSV" : "Upload CSV",
+    uploadCoursesCsv: es ? "Subir CSV cursos" : "Upload courses CSV",
     targetDojo: es ? "Dojo destino" : "Target dojo",
     selectDojo: es ? "Selecciona dojo" : "Select dojo",
     loadingDojos: es ? "Cargando dojos..." : "Loading dojos...",
@@ -1319,11 +1908,25 @@ function membersAdminCopy(locale: Locale) {
     csvNoEmails: es
       ? "El volcado CSV no envia emails. Las invitaciones se enviaran despues manualmente desde el area del dojo."
       : "CSV import does not send emails. Invitations will be sent manually later from the dojo area.",
+    coursesCsvHint: es
+      ? "Columnas recomendadas: ika_number, email, first_name, last_name, course_title, course_date, course_place, instructor, notes, dojo, country."
+      : "Recommended columns: ika_number, email, first_name, last_name, course_title, course_date, course_place, instructor, notes, dojo, country.",
     importKenshi: (count: number) => (es ? `Importar ${count} Kenshi` : `Import ${count} Kenshi`),
+    importCourses: (count: number) =>
+      es ? `Importar ${count} cursos` : `Import ${count} courses`,
+    importCoursesError: es
+      ? "No se pudo importar el lote de cursos."
+      : "The course batch could not be imported.",
+    coursesImported: (imported: number, updated: number, skipped: number, errors: number) =>
+      es
+        ? `Cursos nuevos: ${imported}. Actualizados: ${updated}. Omitidos: ${skipped}. Errores: ${errors}.`
+        : `New courses: ${imported}. Updated: ${updated}. Skipped: ${skipped}. Errors: ${errors}.`,
     previewTitle: es ? "Previsualizacion" : "Preview",
     previewHelp: es ? "Solo se muestran las filas activas que se van a importar." : "Only active rows that will be imported are shown.",
     activeSkipped: (active: number, skipped: number) =>
       es ? `Activos: ${active} / Omitidos: ${skipped}` : `Active: ${active} / Skipped: ${skipped}`,
+    courseRowsSummary: (valid: number, skipped: number) =>
+      es ? `Cursos validos: ${valid} / Omitidos: ${skipped}` : `Valid courses: ${valid} / Skipped: ${skipped}`,
     name: es ? "Nombre" : "Name",
     country: es ? "Pais" : "Country",
     grade: es ? "Grado" : "Grade",
@@ -1355,6 +1958,23 @@ function membersAdminCopy(locale: Locale) {
     inactive: es ? "Inactivo" : "Inactive",
     temporaryLeave: es ? "Baja temporal" : "Temporary leave",
     instructor: es ? "Instructor" : "Instructor",
+    courseName: es ? "Curso" : "Course",
+    courseDate: es ? "Fecha del curso" : "Course date",
+    coursePlace: es ? "Lugar" : "Place",
+    courseInstructor: es ? "Instructor del curso" : "Course instructor",
+    memberCourses: es ? "Cursos IKA del Kenshi" : "Kenshi IKA courses",
+    noCourses: es ? "Este Kenshi todavia no tiene cursos registrados." : "This Kenshi has no registered courses yet.",
+    addCourse: es ? "Anadir curso" : "Add course",
+    saveCourse: es ? "Guardar curso" : "Save course",
+    deleteCourse: es ? "Quitar curso" : "Remove course",
+    courseAdded: es ? "Curso anadido." : "Course added.",
+    courseUpdated: es ? "Curso actualizado." : "Course updated.",
+    courseDeleted: es ? "Curso eliminado." : "Course deleted.",
+    courseSaveError: es ? "No se pudo guardar el curso." : "The course could not be saved.",
+    courseDeleteError: es ? "No se pudo eliminar el curso." : "The course could not be deleted.",
+    courseTitleDateRequired: es
+      ? "El curso necesita titulo y fecha."
+      : "The course needs a title and date.",
     guardian: es ? "Tutor" : "Guardian",
     guardianEmail: es ? "Email tutor" : "Guardian email",
     birthDate: es ? "Fecha nacimiento" : "Birth date",

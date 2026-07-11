@@ -26,6 +26,9 @@ type SupabaseAdminClient = ReturnType<
   typeof createServiceClient<UntypedDatabase, "public", "public">
 >;
 
+const memberSelect =
+  "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,profile_image_url,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))";
+
 const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
 
 type ImportRow = {
@@ -50,13 +53,48 @@ type ImportRow = {
   memberGroup?: string;
 };
 
+type CourseImportRow = {
+  ikaNumber?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  countryId?: string;
+  countryCode?: string;
+  countryName?: string;
+  dojoId?: string;
+  dojoName?: string;
+  courseTitle?: string;
+  courseDate?: string;
+  coursePlace?: string;
+  instructor?: string;
+  notes?: string;
+};
+
+type CourseHistoryRow = {
+  id: string;
+  member_id: string;
+  grade: string;
+  exam_date: string;
+  exam_place: string | null;
+  examiner: string | null;
+  notes: string | null;
+};
+
 type MemberPatchBody = {
   action?: string;
   memberId?: string;
+  courseId?: string;
   profileImageUpload?: {
     name?: string;
     type?: string;
     dataUrl?: string;
+  };
+  course?: {
+    title?: string;
+    date?: string;
+    place?: string;
+    instructor?: string;
+    notes?: string;
   };
   member?: {
     firstName?: string;
@@ -83,7 +121,8 @@ export async function GET(request: NextRequest) {
     return guard.error;
   }
 
-  const [countriesResult, dojosResult, membersResult] = await Promise.all([
+  const [countriesResult, dojosResult, membersResult, courseHistoryResult] =
+    await Promise.all([
     guard.admin
       .from("countries")
       .select("id,code,country_translations(language_code,name)")
@@ -94,15 +133,21 @@ export async function GET(request: NextRequest) {
       .order("city", { ascending: true }),
     guard.admin
       .from("members")
-      .select(
-        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,profile_image_url,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
-      )
+      .select(memberSelect)
       .order("created_at", { ascending: false })
       .limit(1000),
+    guard.admin
+      .from("grade_history")
+      .select("id,member_id,grade,exam_date,exam_place,examiner,notes")
+      .order("exam_date", { ascending: false })
+      .limit(5000),
   ]);
 
   const firstError =
-    countriesResult.error ?? dojosResult.error ?? membersResult.error;
+    countriesResult.error ??
+    dojosResult.error ??
+    membersResult.error ??
+    courseHistoryResult.error;
 
   if (firstError) {
     return NextResponse.json({ error: firstError.message }, { status: 500 });
@@ -133,11 +178,16 @@ export async function GET(request: NextRequest) {
     }),
   );
   const members = filterMembersByScope(membersResult.data ?? [], guard.scope);
+  const memberIds = new Set((members as Array<{ id: string }>).map((member) => member.id));
+  const courseHistory = ((courseHistoryResult.data ?? []) as CourseHistoryRow[]).filter(
+    (entry) => memberIds.has(entry.member_id),
+  );
 
   return NextResponse.json({
     countries,
     dojos,
     members,
+    courseHistory,
     scope: guard.scope,
   });
 }
@@ -240,6 +290,107 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true, member: updated.data });
   }
 
+  if (body.action === "add_course") {
+    const input = body.course ?? {};
+    const courseTitle = normalizeText(input.title);
+    const courseDate = normalizeDate(normalizeText(input.date));
+
+    if (!courseTitle || !courseDate) {
+      return NextResponse.json(
+        { error: "Titulo y fecha del curso son obligatorios." },
+        { status: 400 },
+      );
+    }
+
+    const created = await guard.admin
+      .from("grade_history")
+      .insert({
+        member_id: member.data.id,
+        grade: courseTitle,
+        exam_date: courseDate,
+        exam_place: normalizeText(input.place) || null,
+        examiner: normalizeText(input.instructor) || null,
+        notes: normalizeText(input.notes) || null,
+        created_by: guard.profileId,
+        updated_by: guard.profileId,
+      })
+      .select("id,member_id,grade,exam_date,exam_place,examiner,notes")
+      .single<CourseHistoryRow>();
+
+    if (created.error || !created.data) {
+      return NextResponse.json(
+        { error: created.error?.message ?? "No se pudo crear el curso." },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ ok: true, course: created.data });
+  }
+
+  if (body.action === "update_course") {
+    const courseId = normalizeText(body.courseId);
+    const input = body.course ?? {};
+    const courseTitle = normalizeText(input.title);
+    const courseDate = normalizeDate(normalizeText(input.date));
+
+    if (!courseId || !courseTitle || !courseDate) {
+      return NextResponse.json(
+        { error: "Curso, titulo y fecha son obligatorios." },
+        { status: 400 },
+      );
+    }
+
+    const updatedCourse = await guard.admin
+      .from("grade_history")
+      .update({
+        grade: courseTitle,
+        exam_date: courseDate,
+        exam_place: normalizeText(input.place) || null,
+        examiner: normalizeText(input.instructor) || null,
+        notes: normalizeText(input.notes) || null,
+        updated_by: guard.profileId,
+      })
+      .eq("id", courseId)
+      .eq("member_id", member.data.id)
+      .select("id,member_id,grade,exam_date,exam_place,examiner,notes")
+      .single<CourseHistoryRow>();
+
+    if (updatedCourse.error || !updatedCourse.data) {
+      return NextResponse.json(
+        {
+          error:
+            updatedCourse.error?.message ?? "No se pudo actualizar el curso.",
+        },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ ok: true, course: updatedCourse.data });
+  }
+
+  if (body.action === "delete_course") {
+    const courseId = normalizeText(body.courseId);
+
+    if (!courseId) {
+      return NextResponse.json(
+        { error: "Curso no valido." },
+        { status: 400 },
+      );
+    }
+
+    const deleted = await guard.admin
+      .from("grade_history")
+      .delete()
+      .eq("id", courseId)
+      .eq("member_id", member.data.id);
+
+    if (deleted.error) {
+      return NextResponse.json({ error: deleted.error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, courseId });
+  }
+
   if (body.action === "update_member") {
     const input = body.member ?? {};
     const firstName = normalizeText(input.firstName);
@@ -281,9 +432,7 @@ export async function PATCH(request: NextRequest) {
         updated_by: guard.profileId,
       })
       .eq("id", member.data.id)
-      .select(
-        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,profile_image_url,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
-      )
+      .select(memberSelect)
       .single();
 
     if (updated.error || !updated.data) {
@@ -453,6 +602,10 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
+  if (body?.action === "import_courses") {
+    return importCourseRows(guard, body?.rows);
+  }
+
   const rows = Array.isArray(body?.rows) ? (body.rows as ImportRow[]) : [];
 
   if (rows.length === 0) {
@@ -634,6 +787,174 @@ export async function POST(request: NextRequest) {
     if (member.error) {
       result.skipped += 1;
       result.errors.push({ row: rowNumber, error: member.error.message });
+      continue;
+    }
+
+    result.imported += 1;
+  }
+
+  return NextResponse.json(result);
+}
+
+async function importCourseRows(
+  guard: { admin: SupabaseAdminClient; profileId: string; scope: { isGlobal: boolean; roleKeys: Array<string | undefined>; countryIds: string[]; dojoIds: string[] } },
+  rawRows: unknown,
+) {
+  const rows = Array.isArray(rawRows) ? (rawRows as CourseImportRow[]) : [];
+
+  if (rows.length === 0) {
+    return NextResponse.json(
+      { error: "No hay filas de cursos para importar." },
+      { status: 400 },
+    );
+  }
+
+  if (rows.length > 1000) {
+    return NextResponse.json(
+      { error: "Importa como maximo 1000 cursos por lote." },
+      { status: 400 },
+    );
+  }
+
+  const [countriesResult, dojosResult, membersResult] = await Promise.all([
+    guard.admin
+      .from("countries")
+      .select("id,code,country_translations(language_code,name)"),
+    guard.admin
+      .from("dojos")
+      .select("id,country_id,city,dojo_translations(language_code,name)"),
+    guard.admin
+      .from("members")
+      .select("id,ika_number,first_name,last_name,email,country_id,dojo_id"),
+  ]);
+
+  const firstError =
+    countriesResult.error ?? dojosResult.error ?? membersResult.error;
+
+  if (firstError) {
+    return NextResponse.json({ error: firstError.message }, { status: 500 });
+  }
+
+  const countries = countriesResult.data ?? [];
+  const dojos = dojosResult.data ?? [];
+  const scopedMembers = filterMembersByScope(
+    (membersResult.data ?? []) as Array<{
+      id: string;
+      ika_number: string | null;
+      first_name: string;
+      last_name: string;
+      email: string | null;
+      country_id: string | null;
+      dojo_id: string | null;
+    }>,
+    guard.scope,
+  );
+  const members = scopedMembers as Array<{
+    id: string;
+    ika_number: string | null;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    country_id: string | null;
+    dojo_id: string | null;
+  }>;
+  const result = {
+    imported: 0,
+    updated: 0,
+    skipped: 0,
+    errors: [] as Array<{ row: number; error: string }>,
+  };
+
+  for (const [index, rawRow] of rows.entries()) {
+    const rowNumber = index + 1;
+    const row = normalizeCourseImportRow(rawRow);
+    const courseTitle = normalizeText(row.courseTitle);
+    const courseDate = normalizeDate(normalizeText(row.courseDate));
+
+    if (!courseTitle || !courseDate) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: "Titulo y fecha del curso son obligatorios.",
+      });
+      continue;
+    }
+
+    const country = resolveCountry(countries, row);
+    const dojo = resolveDojo(dojos, row, country?.id ?? null);
+    const member = resolveImportedCourseMember(members, row, country?.id ?? null, dojo?.id ?? null);
+
+    if (!member) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: "No se encontro un Kenshi valido para esa fila dentro de tu ambito.",
+      });
+      continue;
+    }
+
+    if (
+      !member.country_id ||
+      !member.dojo_id ||
+      !canManageTarget(guard.scope, member.country_id, member.dojo_id)
+    ) {
+      result.skipped += 1;
+      result.errors.push({
+        row: rowNumber,
+        error: "No tienes permisos para el Kenshi indicado.",
+      });
+      continue;
+    }
+
+    const existing = await guard.admin
+      .from("grade_history")
+      .select("id")
+      .eq("member_id", member.id)
+      .eq("grade", courseTitle)
+      .eq("exam_date", courseDate)
+      .maybeSingle<{ id: string }>();
+
+    if (existing.error) {
+      result.skipped += 1;
+      result.errors.push({ row: rowNumber, error: existing.error.message });
+      continue;
+    }
+
+    if (existing.data) {
+      const updated = await guard.admin
+        .from("grade_history")
+        .update({
+          exam_place: normalizeText(row.coursePlace) || null,
+          examiner: normalizeText(row.instructor) || null,
+          notes: normalizeText(row.notes) || null,
+          updated_by: guard.profileId,
+        })
+        .eq("id", existing.data.id);
+
+      if (updated.error) {
+        result.skipped += 1;
+        result.errors.push({ row: rowNumber, error: updated.error.message });
+        continue;
+      }
+
+      result.updated += 1;
+      continue;
+    }
+
+    const created = await guard.admin.from("grade_history").insert({
+      member_id: member.id,
+      grade: courseTitle,
+      exam_date: courseDate,
+      exam_place: normalizeText(row.coursePlace) || null,
+      examiner: normalizeText(row.instructor) || null,
+      notes: normalizeText(row.notes) || null,
+      created_by: guard.profileId,
+      updated_by: guard.profileId,
+    });
+
+    if (created.error) {
+      result.skipped += 1;
+      result.errors.push({ row: rowNumber, error: created.error.message });
       continue;
     }
 
@@ -1046,6 +1367,25 @@ function normalizeImportRow(row: ImportRow) {
   };
 }
 
+function normalizeCourseImportRow(row: CourseImportRow) {
+  return {
+    ikaNumber: normalizeText(row.ikaNumber).toUpperCase(),
+    email: normalizeEmail(row.email),
+    firstName: normalizeText(row.firstName),
+    lastName: normalizeText(row.lastName),
+    countryId: normalizeText(row.countryId),
+    countryCode: normalizeText(row.countryCode).toUpperCase(),
+    countryName: normalizeText(row.countryName),
+    dojoId: normalizeText(row.dojoId),
+    dojoName: normalizeText(row.dojoName),
+    courseTitle: normalizeText(row.courseTitle),
+    courseDate: normalizeText(row.courseDate),
+    coursePlace: normalizeText(row.coursePlace),
+    instructor: normalizeText(row.instructor),
+    notes: normalizeText(row.notes),
+  };
+}
+
 function isActiveImportStatus(value: string) {
   return ["active", "activo", "activa"].includes(
     normalizeComparable(value),
@@ -1058,7 +1398,11 @@ function resolveCountry(
     code: string;
     country_translations?: Array<{ name: string }>;
   }>,
-  row: ReturnType<typeof normalizeImportRow>,
+  row: {
+    countryId: string;
+    countryCode: string;
+    countryName: string;
+  },
 ) {
   if (row.countryId) {
     return countries.find((country) => country.id === row.countryId) ?? null;
@@ -1094,7 +1438,10 @@ function resolveDojo(
     city: string;
     dojo_translations?: Array<{ name: string }>;
   }>,
-  row: ReturnType<typeof normalizeImportRow>,
+  row: {
+    dojoId: string;
+    dojoName: string;
+  },
   countryId: string | null,
 ) {
   if (row.dojoId) {
@@ -1118,6 +1465,60 @@ function resolveDojo(
       return matchesName && (!countryId || dojo.country_id === countryId);
     }) ?? null
   );
+}
+
+function resolveImportedCourseMember(
+  members: Array<{
+    id: string;
+    ika_number: string | null;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    country_id: string | null;
+    dojo_id: string | null;
+  }>,
+  row: ReturnType<typeof normalizeCourseImportRow>,
+  countryId: string | null,
+  dojoId: string | null,
+) {
+  if (row.ikaNumber) {
+    const exact = members.find(
+      (member) => normalizeText(member.ika_number).toUpperCase() === row.ikaNumber,
+    );
+
+    if (exact) {
+      return exact;
+    }
+  }
+
+  if (row.email) {
+    const byEmail = members.find(
+      (member) => normalizeEmail(member.email) === row.email,
+    );
+
+    if (byEmail) {
+      return byEmail;
+    }
+  }
+
+  const firstName = normalizeComparable(row.firstName);
+  const lastName = normalizeComparable(row.lastName);
+
+  if (!firstName || !lastName) {
+    return null;
+  }
+
+  const matches = members.filter((member) => {
+    const sameName =
+      normalizeComparable(member.first_name) === firstName &&
+      normalizeComparable(member.last_name) === lastName;
+    const sameCountry = !countryId || member.country_id === countryId;
+    const sameDojo = !dojoId || member.dojo_id === dojoId;
+
+    return sameName && sameCountry && sameDojo;
+  });
+
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function canManageTarget(
