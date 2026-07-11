@@ -27,11 +27,12 @@ type SupabaseAdminClient = ReturnType<
 >;
 
 const memberSelect =
-  "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,profile_image_url,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))";
+  "id,ika_number,external_member_id,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,profile_image_url,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))";
 
 const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
 
 type ImportRow = {
+  externalMemberId?: string;
   firstName?: string;
   lastName?: string;
   email?: string;
@@ -54,6 +55,7 @@ type ImportRow = {
 };
 
 type CourseImportRow = {
+  externalMemberId?: string;
   ikaNumber?: string;
   email?: string;
   firstName?: string;
@@ -701,14 +703,24 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const existingByEmail = row.email
+    const existingByExternalId = row.externalMemberId
+      ? await guard.admin
+          .from("members")
+          .select("id")
+          .eq("dojo_id", dojoId)
+          .eq("external_member_id", row.externalMemberId)
+          .maybeSingle<{ id: string }>()
+      : { data: null, error: null };
+    const existingByEmail = existingByExternalId.data
+      ? { data: null, error: null }
+      : row.email
       ? await guard.admin
           .from("members")
           .select("id")
           .ilike("email", row.email)
           .maybeSingle<{ id: string }>()
       : { data: null, error: null };
-    const existingByName = existingByEmail.data
+    const existingByName = existingByExternalId.data || existingByEmail.data
       ? { data: null, error: null }
       : await guard.admin
           .from("members")
@@ -717,13 +729,18 @@ export async function POST(request: NextRequest) {
           .ilike("first_name", row.firstName)
           .ilike("last_name", row.lastName)
           .maybeSingle<{ id: string }>();
-    const existingMember = existingByEmail.data ?? existingByName.data;
+    const existingMember =
+      existingByExternalId.data ?? existingByEmail.data ?? existingByName.data;
 
-    if (existingByEmail.error || existingByName.error) {
+    if (existingByExternalId.error || existingByEmail.error || existingByName.error) {
       result.skipped += 1;
       result.errors.push({
         row: rowNumber,
-        error: existingByEmail.error?.message ?? existingByName.error?.message ?? "",
+        error:
+          existingByExternalId.error?.message ??
+          existingByEmail.error?.message ??
+          existingByName.error?.message ??
+          "",
       });
       continue;
     }
@@ -734,6 +751,7 @@ export async function POST(request: NextRequest) {
         .update({
           first_name: row.firstName,
           last_name: row.lastName,
+          external_member_id: row.externalMemberId || null,
           birth_date: normalizeDate(row.birthDate),
           country_id: countryId,
           dojo_id: dojoId,
@@ -766,6 +784,7 @@ export async function POST(request: NextRequest) {
       profile_id: null,
       first_name: row.firstName,
       last_name: row.lastName,
+      external_member_id: row.externalMemberId || null,
       birth_date: normalizeDate(row.birthDate),
       country_id: countryId,
       dojo_id: dojoId,
@@ -825,7 +844,7 @@ async function importCourseRows(
       .select("id,country_id,city,dojo_translations(language_code,name)"),
     guard.admin
       .from("members")
-      .select("id,ika_number,first_name,last_name,email,country_id,dojo_id"),
+      .select("id,ika_number,external_member_id,first_name,last_name,email,country_id,dojo_id"),
   ]);
 
   const firstError =
@@ -841,6 +860,7 @@ async function importCourseRows(
     (membersResult.data ?? []) as Array<{
       id: string;
       ika_number: string | null;
+      external_member_id: string | null;
       first_name: string;
       last_name: string;
       email: string | null;
@@ -852,6 +872,7 @@ async function importCourseRows(
   const members = scopedMembers as Array<{
     id: string;
     ika_number: string | null;
+    external_member_id: string | null;
     first_name: string;
     last_name: string;
     email: string | null;
@@ -1345,6 +1366,7 @@ async function findProfileAuthUserIdByEmail(
 
 function normalizeImportRow(row: ImportRow) {
   return {
+    externalMemberId: normalizeText(row.externalMemberId),
     firstName: normalizeText(row.firstName),
     lastName: normalizeText(row.lastName),
     email: normalizeEmail(row.email),
@@ -1369,6 +1391,7 @@ function normalizeImportRow(row: ImportRow) {
 
 function normalizeCourseImportRow(row: CourseImportRow) {
   return {
+    externalMemberId: normalizeText(row.externalMemberId),
     ikaNumber: normalizeText(row.ikaNumber).toUpperCase(),
     email: normalizeEmail(row.email),
     firstName: normalizeText(row.firstName),
@@ -1471,6 +1494,7 @@ function resolveImportedCourseMember(
   members: Array<{
     id: string;
     ika_number: string | null;
+    external_member_id: string | null;
     first_name: string;
     last_name: string;
     email: string | null;
@@ -1482,12 +1506,27 @@ function resolveImportedCourseMember(
   dojoId: string | null,
 ) {
   if (row.ikaNumber) {
+    const wantedIkaNumber = normalizeIkaNumber(row.ikaNumber);
     const exact = members.find(
-      (member) => normalizeText(member.ika_number).toUpperCase() === row.ikaNumber,
+      (member) => normalizeIkaNumber(member.ika_number) === wantedIkaNumber,
     );
 
     if (exact) {
       return exact;
+    }
+  }
+
+  if (row.externalMemberId) {
+    const exactExternal = members.find(
+      (member) =>
+        normalizeComparable(member.external_member_id ?? "") ===
+        normalizeComparable(row.externalMemberId) &&
+        (!dojoId || member.dojo_id === dojoId) &&
+        (!countryId || member.country_id === countryId),
+    );
+
+    if (exactExternal) {
+      return exactExternal;
     }
   }
 
@@ -1750,6 +1789,22 @@ function normalizeComparable(value: string) {
     .trim();
 }
 
+function normalizeIkaNumber(value: unknown) {
+  const raw = normalizeText(value).toUpperCase();
+
+  if (!raw) {
+    return "";
+  }
+
+  const digits = raw.replace(/\D/g, "");
+
+  if (digits) {
+    return `IKA-${digits.padStart(6, "0")}`;
+  }
+
+  return raw.replace(/[^A-Z0-9]/g, "");
+}
+
 function slugify(value: string) {
   return value
     .normalize("NFD")
@@ -1765,7 +1820,14 @@ function normalizeDate(value: string) {
     return value;
   }
 
-  const dayFirst = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const trimmed = value.trim();
+  const isoWithTime = trimmed.match(/^(\d{4})-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/);
+
+  if (isoWithTime) {
+    return trimmed.slice(0, 10);
+  }
+
+  const dayFirst = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
 
   if (dayFirst) {
     const [, day, month, year] = dayFirst;

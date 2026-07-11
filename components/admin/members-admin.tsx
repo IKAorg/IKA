@@ -36,6 +36,7 @@ type DojoOption = {
 type MemberRow = {
   id: string;
   ika_number: string;
+  external_member_id: string | null;
   first_name: string;
   last_name: string;
   email: string | null;
@@ -59,6 +60,7 @@ type MemberRow = {
 };
 
 type ImportRow = {
+  externalMemberId: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -91,6 +93,7 @@ type CourseHistory = {
 };
 
 type CourseImportRow = {
+  externalMemberId: string;
   ikaNumber: string;
   email: string;
   firstName: string;
@@ -157,12 +160,12 @@ const emptyPayload: MembersPayload = {
 };
 
 const csvTemplate =
-  "first_name,last_name,email,current_grade,joined_date,phone\n" +
-  "Ane,Gonzalez,ane@example.com,3 kyu,2026-01-10,+34 600 000 000\n";
+  "external_member_id,first_name,last_name,email,current_grade,joined_date,phone\n" +
+  "SKBC-001,Ane,Gonzalez,ane@example.com,3 kyu,2026-01-10,+34 600 000 000\n";
 
 const courseCsvTemplate =
-  "ika_number,email,course_title,course_date,course_place,instructor,notes\n" +
-  "IKA-000001,ane@example.com,IKA Summer Course,2026-07-01,Madrid,Mizuno Sensei,Participacion completa\n";
+  "external_member_id,ika_number,email,course_title,course_date,course_place,instructor,notes\n" +
+  "SKBC-001,IKA-000001,ane@example.com,IKA Summer Course,2026-07-01,Madrid,Mizuno Sensei,Participacion completa\n";
 
 const emptyCourseForm: CourseEditForm = {
   title: "",
@@ -311,7 +314,8 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
         (row) =>
           row.courseTitle &&
           row.courseDate &&
-          (row.ikaNumber ||
+          (row.externalMemberId ||
+            row.ikaNumber ||
             row.email ||
             (row.firstName && row.lastName)),
       ),
@@ -1526,6 +1530,12 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
     const directEmail = getValue(record, "email") || getValue(record, "correo");
 
     return {
+      externalMemberId:
+        getValue(record, "external_member_id") ||
+        getValue(record, "club_member_id") ||
+        getValue(record, "member_code") ||
+        getValue(record, "alumnoref") ||
+        getValue(record, "id"),
       firstName:
         getValue(record, "first_name") ||
         getValue(record, "firstname") ||
@@ -1600,6 +1610,13 @@ function parseCourseCsvRows(csv: string, payload: MembersPayload): CourseImportR
     const dojo = resolveDojoInput(payload, dojoInput, country?.id ?? "");
 
     return {
+      externalMemberId: getAnyValue(record, [
+        "external_member_id",
+        "club_member_id",
+        "member_code",
+        "alumnoref",
+        "id",
+      ]),
       ikaNumber:
         getValue(record, "ika_number") ||
         getValue(record, "ika_id") ||
@@ -1652,17 +1669,95 @@ function parseFlexibleCourseCsvRows(
     .map((line) => line.trim())
     .filter(Boolean);
 
-  if (lines.length < 2) {
+  if (lines.length === 0) {
     return [];
   }
 
   const delimiter = detectCsvDelimiter(lines[0]);
-  const headers = splitCsvLine(lines[0], delimiter).map((header) =>
+  const firstRow = splitCsvLine(lines[0], delimiter);
+  const headers = firstRow.map((header) =>
     normalizeHeader(header),
   );
+  const knownHeaders = new Set([
+    "external_member_id",
+    "club_member_id",
+    "member_code",
+    "alumnoref",
+    "ika_number",
+    "ika_id",
+    "kenshi_id",
+    "email",
+    "correo",
+    "mail",
+    "first_name",
+    "firstname",
+    "nombre",
+    "last_name",
+    "lastname",
+    "apellido",
+    "apellidos",
+    "country",
+    "pais",
+    "country_name",
+    "country_id",
+    "country_code",
+    "codigo_pais",
+    "dojo",
+    "club",
+    "dojo_name",
+    "dojo_id",
+    "course_title",
+    "course",
+    "curso",
+    "activity",
+    "course_date",
+    "date",
+    "fecha",
+    "course_place",
+    "place",
+    "lugar",
+    "donde",
+    "where",
+    "instructor",
+    "teacher",
+    "sensei",
+    "coach",
+    "notes",
+    "notas",
+    "comments",
+    "observaciones",
+    "id",
+  ]);
+  const hasRecognizedHeader = headers.some((header) => knownHeaders.has(header));
+  const dataLines = hasRecognizedHeader ? lines.slice(1) : lines;
 
-  return lines.slice(1).map((line) => {
+  if (dataLines.length === 0) {
+    return [];
+  }
+
+  return dataLines.map((line) => {
     const values = splitCsvLine(line, delimiter);
+
+    if (!hasRecognizedHeader) {
+      return {
+        externalMemberId: values[1]?.trim() ?? "",
+        ikaNumber: values[6]?.trim()?.startsWith("IKA-") ? values[6].trim() : "",
+        email: "",
+        firstName: "",
+        lastName: "",
+        countryId: "",
+        countryCode: "",
+        countryName: "",
+        dojoId: "",
+        dojoName: "",
+        courseTitle: values[3]?.trim() ?? "",
+        courseDate: values[0]?.trim() ?? "",
+        coursePlace: values[2]?.trim() ?? "",
+        instructor: values[4]?.trim() ?? "",
+        notes: [values[5], values[6], values[7]].filter(Boolean).join(" | "),
+      };
+    }
+
     const record = new Map(
       headers.map((header, index) => [header, values[index] ?? ""]),
     );
@@ -1676,6 +1771,13 @@ function parseFlexibleCourseCsvRows(
     const dojo = resolveDojoInput(payload, dojoInput, country?.id ?? "");
 
     return {
+      externalMemberId: getAnyValue(record, [
+        "external_member_id",
+        "club_member_id",
+        "member_code",
+        "alumnoref",
+        "id",
+      ]),
       ikaNumber: getAnyValue(record, [
         "ika_number",
         "ika_id",
@@ -2005,8 +2107,8 @@ function membersAdminCopy(locale: Locale) {
       ? "El volcado CSV no envia emails. Las invitaciones se enviaran despues manualmente desde el area del dojo."
       : "CSV import does not send emails. Invitations will be sent manually later from the dojo area.",
     coursesCsvHint: es
-      ? "Columnas recomendadas: ika_number, email, first_name, last_name, course_title, course_date, course_place, instructor, notes, dojo, country."
-      : "Recommended columns: ika_number, email, first_name, last_name, course_title, course_date, course_place, instructor, notes, dojo, country.",
+      ? "Columnas recomendadas: external_member_id, ika_number, email, first_name, last_name, course_title, course_date, course_place, instructor, notes, dojo, country."
+      : "Recommended columns: external_member_id, ika_number, email, first_name, last_name, course_title, course_date, course_place, instructor, notes, dojo, country.",
     importKenshi: (count: number) => (es ? `Importar ${count} Kenshi` : `Import ${count} Kenshi`),
     importCourses: (count: number) =>
       es ? `Importar ${count} cursos` : `Import ${count} courses`,
