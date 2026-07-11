@@ -177,6 +177,7 @@ export function LocationsAdmin({
 }: {
   initialLocale?: Locale;
 }) {
+  const copy = locationsAdminCopy(initialLocale);
   const supabase = useMemo(() => createClient(), []);
   const [countries, setCountries] = useState<CountryRow[]>([]);
   const [dojos, setDojos] = useState<DojoRow[]>([]);
@@ -320,7 +321,7 @@ export function LocationsAdmin({
     }
 
     setCountryForm(createEmptyCountryForm(countryForm.locale));
-    setMessage("Pais guardado.");
+    setMessage(copy.countrySaved);
     await loadLocations();
     setSaving(false);
     return;
@@ -612,7 +613,7 @@ export function LocationsAdmin({
       return;
     }
 
-    setMessage("Pais eliminado.");
+    setMessage(copy.countryDeleted);
     await loadLocations();
     return;
 
@@ -660,7 +661,7 @@ export function LocationsAdmin({
 
   async function uploadPublicImage(file: File, scope: string) {
     if (!file.type.startsWith("image/")) {
-      setMessage("Selecciona un archivo de imagen.");
+      setMessage(copy.selectImageFile);
       return null;
     }
 
@@ -779,10 +780,9 @@ export function LocationsAdmin({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
             CMS
           </p>
-          <h2 className="mt-2 text-2xl font-semibold">Países y dojos</h2>
+          <h2 className="mt-2 text-2xl font-semibold">{copy.title}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-            Gestiona países, logos, responsables y dojos asociados. Las fichas
-            públicas se actualizan desde Supabase.
+            {copy.intro}
           </p>
         </div>
       </div>
@@ -801,6 +801,7 @@ export function LocationsAdmin({
               onImportExisting={importExistingCountries}
               onEdit={editCountry}
               onDelete={deleteCountry}
+              copy={copy}
             />
           ) : null}
           <DojoList
@@ -810,6 +811,7 @@ export function LocationsAdmin({
             loading={loading}
             onEdit={editDojo}
             onDelete={deleteDojo}
+            copy={copy}
           />
         </div>
 
@@ -827,6 +829,7 @@ export function LocationsAdmin({
               onReset={() =>
                 setCountryForm(createEmptyCountryForm(countryForm.locale))
               }
+              copy={copy}
             />
           ) : null}
           <DojoFormView
@@ -840,6 +843,7 @@ export function LocationsAdmin({
             onUploadImage={uploadPublicImage}
             onSave={saveDojo}
             onReset={() => setDojoForm(createEmptyDojoForm(dojoForm.locale))}
+            copy={copy}
           />
         </div>
       </div>
@@ -864,6 +868,7 @@ function CountryList({
   onImportExisting,
   onEdit,
   onDelete,
+  copy,
 }: {
   countries: CountryRow[];
   mediaById: Map<string, MediaRow>;
@@ -875,11 +880,12 @@ function CountryList({
   onImportExisting: () => void;
   onEdit: (country: CountryRow) => void;
   onDelete: (id: string) => void;
+  copy: ReturnType<typeof locationsAdminCopy>;
 }) {
   return (
     <details className="border border-[var(--line)] p-4">
       <summary className="cursor-pointer text-xl font-semibold">
-        Países ({countries.length})
+        {copy.countries} ({countries.length})
       </summary>
       {canImport ? (
         <div className="mt-4 flex flex-wrap gap-3">
@@ -893,17 +899,16 @@ function CountryList({
             ) : (
               <Plus size={16} />
             )}
-            Importar países existentes
+            {copy.importExistingCountries}
           </button>
         </div>
       ) : null}
       <div className="mt-4 grid gap-3">
         {loading ? (
-          <p className="text-sm text-[var(--muted)]">Cargando países...</p>
+          <p className="text-sm text-[var(--muted)]">{copy.loadingCountries}</p>
         ) : countries.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">
-            Aún no hay países en Supabase. Importa los existentes para empezar
-            a editarlos.
+            {copy.noCountries}
           </p>
         ) : (
           countries.map((country) => {
@@ -929,11 +934,11 @@ function CountryList({
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
-                      {country.status} · {country.is_public ? "Público" : "Oculto"}
+                      {country.status} · {country.is_public ? copy.public : copy.hidden}
                     </p>
                     <h4 className="mt-1 text-lg font-semibold">{name}</h4>
                     <p className="text-sm text-[var(--muted)]">
-                      {country.ika_country_id ?? "ID pendiente"} · {country.code}
+                      {country.ika_country_id ?? copy.pendingId} · {country.code}
                     </p>
                   </div>
                 </div>
@@ -942,7 +947,7 @@ function CountryList({
                     onClick={() => onEdit(country)}
                     className="border border-[var(--line)] px-3 py-2 text-sm font-semibold"
                   >
-                    Editar
+                    {copy.edit}
                   </button>
                   {canDelete ? (
                     <button
@@ -950,7 +955,7 @@ function CountryList({
                       className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
                     >
                       <Trash2 size={15} />
-                      Borrar
+                      {copy.delete}
                     </button>
                   ) : null}
                 </div>
@@ -970,6 +975,7 @@ function DojoList({
   loading,
   onEdit,
   onDelete,
+  copy,
 }: {
   dojos: DojoRow[];
   countries: CountryRow[];
@@ -977,6 +983,7 @@ function DojoList({
   loading: boolean;
   onEdit: (dojo: DojoRow) => void;
   onDelete: (id: string) => void;
+  copy: ReturnType<typeof locationsAdminCopy>;
 }) {
   const countryNameById = new Map(
     countries.map((country) => [
@@ -996,9 +1003,9 @@ function DojoList({
       </summary>
       <div className="mt-4 grid gap-3">
         {loading ? (
-          <p className="text-sm text-[var(--muted)]">Cargando dojos...</p>
+          <p className="text-sm text-[var(--muted)]">{copy.loadingDojos}</p>
         ) : dojos.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">Aún no hay dojos.</p>
+          <p className="text-sm text-[var(--muted)]">{copy.noDojos}</p>
         ) : (
           dojos.map((dojo) => {
             const name =
@@ -1022,14 +1029,14 @@ function DojoList({
                     onClick={() => onEdit(dojo)}
                     className="border border-[var(--line)] px-3 py-2 text-sm font-semibold"
                   >
-                    Editar
+                    {copy.edit}
                   </button>
                   <button
                     onClick={() => onDelete(dojo.id)}
                     className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
                   >
                     <Trash2 size={15} />
-                    Borrar
+                    {copy.delete}
                   </button>
                 </div>
               </article>
@@ -1051,6 +1058,7 @@ function CountryFormView({
   onUploadImage,
   onSave,
   onReset,
+  copy,
 }: {
   form: CountryForm;
   setForm: React.Dispatch<React.SetStateAction<CountryForm>>;
@@ -1061,23 +1069,24 @@ function CountryFormView({
   onUploadImage: UploadImageFn;
   onSave: () => void;
   onReset: () => void;
+  copy: ReturnType<typeof locationsAdminCopy>;
 }) {
   return (
     <details className="border border-[var(--line)] p-4">
       <summary className="cursor-pointer">
         <span className="inline-flex items-center gap-2 text-xl font-semibold">
           <Flag size={20} className="text-[var(--accent)]" />
-          {form.id ? "Editar país" : canCreate ? "Nuevo país" : "Selecciona país"}
+          {form.id ? copy.editCountry : canCreate ? copy.newCountry : copy.selectCountry}
         </span>
       </summary>
       <div className="mt-4 grid gap-3">
         {!canCreate && !form.id ? (
           <p className="text-sm font-semibold text-[var(--accent)]">
-            Selecciona tu país en la lista para editarlo.
+            {copy.selectCountryToEdit}
           </p>
         ) : null}
         <AdminSelect
-          label="Idioma"
+          label={copy.language}
           value={form.locale}
           onChange={(value) => onLocaleChange(value as Locale)}
           options={locales.map((locale) => ({
@@ -1094,7 +1103,7 @@ function CountryFormView({
             }
           />
           <AdminSelect
-            label="Estado"
+            label={copy.status}
             value={form.status}
             onChange={(value) =>
               setForm((current) => ({
@@ -1102,7 +1111,7 @@ function CountryFormView({
                 status: value as ContentStatus,
               }))
             }
-            options={statusOptions}
+            options={statusOptions(copy)}
           />
         </div>
         <Checkbox
@@ -1113,7 +1122,7 @@ function CountryFormView({
           }
         />
         <TextInput
-          label="Nombre"
+          label={copy.name}
           value={form.name}
           onChange={(value) =>
             setForm((current) => ({
@@ -1135,7 +1144,7 @@ function CountryFormView({
           }
         />
         <TextArea
-          label="Información del país"
+          label={copy.countryInfo}
           value={form.description}
           onChange={(value) =>
             setForm((current) => ({ ...current, description: value }))
@@ -1143,14 +1152,14 @@ function CountryFormView({
         />
         <div className="grid gap-3 md:grid-cols-2">
           <TextInput
-            label="Responsable"
+          label={copy.responsible}
             value={form.responsiblePerson}
             onChange={(value) =>
               setForm((current) => ({ ...current, responsiblePerson: value }))
             }
           />
           <TextInput
-            label="Email responsable"
+          label={copy.responsibleEmail}
             value={form.responsibleEmail}
             onChange={(value) =>
               setForm((current) => ({ ...current, responsibleEmail: value }))
@@ -1158,8 +1167,8 @@ function CountryFormView({
           />
         </div>
         <ImageUploadField
-          label="Bandera del país"
-          helperText="Normalmente no hace falta subir nada: la web pone la bandera automáticamente según el código del país. Usa esta subida solo si necesitas sustituirla manualmente."
+          label={copy.countryFlag}
+          helperText={copy.countryFlagHelp}
           value={form.logoUrl}
           uploading={uploadingField === "country-logo"}
           onUpload={async (file) => {
@@ -1169,12 +1178,14 @@ function CountryFormView({
             }
           }}
           onClear={() => setForm((current) => ({ ...current, logoUrl: "" }))}
+          copy={copy}
         />
         <FormButtons
           saving={saving}
           disabled={!form.code || !form.name || (!canCreate && !form.id)}
           onSave={onSave}
           onReset={onReset}
+          copy={copy}
         />
       </div>
     </details>
@@ -1192,6 +1203,7 @@ function DojoFormView({
   onUploadImage,
   onSave,
   onReset,
+  copy,
 }: {
   form: DojoForm;
   setForm: React.Dispatch<React.SetStateAction<DojoForm>>;
@@ -1203,6 +1215,7 @@ function DojoFormView({
   onUploadImage: UploadImageFn;
   onSave: () => void;
   onReset: () => void;
+  copy: ReturnType<typeof locationsAdminCopy>;
 }) {
   const effectiveCountryId = lockCountry ? countries[0]?.id ?? "" : form.countryId;
 
@@ -1211,19 +1224,19 @@ function DojoFormView({
       <summary className="cursor-pointer">
         <span className="inline-flex items-center gap-2 text-xl font-semibold">
         <Building2 size={20} className="text-[var(--accent)]" />
-          {form.id ? "Editar dojo" : "Nuevo dojo"}
+          {form.id ? copy.editDojo : copy.newDojo}
         </span>
       </summary>
       <div className="mt-4 grid gap-3">
         <AdminSelect
-          label="País"
+          label={copy.country}
           value={effectiveCountryId}
           disabled={lockCountry}
           onChange={(value) =>
             setForm((current) => ({ ...current, countryId: value }))
           }
           options={[
-            { value: "", label: "Selecciona país" },
+            { value: "", label: copy.selectCountry },
             ...countries.map((country) => ({
               value: country.id,
               label:
@@ -1236,7 +1249,7 @@ function DojoFormView({
           ]}
         />
         <AdminSelect
-          label="Idioma"
+          label={copy.language}
           value={form.locale}
           onChange={(value) => onLocaleChange(value as Locale)}
           options={locales.map((locale) => ({
@@ -1246,7 +1259,7 @@ function DojoFormView({
         />
         <div className="grid gap-3 md:grid-cols-2">
           <AdminSelect
-            label="Estado"
+            label={copy.status}
             value={form.status}
             onChange={(value) =>
               setForm((current) => ({
@@ -1254,7 +1267,7 @@ function DojoFormView({
                 status: value as ContentStatus,
               }))
             }
-            options={statusOptions}
+            options={statusOptions(copy)}
           />
           <TextInput
             label="Ciudad"
@@ -1272,7 +1285,7 @@ function DojoFormView({
           }
         />
         <TextInput
-          label="Nombre dojo"
+          label={copy.dojoName}
           value={form.name}
           onChange={(value) =>
             setForm((current) => ({
@@ -1294,21 +1307,21 @@ function DojoFormView({
           }
         />
         <TextArea
-          label="Información, horarios y notas"
+          label={copy.dojoInfo}
           value={form.description}
           onChange={(value) =>
             setForm((current) => ({ ...current, description: value }))
           }
         />
         <TextInput
-          label="Dirección"
+          label={copy.address}
           value={form.address}
           onChange={(value) =>
             setForm((current) => ({ ...current, address: value }))
           }
         />
         <TextInput
-          label="Instructor responsable"
+          label={copy.responsibleInstructor}
           value={form.responsibleInstructor}
           onChange={(value) =>
             setForm((current) => ({
@@ -1326,7 +1339,7 @@ function DojoFormView({
             }
           />
           <TextInput
-            label="Teléfono"
+          label={copy.phone}
             value={form.phone}
             onChange={(value) =>
               setForm((current) => ({ ...current, phone: value }))
@@ -1334,15 +1347,15 @@ function DojoFormView({
           />
         </div>
         <TextInput
-          label="Página web"
+          label={copy.website}
           value={form.website}
           onChange={(value) =>
             setForm((current) => ({ ...current, website: value }))
           }
         />
         <ImageUploadField
-          label="Logo de kempo del dojo"
-          helperText="Solo logo del club o dojo. No subir fotos generales del dojo ni imágenes de entrenamientos en este campo."
+          label={copy.dojoLogo}
+          helperText={copy.dojoLogoHelp}
           value={form.imageUrl}
           uploading={uploadingField === "dojo-main-image"}
           onUpload={async (file) => {
@@ -1352,34 +1365,40 @@ function DojoFormView({
             }
           }}
           onClear={() => setForm((current) => ({ ...current, imageUrl: "" }))}
+          copy={copy}
         />
         <FormButtons
           saving={saving}
           disabled={!effectiveCountryId || !form.city || !form.name}
           onSave={onSave}
           onReset={onReset}
+          copy={copy}
         />
       </div>
     </details>
   );
 }
 
-const statusOptions = [
-  { value: "draft", label: "Borrador" },
-  { value: "published", label: "Publicado" },
-  { value: "archived", label: "Archivado" },
-];
+function statusOptions(copy: ReturnType<typeof locationsAdminCopy>) {
+  return [
+    { value: "draft", label: copy.draft },
+    { value: "published", label: copy.published },
+    { value: "archived", label: copy.archived },
+  ];
+}
 
 function FormButtons({
   saving,
   disabled,
   onSave,
   onReset,
+  copy,
 }: {
   saving: boolean;
   disabled: boolean;
   onSave: () => void;
   onReset: () => void;
+  copy: ReturnType<typeof locationsAdminCopy>;
 }) {
   return (
     <div className="flex flex-wrap gap-3">
@@ -1389,14 +1408,14 @@ function FormButtons({
         className="inline-flex items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
       >
         {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-        Guardar
+        {copy.save}
       </button>
       <button
         onClick={onReset}
         className="inline-flex items-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
       >
         <Plus size={16} />
-        Nuevo
+        {copy.new}
       </button>
     </div>
   );
@@ -1505,6 +1524,7 @@ function ImageUploadField({
   uploading,
   onUpload,
   onClear,
+  copy,
 }: {
   label: string;
   helperText?: string;
@@ -1512,6 +1532,7 @@ function ImageUploadField({
   uploading: boolean;
   onUpload: (file: File) => void;
   onClear: () => void;
+  copy: ReturnType<typeof locationsAdminCopy>;
 }) {
   return (
     <div className="grid gap-2 text-sm font-semibold">
@@ -1530,7 +1551,7 @@ function ImageUploadField({
           />
         ) : (
           <div className="mb-3 flex h-28 items-center justify-center border border-dashed border-[var(--line)] bg-white text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
-            Sin imagen
+            {copy.noImage}
           </div>
         )}
         <div className="flex flex-wrap gap-2">
@@ -1540,7 +1561,7 @@ function ImageUploadField({
             ) : (
               <ImagePlus size={16} />
             )}
-            {value ? "Cambiar imagen" : "Subir imagen"}
+            {value ? copy.changeImage : copy.uploadImage}
             <input
               type="file"
               accept="image/*"
@@ -1562,7 +1583,7 @@ function ImageUploadField({
               className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
             >
               <X size={16} />
-              Quitar imagen
+              {copy.removeImage}
             </button>
           ) : null}
         </div>
@@ -1638,4 +1659,67 @@ function slugify(value: string) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function locationsAdminCopy(locale: Locale) {
+  const es = locale === "es";
+
+  return {
+    countrySaved: es ? "Pais guardado." : "Country saved.",
+    countryDeleted: es ? "Pais eliminado." : "Country deleted.",
+    selectImageFile: es ? "Selecciona un archivo de imagen." : "Select an image file.",
+    title: es ? "Paises y dojos" : "Countries and dojos",
+    intro: es
+      ? "Gestiona paises, logos, responsables y dojos asociados. Las fichas publicas se actualizan desde Supabase."
+      : "Manage countries, logos, responsible contacts and associated dojos. Public records update from Supabase.",
+    countries: es ? "Paises" : "Countries",
+    importExistingCountries: es ? "Importar paises existentes" : "Import existing countries",
+    loadingCountries: es ? "Cargando paises..." : "Loading countries...",
+    noCountries: es
+      ? "Aun no hay paises en Supabase. Importa los existentes para empezar a editarlos."
+      : "There are no countries in Supabase yet. Import the existing ones to start editing.",
+    public: es ? "Publico" : "Public",
+    hidden: es ? "Oculto" : "Hidden",
+    pendingId: es ? "ID pendiente" : "Pending ID",
+    edit: es ? "Editar" : "Edit",
+    delete: es ? "Borrar" : "Delete",
+    loadingDojos: es ? "Cargando dojos..." : "Loading dojos...",
+    noDojos: es ? "Aun no hay dojos." : "There are no dojos yet.",
+    editCountry: es ? "Editar pais" : "Edit country",
+    newCountry: es ? "Nuevo pais" : "New country",
+    selectCountry: es ? "Selecciona pais" : "Select country",
+    selectCountryToEdit: es ? "Selecciona tu pais en la lista para editarlo." : "Select your country in the list to edit it.",
+    language: es ? "Idioma" : "Language",
+    status: es ? "Estado" : "Status",
+    draft: es ? "Borrador" : "Draft",
+    published: es ? "Publicado" : "Published",
+    archived: es ? "Archivado" : "Archived",
+    name: es ? "Nombre" : "Name",
+    countryInfo: es ? "Informacion del pais" : "Country information",
+    responsible: es ? "Responsable" : "Responsible person",
+    responsibleEmail: es ? "Email responsable" : "Responsible email",
+    countryFlag: es ? "Bandera del pais" : "Country flag",
+    countryFlagHelp: es
+      ? "Normalmente no hace falta subir nada: la web pone la bandera automaticamente segun el codigo del pais. Usa esta subida solo si necesitas sustituirla manualmente."
+      : "Usually you do not need to upload anything: the website sets the flag automatically from the country code. Use this upload only if you need to replace it manually.",
+    editDojo: es ? "Editar dojo" : "Edit dojo",
+    newDojo: es ? "Nuevo dojo" : "New dojo",
+    country: es ? "Pais" : "Country",
+    dojoName: es ? "Nombre dojo" : "Dojo name",
+    dojoInfo: es ? "Informacion, horarios y notas" : "Information, schedule and notes",
+    address: es ? "Direccion" : "Address",
+    responsibleInstructor: es ? "Instructor responsable" : "Responsible instructor",
+    phone: es ? "Telefono" : "Phone",
+    website: es ? "Pagina web" : "Website",
+    dojoLogo: es ? "Logo de kempo del dojo" : "Dojo kempo logo",
+    dojoLogoHelp: es
+      ? "Solo logo del club o dojo. No subir fotos generales del dojo ni imagenes de entrenamientos en este campo."
+      : "Club or dojo logo only. Do not upload general dojo photos or training images in this field.",
+    save: es ? "Guardar" : "Save",
+    new: es ? "Nuevo" : "New",
+    noImage: es ? "Sin imagen" : "No image",
+    changeImage: es ? "Cambiar imagen" : "Change image",
+    uploadImage: es ? "Subir imagen" : "Upload image",
+    removeImage: es ? "Quitar imagen" : "Remove image",
+  };
 }

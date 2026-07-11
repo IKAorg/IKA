@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FileUp,
+  ImagePlus,
   Loader2,
   Mail,
   Pencil,
@@ -51,6 +52,7 @@ type MemberRow = {
   dojo_id: string | null;
   portal_invite_sent_at: string | null;
   portal_invite_sent_to: string | null;
+  profile_image_url: string | null;
   countries: CountryOption | null;
   dojos: DojoOption | null;
 };
@@ -91,6 +93,7 @@ type MemberEditForm = {
   guardianName: string;
   guardianEmail: string;
   notes: string;
+  profileImageUrl: string;
 };
 
 type MembersPayload = {
@@ -120,6 +123,7 @@ const csvTemplate =
   "Ane,Gonzalez,ane@example.com,3 kyu,2026-01-10,+34 600 000 000\n";
 
 export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
+  const copy = useMemo(() => membersAdminCopy(initialLocale), [initialLocale]);
   const supabase = useMemo(() => createClient(), []);
   const [payload, setPayload] = useState<MembersPayload>(emptyPayload);
   const [csvText, setCsvText] = useState(csvTemplate);
@@ -130,6 +134,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [deletingMemberId, setDeletingMemberId] = useState("");
   const [editingMemberId, setEditingMemberId] = useState("");
   const [savingMemberId, setSavingMemberId] = useState("");
+  const [uploadingMemberImageId, setUploadingMemberImageId] = useState("");
   const [memberForm, setMemberForm] = useState<MemberEditForm | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [message, setMessage] = useState("");
@@ -168,7 +173,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       return {
         ok: false,
         error: formatAdminError(
-          data.error ?? "No se pudo cargar el modulo Kenshi.",
+          data.error ?? copy.loadError,
           data.diagnostics,
         ),
         diagnostics: data.diagnostics,
@@ -176,7 +181,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     }
 
     return { ok: true, payload: data as MembersPayload };
-  }, [getAuthHeaders]);
+  }, [copy.loadError, getAuthHeaders]);
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
@@ -305,7 +310,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     setMessage("");
 
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      setMessage("Por ahora sube un CSV exportado desde Excel.");
+      setMessage(copy.csvOnly);
       return;
     }
 
@@ -314,7 +319,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
 
   async function sendPortalInvite(member: MemberRow) {
     if (!member.email) {
-      setMessage("Ese Kenshi no tiene email.");
+      setMessage(copy.memberHasNoEmail);
       return;
     }
 
@@ -335,7 +340,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo enviar la invitacion.");
+      setMessage(data.error ?? copy.inviteError);
       setInviteSendingId("");
       return;
     }
@@ -355,7 +360,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       ),
     }));
     setMessage(
-      `Email enviado al email ${data.member?.portal_invite_sent_to ?? member.email}.`,
+      copy.emailSent(data.member?.portal_invite_sent_to ?? member.email),
     );
     setInviteSendingId("");
   }
@@ -375,6 +380,45 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           }
         : current,
     );
+  }
+
+  async function uploadMemberProfileImage(member: MemberRow, file: File) {
+    if (!file.type.startsWith("image/")) {
+      setMessage(copy.selectImageFile);
+      return;
+    }
+
+    setUploadingMemberImageId(member.id);
+    setMessage("");
+
+    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const safeName =
+      slugify(file.name.replace(/\.[^.]+$/, "")) || `foto-${Date.now()}`;
+    const storagePath = `members/${member.id}/profile-${Date.now()}-${safeName}.${extension}`;
+
+    const { error } = await supabase.storage
+      .from("public-media")
+      .upload(storagePath, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: true,
+      });
+
+    if (error) {
+      setMessage(error.message);
+      setUploadingMemberImageId("");
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("public-media")
+      .getPublicUrl(storagePath);
+
+    const publicUrl = data.publicUrl;
+    setMemberForm((current) =>
+      current ? { ...current, profileImageUrl: publicUrl } : current,
+    );
+    setUploadingMemberImageId("");
   }
 
   async function saveMember(member: MemberRow) {
@@ -400,7 +444,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo guardar el Kenshi.");
+      setMessage(data.error ?? copy.saveMemberError);
       setSavingMemberId("");
       return;
     }
@@ -414,7 +458,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     setEditingMemberId("");
     setMemberForm(null);
     setSavingMemberId("");
-    setMessage("Kenshi actualizado.");
+    setMessage(copy.memberUpdated);
   }
 
   async function deleteMember(member: MemberRow) {
@@ -422,7 +466,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
 
     if (
       typeof window !== "undefined" &&
-      !window.confirm(`Eliminar definitivamente a ${memberName}?`)
+      !window.confirm(copy.confirmDelete(memberName))
     ) {
       return;
     }
@@ -444,7 +488,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo eliminar el Kenshi.");
+      setMessage(data.error ?? copy.deleteMemberError);
       setDeletingMemberId("");
       return;
     }
@@ -456,7 +500,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     setEditingMemberId("");
     setMemberForm(null);
     setDeletingMemberId("");
-    setMessage("Kenshi eliminado.");
+    setMessage(copy.memberDeleted);
   }
 
   return (
@@ -466,18 +510,18 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           <div>
             <div className="flex items-center gap-3">
               <UsersRound size={22} className="text-[var(--accent)]" />
-              <h2 className="text-2xl font-semibold">Importacion Kenshi</h2>
+              <h2 className="text-2xl font-semibold">{copy.importTitle}</h2>
             </div>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               {isLockedToSingleDojo
-                ? "Tu usuario esta limitado a este dojo. Sube el CSV y se importara solo aqui."
-                : "Selecciona primero el dojo y despues importa muchos practicantes a la vez desde Excel exportado como CSV."}
+                ? copy.lockedDojoHelp
+                : copy.importHelp}
             </p>
           </div>
 
           <label className="inline-flex cursor-pointer items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold">
             <FileUp size={16} />
-            Subir CSV
+            {copy.uploadCsv}
             <input
               type="file"
               accept=".csv,text/csv"
@@ -493,7 +537,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
         </div>
 
         <label className="grid gap-2 text-sm font-semibold">
-          Dojo destino
+          {copy.targetDojo}
           {isLockedToSingleDojo && selectedDojo ? (
             <div className="border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-normal">
               {dojoLabel(selectedDojo, initialLocale)}
@@ -505,7 +549,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               disabled={loading || payload.dojos.length === 0}
               className="border border-[var(--line)] px-3 py-2 font-normal"
             >
-              <option value="">Selecciona dojo</option>
+              <option value="">{copy.selectDojo}</option>
               {payload.dojos.map((dojo) => {
                 const countryLabelText = countryLabelById(
                   payload,
@@ -525,8 +569,8 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           {payload.dojos.length === 0 ? (
             <span className="text-sm text-[var(--accent)]">
               {loading
-                ? "Cargando dojos..."
-                : message || "No hay dojos disponibles para tu rol."}
+                ? copy.loadingDojos
+                : message || copy.noDojosForRole}
             </span>
           ) : null}
           <button
@@ -535,7 +579,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             disabled={loading}
             className="w-fit border border-[var(--line)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
           >
-            {loading ? "Cargando..." : "Recargar dojos"}
+            {loading ? copy.loading : copy.reloadDojos}
           </button>
         </label>
 
@@ -548,8 +592,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
 
         <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
           <p className="text-sm font-semibold text-[var(--muted)]">
-            El volcado CSV no envia emails. Las invitaciones se enviaran despues
-            manualmente desde el area del dojo.
+            {copy.csvNoEmails}
           </p>
 
           <button
@@ -559,7 +602,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
             {importing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            Importar {validRows.length} Kenshi
+            {copy.importKenshi(validRows.length)}
           </button>
         </div>
 
@@ -571,26 +614,26 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 className="text-xl font-semibold">Previsualizacion</h3>
+            <h3 className="text-xl font-semibold">{copy.previewTitle}</h3>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Solo se muestran las filas activas que se van a importar.
+              {copy.previewHelp}
             </p>
           </div>
           <span className="text-sm font-semibold text-[var(--muted)]">
-            Activos: {validRows.length} / Omitidos: {skippedRows}
+            {copy.activeSkipped(validRows.length, skippedRows)}
           </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--line)]">
-                <th className="py-2 pr-4">Nombre</th>
+                <th className="py-2 pr-4">{copy.name}</th>
                 <th className="py-2 pr-4">Email</th>
                 {!isLockedToSingleDojo ? (
-                  <th className="py-2 pr-4">Pais</th>
+                  <th className="py-2 pr-4">{copy.country}</th>
                 ) : null}
                 <th className="py-2 pr-4">Dojo</th>
-                <th className="py-2 pr-4">Grado</th>
+                <th className="py-2 pr-4">{copy.grade}</th>
               </tr>
             </thead>
             <tbody>
@@ -629,7 +672,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
         </div>
         {validRows.length > 20 ? (
           <p className="text-sm text-[var(--muted)]">
-            Mostrando 20 de {validRows.length} filas activas.
+            {copy.showingRows(validRows.length)}
           </p>
         ) : null}
       </section>
@@ -639,26 +682,26 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           <div>
             <h3 className="text-xl font-semibold">Kenshi</h3>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              {filteredMembers.length} visibles de {payload.members.length}.
+              {copy.visibleMembers(filteredMembers.length, payload.members.length)}
             </p>
           </div>
           <label className="grid gap-1 text-sm font-semibold">
-            Buscar
+            {copy.search}
             <input
               type="search"
               value={memberSearch}
               onChange={(event) => setMemberSearch(event.target.value)}
-              placeholder="Numero, nombre o apellidos"
+              placeholder={copy.searchPlaceholder}
               className="border border-[var(--line)] px-3 py-2 font-normal"
             />
           </label>
         </div>
         {loading ? (
-          <p className="text-sm text-[var(--muted)]">Cargando Kenshi...</p>
+          <p className="text-sm text-[var(--muted)]">{copy.loadingKenshi}</p>
         ) : payload.members.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">No hay Kenshi visibles.</p>
+          <p className="text-sm text-[var(--muted)]">{copy.noVisibleKenshi}</p>
         ) : filteredMembers.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">No hay Kenshi para esa busqueda.</p>
+          <p className="text-sm text-[var(--muted)]">{copy.noSearchKenshi}</p>
         ) : (
           <div className="grid max-h-[720px] gap-2 overflow-y-auto pr-2">
             {filteredMembers.map((member) => (
@@ -671,11 +714,11 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                     {member.first_name} {member.last_name}
                   </strong>{" "}
                   <span className="text-[var(--muted)]">
-                    {member.ika_number} · {member.email ?? "sin email"}
+                    {member.ika_number} · {member.email ?? copy.noEmail}
                   </span>
                 </span>
                 <span className="text-[var(--muted)]">
-                  {member.current_grade ?? "sin grado"} ·{" "}
+                  {member.current_grade ?? copy.noGrade} ·{" "}
                   {member.countries
                     ? countryLabel(member.countries, initialLocale)
                     : "-"}
@@ -683,11 +726,11 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                 <div className="grid gap-2 md:col-span-2 md:grid-cols-[1fr_auto] md:items-center">
                   {member.portal_invite_sent_to ? (
                     <span className="font-semibold text-[var(--accent)]">
-                      Email enviado al email {member.portal_invite_sent_to}.
+                      {copy.emailSent(member.portal_invite_sent_to)}
                     </span>
                   ) : (
                     <span className="text-[var(--muted)]">
-                      Invitacion al portal pendiente.
+                      {copy.invitePending}
                     </span>
                   )}
                   <div className="flex flex-wrap gap-2">
@@ -697,7 +740,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                       className="inline-flex h-9 items-center justify-center gap-2 border border-[var(--line)] px-3 font-semibold"
                     >
                       <Pencil size={16} />
-                      Editar
+                      {copy.edit}
                     </button>
                     <button
                       type="button"
@@ -710,7 +753,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                       ) : (
                         <Trash2 size={16} />
                       )}
-                      Eliminar
+                      {copy.delete}
                     </button>
                     <button
                       type="button"
@@ -723,7 +766,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                       ) : (
                         <Mail size={16} />
                       )}
-                      Enviar email
+                      {copy.sendEmail}
                     </button>
                   </div>
                 </div>
@@ -731,12 +774,12 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                   <div className="grid gap-3 border-t border-[var(--line)] pt-3 md:col-span-2">
                     <div className="grid gap-3 md:grid-cols-2">
                       <EditField
-                        label="Nombre"
+                        label={copy.firstName}
                         value={memberForm.firstName}
                         onChange={(value) => updateMemberForm("firstName", value)}
                       />
                       <EditField
-                        label="Apellidos"
+                        label={copy.lastName}
                         value={memberForm.lastName}
                         onChange={(value) => updateMemberForm("lastName", value)}
                       />
@@ -746,23 +789,23 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                         onChange={(value) => updateMemberForm("email", value)}
                       />
                       <EditField
-                        label="Telefono"
+                        label={copy.phone}
                         value={memberForm.phone}
                         onChange={(value) => updateMemberForm("phone", value)}
                       />
                       <EditField
-                        label="Grado"
+                        label={copy.grade}
                         value={memberForm.currentGrade}
                         onChange={(value) => updateMemberForm("currentGrade", value)}
                       />
                       <EditField
-                        label="Fecha ingreso"
+                        label={copy.joinedDate}
                         type="date"
                         value={memberForm.joinedDate}
                         onChange={(value) => updateMemberForm("joinedDate", value)}
                       />
                       <label className="grid gap-1 font-semibold">
-                        Grupo
+                        {copy.group}
                         <select
                           value={memberForm.memberGroup}
                           onChange={(event) =>
@@ -770,13 +813,13 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                           }
                           className="border border-[var(--line)] px-3 py-2 font-normal"
                         >
-                          <option value="">Sin grupo</option>
-                          <option value="adult">Adultos</option>
-                          <option value="child">Ninos</option>
+                          <option value="">{copy.noGroup}</option>
+                          <option value="adult">{copy.adults}</option>
+                          <option value="child">{copy.children}</option>
                         </select>
                       </label>
                       <label className="grid gap-1 font-semibold">
-                        Estado
+                        {copy.status}
                         <select
                           value={memberForm.status}
                           onChange={(event) =>
@@ -784,39 +827,39 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                           }
                           className="border border-[var(--line)] px-3 py-2 font-normal"
                         >
-                          <option value="active">Activo</option>
-                          <option value="inactive">Inactivo</option>
-                          <option value="temporary_leave">Baja temporal</option>
+                          <option value="active">{copy.active}</option>
+                          <option value="inactive">{copy.inactive}</option>
+                          <option value="temporary_leave">{copy.temporaryLeave}</option>
                         </select>
                       </label>
                       <EditField
-                        label="Instructor"
+                        label={copy.instructor}
                         value={memberForm.mainInstructor}
                         onChange={(value) =>
                           updateMemberForm("mainInstructor", value)
                         }
                       />
                       <EditField
-                        label="Tutor"
+                        label={copy.guardian}
                         value={memberForm.guardianName}
                         onChange={(value) => updateMemberForm("guardianName", value)}
                       />
                       <EditField
-                        label="Email tutor"
+                        label={copy.guardianEmail}
                         value={memberForm.guardianEmail}
                         onChange={(value) =>
                           updateMemberForm("guardianEmail", value)
                         }
                       />
                       <EditField
-                        label="Fecha nacimiento"
+                        label={copy.birthDate}
                         type="date"
                         value={memberForm.birthDate}
                         onChange={(value) => updateMemberForm("birthDate", value)}
                       />
                     </div>
                     <label className="grid gap-1 font-semibold">
-                      Notas
+                      {copy.notes}
                       <textarea
                         value={memberForm.notes}
                         onChange={(event) =>
@@ -826,6 +869,59 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                         className="border border-[var(--line)] px-3 py-2 font-normal"
                       />
                     </label>
+                    <div className="grid gap-2 font-semibold">
+                      <span>{copy.profilePhoto}</span>
+                      <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-3 md:grid-cols-[140px_1fr] md:items-center">
+                        {memberForm.profileImageUrl ? (
+                          <div
+                            className="h-32 w-32 border border-[var(--line)] bg-white bg-cover bg-center"
+                            style={{
+                              backgroundImage: `url("${memberForm.profileImageUrl}")`,
+                            }}
+                            aria-label={copy.profilePhotoPreview}
+                          />
+                        ) : (
+                          <div className="flex h-32 w-32 items-center justify-center border border-dashed border-[var(--line)] bg-white text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                            {copy.noPhoto}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <label className="inline-flex cursor-pointer items-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white">
+                            {uploadingMemberImageId === member.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <ImagePlus size={16} />
+                            )}
+                            {memberForm.profileImageUrl ? copy.changePhoto : copy.uploadPhoto}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={uploadingMemberImageId === member.id}
+                              className="sr-only"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = "";
+                                if (file) {
+                                  void uploadMemberProfileImage(member, file);
+                                }
+                              }}
+                            />
+                          </label>
+                          {memberForm.profileImageUrl ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateMemberForm("profileImageUrl", "")
+                              }
+                              className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+                            >
+                              <X size={16} />
+                              {copy.removePhoto}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -838,7 +934,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                         ) : (
                           <Save size={16} />
                         )}
-                        Guardar Kenshi
+                        {copy.saveKenshi}
                       </button>
                       <button
                         type="button"
@@ -849,7 +945,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                         className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
                       >
                         <X size={16} />
-                        Cancelar
+                        {copy.cancel}
                       </button>
                     </div>
                   </div>
@@ -1089,6 +1185,16 @@ function isActiveImportStatus(value: string) {
   return ["active", "activo", "activa"].includes(normalizeComparable(value));
 }
 
+function slugify(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function memberToForm(member: MemberRow): MemberEditForm {
   return {
     firstName: member.first_name,
@@ -1104,6 +1210,7 @@ function memberToForm(member: MemberRow): MemberEditForm {
     guardianName: member.guardian_name ?? "",
     guardianEmail: member.guardian_email ?? "",
     notes: member.internal_notes ?? "",
+    profileImageUrl: member.profile_image_url ?? "",
   };
 }
 
@@ -1154,4 +1261,89 @@ function formatAdminError(error: string, diagnostics: unknown) {
   ].filter(Boolean);
 
   return `${error} ${details.join(" | ")}`;
+}
+
+function membersAdminCopy(locale: Locale) {
+  const es = locale === "es";
+
+  return {
+    loadError: es ? "No se pudo cargar el modulo Kenshi." : "The Kenshi module could not be loaded.",
+    csvOnly: es ? "Por ahora sube un CSV exportado desde Excel." : "For now, upload a CSV exported from Excel.",
+    memberHasNoEmail: es ? "Ese Kenshi no tiene email." : "That Kenshi has no email.",
+    inviteError: es ? "No se pudo enviar la invitacion." : "The invitation could not be sent.",
+    emailSent: (email: string) =>
+      es ? `Email enviado al email ${email}.` : `Email sent to ${email}.`,
+    selectImageFile: es ? "Selecciona un archivo de imagen." : "Select an image file.",
+    saveMemberError: es ? "No se pudo guardar el Kenshi." : "The Kenshi could not be saved.",
+    memberUpdated: es ? "Kenshi actualizado." : "Kenshi updated.",
+    confirmDelete: (name: string) =>
+      es ? `Eliminar definitivamente a ${name}?` : `Permanently delete ${name}?`,
+    deleteMemberError: es ? "No se pudo eliminar el Kenshi." : "The Kenshi could not be deleted.",
+    memberDeleted: es ? "Kenshi eliminado." : "Kenshi deleted.",
+    importTitle: es ? "Importacion Kenshi" : "Kenshi import",
+    lockedDojoHelp: es
+      ? "Tu usuario esta limitado a este dojo. Sube el CSV y se importara solo aqui."
+      : "Your user is limited to this dojo. Upload the CSV and it will be imported only here.",
+    importHelp: es
+      ? "Selecciona primero el dojo y despues importa muchos practicantes a la vez desde Excel exportado como CSV."
+      : "Select the dojo first, then import many practitioners at once from an Excel CSV export.",
+    uploadCsv: es ? "Subir CSV" : "Upload CSV",
+    targetDojo: es ? "Dojo destino" : "Target dojo",
+    selectDojo: es ? "Selecciona dojo" : "Select dojo",
+    loadingDojos: es ? "Cargando dojos..." : "Loading dojos...",
+    noDojosForRole: es ? "No hay dojos disponibles para tu rol." : "There are no dojos available for your role.",
+    loading: es ? "Cargando..." : "Loading...",
+    reloadDojos: es ? "Recargar dojos" : "Reload dojos",
+    csvNoEmails: es
+      ? "El volcado CSV no envia emails. Las invitaciones se enviaran despues manualmente desde el area del dojo."
+      : "CSV import does not send emails. Invitations will be sent manually later from the dojo area.",
+    importKenshi: (count: number) => (es ? `Importar ${count} Kenshi` : `Import ${count} Kenshi`),
+    previewTitle: es ? "Previsualizacion" : "Preview",
+    previewHelp: es ? "Solo se muestran las filas activas que se van a importar." : "Only active rows that will be imported are shown.",
+    activeSkipped: (active: number, skipped: number) =>
+      es ? `Activos: ${active} / Omitidos: ${skipped}` : `Active: ${active} / Skipped: ${skipped}`,
+    name: es ? "Nombre" : "Name",
+    country: es ? "Pais" : "Country",
+    grade: es ? "Grado" : "Grade",
+    showingRows: (count: number) =>
+      es ? `Mostrando 20 de ${count} filas activas.` : `Showing 20 of ${count} active rows.`,
+    visibleMembers: (visible: number, total: number) =>
+      es ? `${visible} visibles de ${total}.` : `${visible} visible of ${total}.`,
+    search: es ? "Buscar" : "Search",
+    searchPlaceholder: es ? "Numero, nombre o apellidos" : "Number, first name or surname",
+    loadingKenshi: es ? "Cargando Kenshi..." : "Loading Kenshi...",
+    noVisibleKenshi: es ? "No hay Kenshi visibles." : "There are no visible Kenshi.",
+    noSearchKenshi: es ? "No hay Kenshi para esa busqueda." : "No Kenshi match that search.",
+    noEmail: es ? "sin email" : "no email",
+    noGrade: es ? "sin grado" : "no grade",
+    invitePending: es ? "Invitacion al portal pendiente." : "Portal invitation pending.",
+    edit: es ? "Editar" : "Edit",
+    delete: es ? "Eliminar" : "Delete",
+    sendEmail: es ? "Enviar email" : "Send email",
+    firstName: es ? "Nombre" : "First name",
+    lastName: es ? "Apellidos" : "Surname",
+    phone: es ? "Telefono" : "Phone",
+    joinedDate: es ? "Fecha ingreso" : "Start date",
+    group: es ? "Grupo" : "Group",
+    noGroup: es ? "Sin grupo" : "No group",
+    adults: es ? "Adultos" : "Adults",
+    children: es ? "Ninos" : "Children",
+    status: es ? "Estado" : "Status",
+    active: es ? "Activo" : "Active",
+    inactive: es ? "Inactivo" : "Inactive",
+    temporaryLeave: es ? "Baja temporal" : "Temporary leave",
+    instructor: es ? "Instructor" : "Instructor",
+    guardian: es ? "Tutor" : "Guardian",
+    guardianEmail: es ? "Email tutor" : "Guardian email",
+    birthDate: es ? "Fecha nacimiento" : "Birth date",
+    notes: es ? "Notas" : "Notes",
+    profilePhoto: es ? "Foto de perfil" : "Profile photo",
+    profilePhotoPreview: es ? "Vista previa de la foto de perfil" : "Profile photo preview",
+    noPhoto: es ? "Sin foto" : "No photo",
+    changePhoto: es ? "Cambiar foto" : "Change photo",
+    uploadPhoto: es ? "Subir foto" : "Upload photo",
+    removePhoto: es ? "Quitar foto" : "Remove photo",
+    saveKenshi: es ? "Guardar Kenshi" : "Save Kenshi",
+    cancel: es ? "Cancelar" : "Cancel",
+  };
 }

@@ -55,7 +55,7 @@ const adminContent: Record<
 export default async function AdminPage({ params }: AdminPageProps) {
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "en";
-  const copy = adminContent[safeLocale];
+  const copy = adminContent[safeLocale === "es" ? "es" : "en"];
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-14">

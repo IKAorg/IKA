@@ -79,6 +79,7 @@ type AdminScopePayload = {
 };
 
 export function AdminPanel({ locale }: AdminPanelProps) {
+  const copy = useMemo(() => adminPanelCopy(locale), [locale]);
   const supabase = useMemo(() => createClient(), []);
   const [scope, setScope] = useState<AdminScope | null>(null);
   const [loadingScope, setLoadingScope] = useState(true);
@@ -133,7 +134,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
             : portal?.error ??
                 members?.error ??
                 locations?.error ??
-                "No se encontro ningun permiso de administracion para esta cuenta.",
+                copy.noAdminPermissionForAccount,
         );
         setLoadingScope(false);
       })
@@ -147,7 +148,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     return () => {
       active = false;
     };
-  }, [supabase]);
+  }, [copy.noAdminPermissionForAccount, supabase]);
 
   if (loadingScope) {
     return <AdminLoading />;
@@ -156,7 +157,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   if (!scope) {
     return (
       <div className="border border-[var(--line)] bg-[var(--paper)] p-5 text-sm font-semibold text-[var(--accent)]">
-        {scopeMessage || "No se encontraron permisos de administracion."}
+        {scopeMessage || copy.noAdminPermissions}
       </div>
     );
   }
@@ -178,37 +179,37 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   return (
     <>
       {canManageUsers ? (
-        <AdminModule title="Usuarios y permisos: crear admins" defaultOpen>
+        <AdminModule title={copy.usersModule} defaultOpen>
           <UsersAdmin initialLocale={locale} />
         </AdminModule>
       ) : null}
 
       {canManageMembers ? (
-        <AdminModule title="Kenshi: alta/importacion de miembros" defaultOpen>
+        <AdminModule title={copy.membersModule} defaultOpen>
           <MembersAdmin initialLocale={locale} />
         </AdminModule>
       ) : null}
 
       {isGlobal ? (
-        <AdminModule title="Ajustes globales">
-          <SettingsAdmin />
+        <AdminModule title={copy.settingsModule}>
+          <SettingsAdmin initialLocale={locale} />
         </AdminModule>
       ) : null}
 
       {isGlobal ? (
-        <AdminModule title="Eventos y calendario">
+        <AdminModule title={copy.eventsModule}>
           <EventsAdmin initialLocale={locale} />
         </AdminModule>
       ) : null}
 
       {canManageLocations ? (
-        <AdminModule title="Paises y dojos: alta de pais/dojo" defaultOpen>
+        <AdminModule title={copy.locationsModule} defaultOpen>
           <LocationsAdmin initialLocale={locale} />
         </AdminModule>
       ) : null}
 
       {isGlobal ? (
-        <AdminModule title="Paginas publicas">
+        <AdminModule title={copy.pagesModule}>
           <PagesAdmin initialLocale={locale} />
         </AdminModule>
       ) : null}
@@ -253,7 +254,32 @@ function AdminModule({
 function AdminLoading() {
   return (
     <div className="border border-[var(--line)] bg-[var(--paper)] p-5 text-sm text-[var(--muted)]">
-      Cargando modulo...
+      Cargando / Loading...
     </div>
   );
+}
+
+function adminPanelCopy(locale: Locale) {
+  const es = locale === "es";
+
+  return {
+    noAdminPermissionForAccount: es
+      ? "No se encontro ningun permiso de administracion para esta cuenta."
+      : "No administration permission was found for this account.",
+    noAdminPermissions: es
+      ? "No se encontraron permisos de administracion."
+      : "No administration permissions were found.",
+    usersModule: es
+      ? "Usuarios y permisos: crear admins"
+      : "Users and permissions: create admins",
+    membersModule: es
+      ? "Kenshi: alta/importacion de miembros"
+      : "Kenshi: member registration/import",
+    settingsModule: es ? "Ajustes globales" : "Global settings",
+    eventsModule: es ? "Eventos y calendario" : "Events and calendar",
+    locationsModule: es
+      ? "Paises y dojos: alta de pais/dojo"
+      : "Countries and dojos: country/dojo setup",
+    pagesModule: es ? "Paginas publicas" : "Public pages",
+  };
 }

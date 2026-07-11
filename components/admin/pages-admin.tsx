@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { FilePenLine, Languages, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import {
+  FilePenLine,
+  ImagePlus,
+  Languages,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
@@ -99,6 +108,7 @@ export function PagesAdmin({
 }: {
   initialLocale?: Locale;
 }) {
+  const copy = pagesAdminCopy(initialLocale);
   const supabase = useMemo(() => createClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [pages, setPages] = useState<PageRow[]>([]);
@@ -108,6 +118,7 @@ export function PagesAdmin({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [uploadingBlockImageId, setUploadingBlockImageId] = useState("");
   const [message, setMessage] = useState("");
 
   const loadPages = useCallback(async () => {
@@ -184,7 +195,7 @@ export function PagesAdmin({
           .single();
 
     if (pageResult.error || !pageResult.data) {
-      setMessage(pageResult.error?.message ?? "No se pudo guardar la página.");
+      setMessage(pageResult.error?.message ?? copy.savePageError);
       setSaving(false);
       return;
     }
@@ -209,14 +220,14 @@ export function PagesAdmin({
       return;
     }
 
-    setMessage("Página guardada.");
+    setMessage(copy.pageSaved);
     await loadPages();
     setSaving(false);
   }
 
   async function addBlock() {
     if (!form.pageId) {
-      setMessage("Guarda la página antes de añadir secciones.");
+      setMessage(copy.savePageBeforeAdd);
       return;
     }
 
@@ -232,7 +243,7 @@ export function PagesAdmin({
       block_type: "text_section",
       sort_order: (blocks.at(-1)?.sort_order ?? 0) + 100,
       is_visible: true,
-      data: { title: "Nueva sección", text: "" },
+      data: { title: copy.newSection, text: "" },
     });
 
     if (error) {
@@ -240,13 +251,13 @@ export function PagesAdmin({
       return;
     }
 
-    setMessage("Sección añadida.");
+    setMessage(copy.sectionAdded);
     await loadPages();
   }
 
   async function saveBlock(block: ContentBlockRow) {
     if (!form.pageId) {
-      setMessage("Guarda la página antes de guardar secciones.");
+      setMessage(copy.savePageBeforeSaveSections);
       return;
     }
 
@@ -275,13 +286,13 @@ export function PagesAdmin({
       return;
     }
 
-    setMessage("Sección guardada.");
+    setMessage(copy.sectionSaved);
     await loadPages();
   }
 
   async function saveAllBlocks() {
     if (!form.pageId) {
-      setMessage("Guarda la página antes de importar secciones.");
+      setMessage(copy.savePageBeforeImport);
       return;
     }
 
@@ -293,7 +304,7 @@ export function PagesAdmin({
     ).filter((block) => block.id.startsWith("fallback-"));
 
     if (blocks.length === 0) {
-      setMessage("No hay contenido base pendiente de importar.");
+      setMessage(copy.noBaseContent);
       return;
     }
 
@@ -313,13 +324,13 @@ export function PagesAdmin({
       return;
     }
 
-    setMessage("Contenido base importado al CMS.");
+    setMessage(copy.baseImported);
     await loadPages();
   }
 
   async function deleteBlock(blockId: string) {
     if (blockId.startsWith("fallback-")) {
-      setMessage("Guarda primero esta sección para poder eliminarla del CMS.");
+      setMessage(copy.saveSectionBeforeDelete);
       return;
     }
 
@@ -333,13 +344,59 @@ export function PagesAdmin({
       return;
     }
 
-    setMessage("Sección eliminada.");
+    setMessage(copy.sectionDeleted);
     await loadPages();
+  }
+
+  async function uploadBlockImage(block: ContentBlockRow, file: File) {
+    if (!file.type.startsWith("image/")) {
+      setMessage(copy.selectImageFile);
+      return;
+    }
+
+    setUploadingBlockImageId(block.id);
+    setMessage("");
+
+    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const safePage = slugify(form.pageKey) || "page";
+    const uniqueId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(file.lastModified);
+    const safeName =
+      slugify(file.name.replace(/\.[^.]+$/, "")) || `imagen-${uniqueId}`;
+    const storagePath = `pages/${safePage}/${uniqueId}-${safeName}.${extension}`;
+
+    const { error } = await supabase.storage
+      .from("public-media")
+      .upload(storagePath, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: true,
+      });
+
+    if (error) {
+      setMessage(error.message);
+      setUploadingBlockImageId("");
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("public-media")
+      .getPublicUrl(storagePath);
+
+    setPages((current) =>
+      updateLocalBlock(current, form.pageId, {
+        ...block,
+        data: { ...block.data, image: data.publicUrl },
+      }),
+    );
+    setUploadingBlockImageId("");
   }
 
   async function translateToAllLanguages() {
     if (!form.pageId) {
-      setMessage("Guarda la página antes de traducir.");
+      setMessage(copy.savePageBeforeTranslate);
       return;
     }
 
@@ -359,10 +416,10 @@ export function PagesAdmin({
         error?: string;
       };
 
-      setMessage(result.message ?? result.error ?? "Traducción finalizada.");
+      setMessage(result.message ?? result.error ?? copy.translationFinished);
       await loadPages();
     } catch {
-      setMessage("No se pudo conectar con el servicio de traducción.");
+      setMessage(copy.translationConnectionError);
     } finally {
       setTranslating(false);
     }
@@ -377,7 +434,7 @@ export function PagesAdmin({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
               CMS
             </p>
-            <h2 className="mt-2 text-2xl font-semibold">Páginas públicas</h2>
+            <h2 className="mt-2 text-2xl font-semibold">{copy.publicPages}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               Entra primero en el admin para editar páginas.
             </p>
@@ -402,7 +459,7 @@ export function PagesAdmin({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
             CMS
           </p>
-          <h2 className="mt-2 text-2xl font-semibold">Páginas públicas</h2>
+          <h2 className="mt-2 text-2xl font-semibold">{copy.publicPages}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
             Edita el título, entradilla y SEO de cada sección pública. Las
             páginas publicadas se leen desde Supabase y se actualizan sin
@@ -413,7 +470,7 @@ export function PagesAdmin({
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <label className="grid gap-2 text-sm font-semibold">
-          Página
+          {copy.page}
           <select
             value={form.pageKey}
             onChange={(event) =>
@@ -441,7 +498,7 @@ export function PagesAdmin({
         </label>
 
         <label className="grid gap-2 text-sm font-semibold">
-          Idioma
+          {copy.language}
           <select
             value={form.locale}
             onChange={(event) =>
@@ -468,7 +525,7 @@ export function PagesAdmin({
         </label>
 
         <label className="grid gap-2 text-sm font-semibold">
-          Estado
+          {copy.status}
           <select
             value={form.status}
             onChange={(event) =>
@@ -479,9 +536,9 @@ export function PagesAdmin({
             }
             className="border border-[var(--line)] px-3 py-2 font-normal"
           >
-            <option value="draft">Borrador</option>
-            <option value="published">Publicado</option>
-            <option value="archived">Archivado</option>
+            <option value="draft">{copy.draft}</option>
+            <option value="published">{copy.published}</option>
+            <option value="archived">{copy.archived}</option>
           </select>
         </label>
 
@@ -495,7 +552,7 @@ export function PagesAdmin({
 
         <div className="lg:col-span-2">
           <TextInput
-            label="Título público"
+            label={copy.publicTitle}
             value={form.title}
             onChange={(value) =>
               setForm((current) => ({
@@ -509,7 +566,7 @@ export function PagesAdmin({
 
         <div className="lg:col-span-2">
           <TextArea
-            label="Entradilla / resumen visible"
+            label={copy.visibleSummary}
             value={form.summary}
             onChange={(value) =>
               setForm((current) => ({ ...current, summary: value }))
@@ -541,7 +598,7 @@ export function PagesAdmin({
           className="inline-flex items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
         >
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          Guardar página
+          {copy.savePage}
         </button>
         <button
           onClick={translateToAllLanguages}
@@ -553,7 +610,7 @@ export function PagesAdmin({
           ) : (
             <Languages size={16} />
           )}
-          Traducir a todos los idiomas
+          {copy.translateAll}
         </button>
         {message ? (
           <p className="text-sm font-semibold text-[var(--accent)]">
@@ -565,10 +622,9 @@ export function PagesAdmin({
       <div className="mt-8 border-t border-[var(--line)] pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-xl font-semibold">Secciones de la página</h3>
+            <h3 className="text-xl font-semibold">{copy.pageSections}</h3>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Añade, modifica, oculta o elimina bloques visibles de esta página
-              e idioma.
+              {copy.sectionsHelp}
             </p>
           </div>
           <button
@@ -577,7 +633,7 @@ export function PagesAdmin({
             className="inline-flex items-center gap-2 bg-[var(--ink-blue)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
             <Plus size={16} />
-            Añadir sección
+            {copy.addSection}
           </button>
           <button
             onClick={saveAllBlocks}
@@ -588,14 +644,14 @@ export function PagesAdmin({
             className="inline-flex items-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold disabled:opacity-50"
           >
             <Save size={16} />
-            Importar contenido base
+            {copy.importBaseContent}
           </button>
         </div>
 
         <div className="mt-5 grid gap-4">
           {selectedBlocks.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
-              Esta página aún no tiene secciones CMS para este idioma.
+              {copy.noSections}
             </p>
           ) : (
             selectedBlocks.map((block) => (
@@ -609,6 +665,9 @@ export function PagesAdmin({
                 }
                 onSave={() => saveBlock(block)}
                 onDelete={() => deleteBlock(block.id)}
+                uploadingImage={uploadingBlockImageId === block.id}
+                onUploadImage={(file) => uploadBlockImage(block, file)}
+                copy={copy}
               />
             ))
           )}
@@ -666,22 +725,28 @@ function BlockEditor({
   onChange,
   onSave,
   onDelete,
+  uploadingImage,
+  onUploadImage,
+  copy,
 }: {
   block: ContentBlockRow;
   onChange: (block: ContentBlockRow) => void;
   onSave: () => void;
   onDelete: () => void;
+  uploadingImage: boolean;
+  onUploadImage: (file: File) => void;
+  copy: ReturnType<typeof pagesAdminCopy>;
 }) {
   return (
     <article className="grid gap-4 border border-[var(--line)] bg-[var(--paper)] p-4">
       {block.id.startsWith("fallback-") ? (
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
-          Contenido base importable
+          {copy.importableBaseContent}
         </p>
       ) : null}
       <div className="grid gap-3 lg:grid-cols-[1fr_140px_150px]">
         <TextInput
-          label="Título de sección"
+          label={copy.sectionTitle}
           value={block.data.title ?? ""}
           onChange={(value) =>
             onChange({
@@ -692,7 +757,7 @@ function BlockEditor({
         />
 
         <TextInput
-          label="Orden"
+          label={copy.order}
           value={String(block.sort_order)}
           onChange={(value) =>
             onChange({
@@ -703,7 +768,7 @@ function BlockEditor({
         />
 
         <label className="grid gap-2 text-sm font-semibold">
-          Visible
+          {copy.visible}
           <select
             value={block.is_visible ? "yes" : "no"}
             onChange={(event) =>
@@ -714,25 +779,29 @@ function BlockEditor({
             }
             className="border border-[var(--line)] px-3 py-2 font-normal"
           >
-            <option value="yes">Sí</option>
+            <option value="yes">{copy.yes}</option>
             <option value="no">No</option>
           </select>
         </label>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <TextInput
-          label="Imagen / URL"
+        <ImageUploadField
+          label={copy.image}
           value={block.data.image ?? ""}
-          onChange={(value) =>
+          alt={block.data.alt || block.data.title || copy.sectionImageAlt}
+          uploading={uploadingImage}
+          onUpload={onUploadImage}
+          onClear={() =>
             onChange({
               ...block,
-              data: { ...block.data, image: value || undefined },
+              data: { ...block.data, image: undefined },
             })
           }
+          copy={copy}
         />
         <TextInput
-          label="Texto alternativo de la imagen"
+          label={copy.imageAltText}
           value={block.data.alt ?? ""}
           onChange={(value) =>
             onChange({
@@ -743,20 +812,8 @@ function BlockEditor({
         />
       </div>
 
-      {block.data.image ? (
-        <div className="relative h-48 overflow-hidden border border-[var(--line)] bg-white">
-          <Image
-            src={block.data.image}
-            alt={block.data.alt || block.data.title || "Imagen de sección"}
-            fill
-            sizes="(min-width: 1024px) 520px, 100vw"
-            className="object-cover"
-          />
-        </div>
-      ) : null}
-
       <TextArea
-        label="Texto"
+        label={copy.text}
         value={block.data.text ?? ""}
         onChange={(value) =>
           onChange({
@@ -767,7 +824,7 @@ function BlockEditor({
       />
 
       <TextArea
-        label="Subsecciones / puntos (una línea por punto)"
+        label={copy.items}
         value={(block.data.items ?? []).join("\n")}
         onChange={(value) =>
           onChange({
@@ -784,7 +841,7 @@ function BlockEditor({
       />
 
       <TextArea
-        label="Nota inferior"
+        label={copy.bottomNote}
         value={block.data.note ?? ""}
         onChange={(value) =>
           onChange({
@@ -800,17 +857,91 @@ function BlockEditor({
           className="inline-flex items-center gap-2 bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
         >
           <Save size={16} />
-          Guardar sección
+          {copy.saveSection}
         </button>
         <button
           onClick={onDelete}
           className="inline-flex items-center gap-2 border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--accent)]"
         >
           <Trash2 size={16} />
-          Eliminar
+          {copy.delete}
         </button>
       </div>
     </article>
+  );
+}
+
+function ImageUploadField({
+  label,
+  value,
+  alt,
+  uploading,
+  onUpload,
+  onClear,
+  copy,
+}: {
+  label: string;
+  value: string;
+  alt: string;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onClear: () => void;
+  copy: ReturnType<typeof pagesAdminCopy>;
+}) {
+  return (
+    <div className="grid gap-2 text-sm font-semibold">
+      <span>{label}</span>
+      <div className="border border-[var(--line)] bg-white p-3">
+        {value ? (
+          <div className="relative mb-3 h-36 overflow-hidden border border-[var(--line)] bg-white">
+            <Image
+              src={value}
+              alt={alt}
+              fill
+              sizes="(min-width: 1024px) 360px, 100vw"
+              className="object-cover"
+            />
+          </div>
+        ) : (
+          <div className="mb-3 flex h-28 items-center justify-center border border-dashed border-[var(--line)] bg-[var(--paper)] text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+            {copy.noImage}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white">
+            {uploading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <ImagePlus size={16} />
+            )}
+            {value ? copy.changeImage : copy.uploadImage}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploading}
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) {
+                  onUpload(file);
+                }
+              }}
+            />
+          </label>
+          {value ? (
+            <button
+              type="button"
+              onClick={onClear}
+              className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+            >
+              <X size={16} />
+              {copy.removeImage}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -985,5 +1116,63 @@ function hydratePageForm(
     summary: translation?.summary ?? "",
     seoTitle: translation?.seo_title ?? "",
     seoDescription: translation?.seo_description ?? "",
+  };
+}
+
+function pagesAdminCopy(locale: Locale) {
+  const es = locale === "es";
+
+  return {
+    savePageError: es ? "No se pudo guardar la pagina." : "The page could not be saved.",
+    pageSaved: es ? "Pagina guardada." : "Page saved.",
+    savePageBeforeAdd: es ? "Guarda la pagina antes de anadir secciones." : "Save the page before adding sections.",
+    sectionAdded: es ? "Seccion anadida." : "Section added.",
+    savePageBeforeSaveSections: es ? "Guarda la pagina antes de guardar secciones." : "Save the page before saving sections.",
+    sectionSaved: es ? "Seccion guardada." : "Section saved.",
+    savePageBeforeImport: es ? "Guarda la pagina antes de importar secciones." : "Save the page before importing sections.",
+    noBaseContent: es ? "No hay contenido base pendiente de importar." : "There is no base content pending import.",
+    baseImported: es ? "Contenido base importado al CMS." : "Base content imported into the CMS.",
+    saveSectionBeforeDelete: es ? "Guarda primero esta seccion para poder eliminarla del CMS." : "Save this section first before deleting it from the CMS.",
+    sectionDeleted: es ? "Seccion eliminada." : "Section deleted.",
+    selectImageFile: es ? "Selecciona un archivo de imagen." : "Select an image file.",
+    savePageBeforeTranslate: es ? "Guarda la pagina antes de traducir." : "Save the page before translating.",
+    translationFinished: es ? "Traduccion finalizada." : "Translation finished.",
+    translationConnectionError: es ? "No se pudo conectar con el servicio de traduccion." : "Could not connect to the translation service.",
+    publicPages: es ? "Paginas publicas" : "Public pages",
+    page: es ? "Pagina" : "Page",
+    language: es ? "Idioma" : "Language",
+    status: es ? "Estado" : "Status",
+    draft: es ? "Borrador" : "Draft",
+    published: es ? "Publicado" : "Published",
+    archived: es ? "Archivado" : "Archived",
+    publicTitle: es ? "Titulo publico" : "Public title",
+    visibleSummary: es ? "Entradilla / resumen visible" : "Visible intro / summary",
+    savePage: es ? "Guardar pagina" : "Save page",
+    translateAll: es ? "Traducir a todos los idiomas" : "Translate to all languages",
+    pageSections: es ? "Secciones de la pagina" : "Page sections",
+    sectionsHelp: es
+      ? "Anade, modifica, oculta o elimina bloques visibles de esta pagina e idioma."
+      : "Add, edit, hide or delete visible blocks for this page and language.",
+    addSection: es ? "Anadir seccion" : "Add section",
+    newSection: es ? "Nueva seccion" : "New section",
+    importBaseContent: es ? "Importar contenido base" : "Import base content",
+    noSections: es ? "Esta pagina aun no tiene secciones CMS para este idioma." : "This page does not have CMS sections for this language yet.",
+    importableBaseContent: es ? "Contenido base importable" : "Importable base content",
+    sectionTitle: es ? "Titulo de seccion" : "Section title",
+    order: es ? "Orden" : "Order",
+    visible: es ? "Visible" : "Visible",
+    yes: es ? "Si" : "Yes",
+    image: es ? "Imagen" : "Image",
+    sectionImageAlt: es ? "Imagen de seccion" : "Section image",
+    imageAltText: es ? "Texto alternativo de la imagen" : "Image alt text",
+    text: es ? "Texto" : "Text",
+    items: es ? "Subsecciones / puntos (una linea por punto)" : "Subsections / points (one line per point)",
+    bottomNote: es ? "Nota inferior" : "Bottom note",
+    saveSection: es ? "Guardar seccion" : "Save section",
+    delete: es ? "Eliminar" : "Delete",
+    noImage: es ? "Sin imagen" : "No image",
+    changeImage: es ? "Cambiar imagen" : "Change image",
+    uploadImage: es ? "Subir imagen" : "Upload image",
+    removeImage: es ? "Quitar imagen" : "Remove image",
   };
 }

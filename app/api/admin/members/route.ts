@@ -67,6 +67,7 @@ type MemberPatchBody = {
     guardianName?: string;
     guardianEmail?: string;
     notes?: string;
+    profileImageUrl?: string;
   };
 };
 
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
     guard.admin
       .from("members")
       .select(
-        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
+        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,profile_image_url,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
       .order("created_at", { ascending: false })
       .limit(1000),
@@ -238,11 +239,12 @@ export async function PATCH(request: NextRequest) {
         guardian_name: normalizeText(input.guardianName) || null,
         guardian_email: normalizeEmail(input.guardianEmail) || null,
         internal_notes: normalizeText(input.notes) || null,
+        profile_image_url: normalizeText(input.profileImageUrl) || null,
         updated_by: guard.profileId,
       })
       .eq("id", member.data.id)
       .select(
-        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
+        "id,ika_number,first_name,last_name,email,phone,status,current_grade,birth_date,joined_date,main_instructor,guardian_name,guardian_email,internal_notes,member_group,profile_image_url,country_id,dojo_id,portal_invite_sent_at,portal_invite_sent_to,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))",
       )
       .single();
 

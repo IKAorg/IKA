@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Gauge, Loader2, Save } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
+import type { Locale } from "@/lib/i18n/config";
 
 type MarqueeSettings = {
   mode: "auto" | "manual";
@@ -17,7 +18,8 @@ const defaultSettings: MarqueeSettings = {
   articlesDurationSeconds: 38,
 };
 
-export function SettingsAdmin() {
+export function SettingsAdmin({ initialLocale }: { initialLocale: Locale }) {
+  const copy = settingsAdminCopy(initialLocale);
   const supabase = useMemo(() => createClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [settings, setSettings] = useState<MarqueeSettings>(defaultSettings);
@@ -81,7 +83,7 @@ export function SettingsAdmin() {
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage("Ajustes guardados.");
+      setMessage(copy.saved);
     }
 
     setSaving(false);
@@ -90,7 +92,7 @@ export function SettingsAdmin() {
   if (!session) {
     return (
       <div className="border border-[var(--line)] bg-white p-5 text-sm text-[var(--muted)]">
-        Entra primero en el admin para modificar ajustes globales.
+        {copy.signInFirst}
       </div>
     );
   }
@@ -99,12 +101,12 @@ export function SettingsAdmin() {
     <section className="border border-[var(--line)] bg-white p-5">
       <div className="flex items-center gap-3">
         <Gauge size={22} className="text-[var(--accent)]" />
-        <h2 className="text-2xl font-semibold">Velocidad de carruseles</h2>
+        <h2 className="text-2xl font-semibold">{copy.title}</h2>
       </div>
 
       <div className="mt-5 grid gap-5">
         <label className="grid gap-2 text-sm font-semibold">
-          Modo
+          {copy.mode}
           <select
             value={settings.mode}
             onChange={(event) =>
@@ -115,14 +117,14 @@ export function SettingsAdmin() {
             }
             className="border border-[var(--line)] px-3 py-2 font-normal"
           >
-            <option value="auto">Automatico, como ahora</option>
-            <option value="manual">Velocidad elegida por el usuario</option>
+            <option value="auto">{copy.autoMode}</option>
+            <option value="manual">{copy.manualMode}</option>
           </select>
         </label>
 
         <div className="grid gap-4 md:grid-cols-2">
           <NumberField
-            label="Latest reports, segundos por vuelta"
+            label={copy.latestReportsSeconds}
             value={settings.reportsDurationSeconds}
             disabled={settings.mode === "auto"}
             onChange={(value) =>
@@ -133,7 +135,7 @@ export function SettingsAdmin() {
             }
           />
           <NumberField
-            label="Carrusel inferior, segundos por vuelta"
+            label={copy.lowerCarouselSeconds}
             value={settings.articlesDurationSeconds}
             disabled={settings.mode === "auto"}
             onChange={(value) =>
@@ -146,8 +148,7 @@ export function SettingsAdmin() {
         </div>
 
         <p className="text-sm leading-6 text-[var(--muted)]">
-          Cuanto mayor sea el numero, mas lento se mueve. En automatico se
-          mantiene la velocidad actual de la web.
+          {copy.help}
         </p>
 
         <button
@@ -160,7 +161,7 @@ export function SettingsAdmin() {
           ) : (
             <Save size={16} />
           )}
-          Guardar ajustes
+          {copy.save}
         </button>
 
         {message ? (
@@ -222,4 +223,31 @@ function clampSeconds(value: unknown, fallback: number) {
   }
 
   return Math.min(180, Math.max(18, Math.round(numberValue)));
+}
+
+function settingsAdminCopy(locale: Locale) {
+  const es = locale === "es";
+
+  return {
+    saved: es ? "Ajustes guardados." : "Settings saved.",
+    signInFirst: es
+      ? "Entra primero en el admin para modificar ajustes globales."
+      : "Sign in to admin first to modify global settings.",
+    title: es ? "Velocidad de carruseles" : "Carousel speed",
+    mode: es ? "Modo" : "Mode",
+    autoMode: es ? "Automatico, como ahora" : "Automatic, as now",
+    manualMode: es
+      ? "Velocidad elegida por el usuario"
+      : "Speed chosen by the user",
+    latestReportsSeconds: es
+      ? "Latest reports, segundos por vuelta"
+      : "Latest reports, seconds per loop",
+    lowerCarouselSeconds: es
+      ? "Carrusel inferior, segundos por vuelta"
+      : "Lower carousel, seconds per loop",
+    help: es
+      ? "Cuanto mayor sea el numero, mas lento se mueve. En automatico se mantiene la velocidad actual de la web."
+      : "The higher the number, the slower it moves. Automatic mode keeps the current website speed.",
+    save: es ? "Guardar ajustes" : "Save settings",
+  };
 }

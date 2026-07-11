@@ -95,10 +95,17 @@ const emptyPayload: UsersPayload = {
   },
 };
 
-const roleLabels: Record<RoleKey, string> = {
-  global_admin: "Admin global",
-  country_admin: "Admin de pais",
-  dojo_admin: "Admin de dojo",
+const roleLabels: Record<"es" | "en", Record<RoleKey, string>> = {
+  es: {
+    global_admin: "Admin global",
+    country_admin: "Admin de pais",
+    dojo_admin: "Admin de dojo",
+  },
+  en: {
+    global_admin: "Global admin",
+    country_admin: "Country admin",
+    dojo_admin: "Dojo admin",
+  },
 };
 
 function createEmptyForm(): FormState {
@@ -117,6 +124,7 @@ export function UsersAdmin({
 }: {
   initialLocale?: Locale;
 }) {
+  const copy = usersAdminCopy(initialLocale);
   const supabase = useMemo(() => createClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
@@ -321,7 +329,7 @@ export function UsersAdmin({
         ...(profile.kenshiIds ?? []),
         ...(profile.kenshiNames ?? []),
         ...assignments.flatMap((assignment) => [
-          getRoleLabel(assignment.roles),
+          getRoleLabel(assignment.roles, initialLocale),
           assignment.countries ? countryLabel(assignment.countries, initialLocale) : "",
           assignment.dojos ? dojoLabel(assignment.dojos, initialLocale) : "",
         ]),
@@ -393,9 +401,9 @@ export function UsersAdmin({
   if (!session) {
     return (
       <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
-        <h2 className="text-2xl font-semibold">Acceso admin</h2>
+        <h2 className="text-2xl font-semibold">{copy.adminAccess}</h2>
         <p className="text-sm leading-6 text-[var(--muted)]">
-          Entra con un usuario administrador para gestionar permisos.
+          {copy.loginHelp}
         </p>
         <input
           value={loginEmail}
@@ -407,7 +415,7 @@ export function UsersAdmin({
         <input
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="Contrasena opcional"
+          placeholder={copy.optionalPassword}
           type="password"
           className="border border-[var(--line)] px-3 py-2"
         />
@@ -418,7 +426,7 @@ export function UsersAdmin({
           className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-4 py-2 font-semibold text-white disabled:opacity-50"
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-          Entrar
+          {copy.enter}
         </button>
         {message ? (
           <p className="text-sm font-semibold text-[var(--accent)]">{message}</p>
@@ -432,7 +440,7 @@ export function UsersAdmin({
       <section className="border border-[var(--line)] bg-white p-5">
         <div className="flex items-center gap-3">
           <UserPlus size={22} className="text-[var(--accent)]" />
-          <h2 className="text-2xl font-semibold">Crear administrador</h2>
+          <h2 className="text-2xl font-semibold">{copy.createAdmin}</h2>
         </div>
 
         <div className="mt-5 grid gap-4">
@@ -445,7 +453,7 @@ export function UsersAdmin({
           {!loading && payload.assignableRoles.length === 0 ? (
             <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4 text-sm">
               <p className="font-semibold text-[var(--accent)]">
-                Este usuario no puede crear administradores desde este modulo.
+                {copy.cannotCreateAdmins}
               </p>
               <button
                 type="button"
@@ -453,7 +461,7 @@ export function UsersAdmin({
                 className="inline-flex items-center justify-center gap-2 border border-[var(--line)] bg-white px-3 py-2 font-semibold"
               >
                 <RefreshCw size={16} />
-                Recargar permisos
+                {copy.reloadPermissions}
               </button>
             </div>
           ) : null}
@@ -468,7 +476,7 @@ export function UsersAdmin({
             }
           />
           <TextInput
-            label="Nombre visible"
+            label={copy.displayName}
             value={form.displayName}
             disabled={payload.assignableRoles.length === 0}
             onChange={(value) =>
@@ -477,14 +485,14 @@ export function UsersAdmin({
           />
 
           <SelectInput
-            label="Rol"
+            label={copy.role}
             value={form.roleKey}
             disabled={loading || payload.assignableRoles.length === 0}
             options={[
-              { value: "", label: loading ? "Cargando roles..." : "Selecciona rol" },
+              { value: "", label: loading ? copy.loadingRoles : copy.selectRole },
               ...payload.assignableRoles.map((roleKey) => ({
                 value: roleKey,
-                label: roleLabels[roleKey],
+                label: copy.roleLabels[roleKey],
               })),
             ]}
             onChange={(value) =>
@@ -499,7 +507,7 @@ export function UsersAdmin({
 
           {form.roleKey === "country_admin" || form.roleKey === "dojo_admin" ? (
             <SelectInput
-              label="Pais"
+              label={copy.country}
               value={form.countryId}
               disabled={loading || payload.countries.length === 0}
               options={[
@@ -507,8 +515,8 @@ export function UsersAdmin({
                   value: "",
                   label:
                     payload.countries.length === 0
-                      ? "No hay paises disponibles"
-                      : "Selecciona pais",
+                      ? copy.noCountries
+                      : copy.selectCountry,
                 },
                 ...payload.countries.map((country) => ({
                   value: country.id,
@@ -535,8 +543,8 @@ export function UsersAdmin({
                   value: "",
                   label:
                     dojosForSelectedCountry.length === 0
-                      ? "No hay dojos disponibles"
-                      : "Selecciona dojo",
+                      ? copy.noDojos
+                      : copy.selectDojo,
                 },
                 ...dojosForSelectedCountry.map((dojo) => ({
                   value: dojo.id,
@@ -564,7 +572,7 @@ export function UsersAdmin({
                 }))
               }
             />
-            Enviar invitacion por email
+            {copy.sendInvite}
           </label>
 
           <button
@@ -574,15 +582,13 @@ export function UsersAdmin({
             className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-            Guardar rol
+            {copy.saveRole}
           </button>
 
           <div className="border border-[var(--line)] bg-[var(--paper)] p-3 text-sm leading-6 text-[var(--muted)]">
-            <p className="font-semibold text-[var(--ink)]">Reglas de permisos</p>
+            <p className="font-semibold text-[var(--ink)]">{copy.permissionRulesTitle}</p>
             <p>
-              Super admin crea admins globales, de pais y de dojo. Admin global
-              crea admins de pais y dojo. Admin de pais crea admins de dojo de
-              su pais. Admin de dojo no crea administradores.
+              {copy.permissionRules}
             </p>
           </div>
         </div>
@@ -593,9 +599,9 @@ export function UsersAdmin({
           <div className="flex items-center gap-3">
             <ShieldCheck size={22} className="text-[var(--accent)]" />
             <div>
-              <h2 className="text-2xl font-semibold">Usuarios y permisos</h2>
+              <h2 className="text-2xl font-semibold">{copy.usersPermissions}</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Organizado por pais, dojo y usuario para evitar listas inmensas.
+                {copy.organizedHelp}
               </p>
             </div>
           </div>
@@ -605,18 +611,18 @@ export function UsersAdmin({
             className="inline-flex items-center justify-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold"
           >
             <RefreshCw size={16} />
-            Recargar
+            {copy.reload}
           </button>
         </div>
 
         <label className="mt-5 grid gap-2 text-sm font-semibold">
-          Busqueda general
+          {copy.generalSearch}
           <span className="flex items-center border border-[var(--line)] bg-white px-3">
             <Search size={16} className="text-[var(--muted)]" />
             <input
               value={permissionSearch}
               onChange={(event) => setPermissionSearch(event.target.value)}
-              placeholder="Buscar por email, nombre, rol, pais, dojo o ID Kenshi"
+              placeholder={copy.searchPlaceholder}
               className="h-11 min-w-0 flex-1 px-3 font-normal outline-none"
             />
           </span>
@@ -624,7 +630,7 @@ export function UsersAdmin({
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--muted)]">
           <span className="border border-[var(--line)] px-2 py-1">
-            {filteredProfileRows.length} usuarios visibles
+            {copy.visibleUsers(filteredProfileRows.length)}
           </span>
           <span className="border border-[var(--line)] px-2 py-1">
             {filteredProfileRows.reduce(
@@ -637,17 +643,17 @@ export function UsersAdmin({
 
         <div className="mt-5 grid gap-3">
           {loading ? (
-            <p className="text-sm text-[var(--muted)]">Cargando permisos...</p>
+            <p className="text-sm text-[var(--muted)]">{copy.loadingPermissions}</p>
           ) : filteredProfileRows.length === 0 ? (
             <p className="border border-[var(--line)] bg-[var(--paper)] p-4 text-sm text-[var(--muted)]">
-              No hay usuarios que coincidan con la busqueda.
+              {copy.noMatchingUsers}
             </p>
           ) : (
             <>
               {hierarchicalPermissions.globalAssignments.length > 0 ? (
                 <details open className="border border-[var(--line)] bg-white">
                   <summary className="cursor-pointer list-none p-4 font-semibold marker:hidden">
-                    Administracion global - {hierarchicalPermissions.globalAssignments.length} roles
+                    {copy.globalAdministration(hierarchicalPermissions.globalAssignments.length)}
                   </summary>
                   <div className="grid gap-2 border-t border-[var(--line)] p-3">
                     {hierarchicalPermissions.globalAssignments.map(({ row, assignment }) => (
@@ -785,7 +791,7 @@ function PermissionAssignmentRow({
         </button>
       </div>
       <p className="mt-3 bg-[var(--paper)] px-3 py-2">
-        <strong>{getRoleLabel(assignment.roles)}</strong>
+        <strong>{getRoleLabel(assignment.roles, locale)}</strong>
         {assignment.countries
           ? ` - ${countryLabel(assignment.countries, locale)}`
           : ""}
@@ -872,12 +878,13 @@ function dojoLabel(dojo: DojoOption, locale: Locale) {
   );
 }
 
-function getRoleLabel(role: Assignment["roles"]) {
+function getRoleLabel(role: Assignment["roles"], locale: Locale) {
   if (!role) {
     return "Rol";
   }
 
-  return roleLabels[role.key as RoleKey] ?? role.name;
+  const language = locale === "es" ? "es" : "en";
+  return roleLabels[language][role.key as RoleKey] ?? role.name;
 }
 
 function normalizeSearchText(value: unknown) {
@@ -886,4 +893,55 @@ function normalizeSearchText(value: unknown) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function usersAdminCopy(locale: Locale) {
+  const es = locale === "es";
+
+  return {
+    roleLabels: roleLabels[es ? "es" : "en"],
+    adminAccess: es ? "Acceso admin" : "Admin access",
+    loginHelp: es
+      ? "Entra con un usuario administrador para gestionar permisos."
+      : "Sign in with an administrator user to manage permissions.",
+    optionalPassword: es ? "Contrasena opcional" : "Optional password",
+    enter: es ? "Entrar" : "Enter",
+    createAdmin: es ? "Crear administrador" : "Create administrator",
+    cannotCreateAdmins: es
+      ? "Este usuario no puede crear administradores desde este modulo."
+      : "This user cannot create administrators from this module.",
+    reloadPermissions: es ? "Recargar permisos" : "Reload permissions",
+    displayName: es ? "Nombre visible" : "Display name",
+    role: es ? "Rol" : "Role",
+    loadingRoles: es ? "Cargando roles..." : "Loading roles...",
+    selectRole: es ? "Selecciona rol" : "Select role",
+    country: es ? "Pais" : "Country",
+    noCountries: es ? "No hay paises disponibles" : "No countries available",
+    selectCountry: es ? "Selecciona pais" : "Select country",
+    noDojos: es ? "No hay dojos disponibles" : "No dojos available",
+    selectDojo: es ? "Selecciona dojo" : "Select dojo",
+    sendInvite: es ? "Enviar invitacion por email" : "Send invitation by email",
+    saveRole: es ? "Guardar rol" : "Save role",
+    permissionRulesTitle: es ? "Reglas de permisos" : "Permission rules",
+    permissionRules: es
+      ? "Super admin crea admins globales, de pais y de dojo. Admin global crea admins de pais y dojo. Admin de pais crea admins de dojo de su pais. Admin de dojo no crea administradores."
+      : "Super admin creates global, country and dojo admins. Global admin creates country and dojo admins. Country admin creates dojo admins for their country. Dojo admin cannot create administrators.",
+    usersPermissions: es ? "Usuarios y permisos" : "Users and permissions",
+    organizedHelp: es
+      ? "Organizado por pais, dojo y usuario para evitar listas inmensas."
+      : "Organized by country, dojo and user to avoid huge lists.",
+    reload: es ? "Recargar" : "Reload",
+    generalSearch: es ? "Busqueda general" : "General search",
+    searchPlaceholder: es
+      ? "Buscar por email, nombre, rol, pais, dojo o ID Kenshi"
+      : "Search by email, name, role, country, dojo or Kenshi ID",
+    visibleUsers: (count: number) =>
+      es ? `${count} usuarios visibles` : `${count} visible users`,
+    loadingPermissions: es ? "Cargando permisos..." : "Loading permissions...",
+    noMatchingUsers: es
+      ? "No hay usuarios que coincidan con la busqueda."
+      : "No users match the search.",
+    globalAdministration: (count: number) =>
+      es ? `Administracion global - ${count} roles` : `Global administration - ${count} roles`,
+  };
 }

@@ -63,6 +63,7 @@ export function EventsAdmin({
 }: {
   initialLocale?: Locale;
 }) {
+  const copy = eventsAdminCopy(initialLocale);
   const supabase = useMemo(() => createClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
@@ -135,7 +136,7 @@ export function EventsAdmin({
     if (result.error) {
       setMessage(result.error.message);
     } else if (!password) {
-      setMessage("Revisa tu email para entrar al admin.");
+      setMessage(copy.checkEmail);
     }
 
     setLoading(false);
@@ -187,7 +188,7 @@ export function EventsAdmin({
           .single();
 
     if (eventResult.error || !eventResult.data) {
-      setMessage(eventResult.error?.message ?? "No se pudo guardar el evento.");
+      setMessage(eventResult.error?.message ?? copy.saveError);
       setSaving(false);
       return;
     }
@@ -213,7 +214,7 @@ export function EventsAdmin({
     }
 
     setForm(createEmptyForm(form.locale));
-    setMessage("Evento guardado.");
+    setMessage(copy.saved);
     await loadEvents();
     setSaving(false);
   }
@@ -230,7 +231,7 @@ export function EventsAdmin({
       setForm(createEmptyForm(form.locale));
     }
 
-    setMessage("Evento eliminado.");
+    setMessage(copy.deleted);
     await loadEvents();
   }
 
@@ -238,10 +239,9 @@ export function EventsAdmin({
     return (
       <div className="mt-10 grid gap-6 border border-[var(--line)] bg-white p-6 md:grid-cols-[1fr_1.2fr]">
         <div>
-          <h2 className="text-2xl font-semibold">Acceso admin</h2>
+          <h2 className="text-2xl font-semibold">{copy.adminAccess}</h2>
           <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-            Entra con un usuario de Supabase que tenga rol de administracion.
-            Si dejas la contrasena vacia, Supabase enviara un enlace magico.
+            {copy.loginHelp}
           </p>
         </div>
         <div className="grid gap-3">
@@ -255,7 +255,7 @@ export function EventsAdmin({
           <input
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Contrasena opcional"
+            placeholder={copy.optionalPassword}
             type="password"
             className="border border-[var(--line)] px-3 py-2"
           />
@@ -265,7 +265,7 @@ export function EventsAdmin({
             className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-            Entrar
+            {copy.enter}
           </button>
           {message ? (
             <p className="text-sm font-semibold text-[var(--accent)]">
@@ -285,20 +285,20 @@ export function EventsAdmin({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
               CMS
             </p>
-            <h2 className="mt-2 text-2xl font-semibold">Eventos</h2>
+            <h2 className="mt-2 text-2xl font-semibold">{copy.events}</h2>
           </div>
           <button
             onClick={signOut}
             className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
           >
             <LogOut size={16} />
-            Salir
+            {copy.signOut}
           </button>
         </div>
 
         <div className="mt-4">
           <LocaleSelect
-            label="Idioma de trabajo"
+            label={copy.workLanguage}
             value={form.locale}
             onChange={changeFormLocale}
           />
@@ -306,10 +306,10 @@ export function EventsAdmin({
 
         <div className="mt-5 grid gap-3">
           {loading ? (
-            <p className="text-sm text-[var(--muted)]">Cargando eventos...</p>
+            <p className="text-sm text-[var(--muted)]">{copy.loadingEvents}</p>
           ) : events.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
-              No hay eventos visibles para tu usuario.
+              {copy.noEvents}
             </p>
           ) : (
             events.map((event) => {
@@ -329,7 +329,7 @@ export function EventsAdmin({
                         {event.status}
                       </p>
                       <h3 className="mt-2 text-lg font-semibold">
-                        {translation?.title ?? "Evento sin titulo"}
+                        {translation?.title ?? copy.untitledEvent}
                       </h3>
                       <p className="mt-1 text-sm text-[var(--muted)]">
                         {formatDate(event.starts_at, form.locale)}
@@ -340,14 +340,14 @@ export function EventsAdmin({
                         onClick={() => editEvent(event)}
                         className="border border-[var(--line)] px-3 py-2 text-sm font-semibold"
                       >
-                        Editar
+                        {copy.edit}
                       </button>
                       <button
                         onClick={() => deleteEvent(event.id)}
                         className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
                       >
                         <Trash2 size={15} />
-                        Borrar
+                        {copy.delete}
                       </button>
                     </div>
                   </div>
@@ -362,19 +362,19 @@ export function EventsAdmin({
         <div className="flex items-center gap-3">
           <CalendarPlus size={22} className="text-[var(--accent)]" />
           <h2 className="text-2xl font-semibold">
-            {form.id ? "Editar evento" : "Nuevo evento"}
+            {form.id ? copy.editEvent : copy.newEvent}
           </h2>
         </div>
 
         <div className="mt-5 grid gap-4">
           <LocaleSelect
-            label="Idioma editado"
+            label={copy.editedLanguage}
             value={form.locale}
             onChange={changeFormLocale}
           />
 
           <label className="grid gap-2 text-sm font-semibold">
-            Estado
+            {copy.status}
             <select
               value={form.status}
               onChange={(event) =>
@@ -385,15 +385,15 @@ export function EventsAdmin({
               }
               className="border border-[var(--line)] px-3 py-2"
             >
-              <option value="draft">Borrador</option>
-              <option value="published">Publicado</option>
-              <option value="archived">Archivado</option>
+              <option value="draft">{copy.draft}</option>
+              <option value="published">{copy.published}</option>
+              <option value="archived">{copy.archived}</option>
             </select>
           </label>
 
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput
-              label="Inicio"
+              label={copy.start}
               type="datetime-local"
               value={form.startsAt}
               onChange={(value) =>
@@ -401,7 +401,7 @@ export function EventsAdmin({
               }
             />
             <TextInput
-              label="Fin"
+              label={copy.end}
               type="datetime-local"
               value={form.endsAt}
               onChange={(value) =>
@@ -411,7 +411,7 @@ export function EventsAdmin({
           </div>
 
           <TextInput
-            label="Titulo"
+            label={copy.title}
             value={form.title}
             onChange={(value) =>
               setForm((current) => ({
@@ -429,21 +429,21 @@ export function EventsAdmin({
             }
           />
           <TextInput
-            label="Lugar"
+            label={copy.place}
             value={form.location}
             onChange={(value) =>
               setForm((current) => ({ ...current, location: value }))
             }
           />
           <TextArea
-            label="Resumen"
+            label={copy.summary}
             value={form.excerpt}
             onChange={(value) =>
               setForm((current) => ({ ...current, excerpt: value }))
             }
           />
           <TextArea
-            label="Cuerpo"
+            label={copy.body}
             value={form.body}
             onChange={(value) =>
               setForm((current) => ({ ...current, body: value }))
@@ -457,13 +457,13 @@ export function EventsAdmin({
               className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Guardar evento
+              {copy.saveEvent}
             </button>
             <button
               onClick={() => setForm(createEmptyForm(form.locale))}
               className="border border-[var(--line)] px-4 py-2 font-semibold"
             >
-              Limpiar
+              {copy.clear}
             </button>
           </div>
 
@@ -595,13 +595,53 @@ function toDateTimeInput(value: string | null) {
 
 function formatDate(value: string | null, locale: Locale) {
   if (!value) {
-    return "Sin fecha";
+    return locale === "es" ? "Sin fecha" : "No date";
   }
 
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function eventsAdminCopy(locale: Locale) {
+  const es = locale === "es";
+
+  return {
+    checkEmail: es ? "Revisa tu email para entrar al admin." : "Check your email to access admin.",
+    saveError: es ? "No se pudo guardar el evento." : "The event could not be saved.",
+    saved: es ? "Evento guardado." : "Event saved.",
+    deleted: es ? "Evento eliminado." : "Event deleted.",
+    adminAccess: es ? "Acceso admin" : "Admin access",
+    loginHelp: es
+      ? "Entra con un usuario de Supabase que tenga rol de administracion. Si dejas la contrasena vacia, Supabase enviara un enlace magico."
+      : "Sign in with a Supabase user that has an administration role. If you leave the password empty, Supabase will send a magic link.",
+    optionalPassword: es ? "Contrasena opcional" : "Optional password",
+    enter: es ? "Entrar" : "Enter",
+    events: es ? "Eventos" : "Events",
+    signOut: es ? "Salir" : "Sign out",
+    workLanguage: es ? "Idioma de trabajo" : "Working language",
+    loadingEvents: es ? "Cargando eventos..." : "Loading events...",
+    noEvents: es ? "No hay eventos visibles para tu usuario." : "There are no events visible for your user.",
+    untitledEvent: es ? "Evento sin titulo" : "Untitled event",
+    edit: es ? "Editar" : "Edit",
+    delete: es ? "Borrar" : "Delete",
+    editEvent: es ? "Editar evento" : "Edit event",
+    newEvent: es ? "Nuevo evento" : "New event",
+    editedLanguage: es ? "Idioma editado" : "Edited language",
+    status: es ? "Estado" : "Status",
+    draft: es ? "Borrador" : "Draft",
+    published: es ? "Publicado" : "Published",
+    archived: es ? "Archivado" : "Archived",
+    start: es ? "Inicio" : "Start",
+    end: es ? "Fin" : "End",
+    title: es ? "Titulo" : "Title",
+    place: es ? "Lugar" : "Place",
+    summary: es ? "Resumen" : "Summary",
+    body: es ? "Cuerpo" : "Body",
+    saveEvent: es ? "Guardar evento" : "Save event",
+    clear: es ? "Limpiar" : "Clear",
+  };
 }
 
 function slugify(value: string) {
