@@ -1680,8 +1680,6 @@ function parseFlexibleCourseCsvRows(
         "ika_number",
         "ika_id",
         "kenshi_id",
-        "member_id",
-        "id",
       ]),
       email: getAnyValue(record, ["email", "correo", "mail"]),
       firstName: getAnyValue(record, ["first_name", "firstname", "nombre", "name"]),
