@@ -283,7 +283,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
 
   const rows = useMemo(() => parseCsvRows(csvText, payload), [csvText, payload]);
   const courseRows = useMemo(
-    () => parseCourseCsvRows(courseCsvText, payload),
+    () => parseFlexibleCourseCsvRows(courseCsvText, payload),
     [courseCsvText, payload],
   );
   const isGlobalScope = payload.scope?.isGlobal === true;
@@ -1643,6 +1643,92 @@ function parseCourseCsvRows(csv: string, payload: MembersPayload): CourseImportR
   });
 }
 
+function parseFlexibleCourseCsvRows(
+  csv: string,
+  payload: MembersPayload,
+): CourseImportRow[] {
+  const lines = csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    return [];
+  }
+
+  const delimiter = detectCsvDelimiter(lines[0]);
+  const headers = splitCsvLine(lines[0], delimiter).map((header) =>
+    normalizeHeader(header),
+  );
+
+  return lines.slice(1).map((line) => {
+    const values = splitCsvLine(line, delimiter);
+    const record = new Map(
+      headers.map((header, index) => [header, values[index] ?? ""]),
+    );
+    const countryInput = getAnyValue(record, [
+      "country",
+      "pais",
+      "country_name",
+    ]);
+    const dojoInput = getAnyValue(record, ["dojo", "club", "dojo_name"]);
+    const country = resolveCountryInput(payload, countryInput);
+    const dojo = resolveDojoInput(payload, dojoInput, country?.id ?? "");
+
+    return {
+      ikaNumber: getAnyValue(record, [
+        "ika_number",
+        "ika_id",
+        "kenshi_id",
+        "member_id",
+        "id",
+      ]),
+      email: getAnyValue(record, ["email", "correo", "mail"]),
+      firstName: getAnyValue(record, ["first_name", "firstname", "nombre", "name"]),
+      lastName: getAnyValue(record, [
+        "last_name",
+        "lastname",
+        "apellido",
+        "apellidos",
+        "surname",
+      ]),
+      countryId: getAnyValue(record, ["country_id"]) || country?.id || "",
+      countryCode:
+        getAnyValue(record, ["country_code", "codigo_pais"]) ||
+        (!country ? countryInput.toUpperCase() : ""),
+      countryName: country ? "" : countryInput,
+      dojoId: getAnyValue(record, ["dojo_id"]) || dojo?.id || "",
+      dojoName: dojo ? "" : dojoInput,
+      courseTitle: getAnyValue(record, [
+        "course_title",
+        "course",
+        "curso",
+        "activity",
+      ]),
+      courseDate: getAnyValue(record, ["course_date", "date", "fecha"]),
+      coursePlace: getAnyValue(record, [
+        "course_place",
+        "place",
+        "lugar",
+        "donde",
+        "where",
+      ]),
+      instructor: getAnyValue(record, [
+        "instructor",
+        "teacher",
+        "sensei",
+        "coach",
+      ]),
+      notes: getAnyValue(record, [
+        "notes",
+        "notas",
+        "comments",
+        "observaciones",
+      ]),
+    };
+  });
+}
+
 function detectCsvDelimiter(headerLine: string) {
   const commaCount = (headerLine.match(/,/g) ?? []).length;
   const semicolonCount = (headerLine.match(/;/g) ?? []).length;
@@ -1688,6 +1774,18 @@ function normalizeHeader(value: string) {
 
 function getValue(record: Map<string, string>, key: string) {
   return record.get(normalizeHeader(key))?.trim() ?? "";
+}
+
+function getAnyValue(record: Map<string, string>, keys: string[]) {
+  for (const key of keys) {
+    const value = getValue(record, key);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
 }
 
 function resolveCountryInput(payload: MembersPayload, value: string) {
