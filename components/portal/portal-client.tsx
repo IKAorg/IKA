@@ -1896,7 +1896,6 @@ export function PortalClient({
   const portalRef = useRef<PortalPayload | null>(portal);
   const portalLoadInFlightRef = useRef(false);
   const portalDashboardInFlightRef = useRef(false);
-  const redirectingAdminRef = useRef(false);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -1948,15 +1947,6 @@ export function PortalClient({
 
     window.sessionStorage.setItem(portalCacheKey, JSON.stringify(cachePayload));
   }, []);
-
-  const redirectToAdminPanel = useCallback(() => {
-    if (typeof window === "undefined" || redirectingAdminRef.current) {
-      return;
-    }
-
-    redirectingAdminRef.current = true;
-    window.location.replace(`/${locale}/admin`);
-  }, [locale]);
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const token = sessionRef.current?.access_token;
@@ -2169,14 +2159,6 @@ export function PortalClient({
             return;
           }
 
-          if (
-            restoredPortal &&
-            hasAdminPortalRole(readCachedPortalPayload()?.roles)
-          ) {
-            redirectToAdminPanel();
-            return;
-          }
-
           if (restoredPortal) {
             setLoading(false);
             return;
@@ -2205,20 +2187,13 @@ export function PortalClient({
             return;
           }
 
-          const restoredPortal = restoreCachedPortal(data.session);
-          if (
-            restoredPortal &&
-            hasAdminPortalRole(readCachedPortalPayload()?.roles)
-          ) {
-            redirectToAdminPanel();
+          const adminScope = await loadAdminScope();
+          if (adminScope?.roleKeys?.length) {
+            window.location.replace(`/${locale}/admin`);
             return;
           }
 
-          const adminScope = await loadAdminScope();
-          if (adminScope?.roleKeys?.length) {
-            redirectToAdminPanel();
-            return;
-          }
+          const restoredPortal = restoreCachedPortal(data.session);
           if (data.session && !hasRecoveryHint && restoredPortal) {
             setLoading(false);
             return;
@@ -2269,10 +2244,6 @@ export function PortalClient({
         const restored = restoreCachedPortal(nextSession);
         if (restored) {
           setMessage("");
-        }
-        if (hasAdminPortalRole(readCachedPortalPayload()?.roles)) {
-          redirectToAdminPanel();
-          return;
         }
       }
       if (event === "PASSWORD_RECOVERY") {
