@@ -2006,7 +2006,7 @@ export function PortalClient({
 
   const loadAdminScope = useCallback(async () => {
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 6000);
 
     try {
       const response = await fetch("/api/admin/scope", {
@@ -2027,6 +2027,31 @@ export function PortalClient({
       window.clearTimeout(timeoutId);
     }
   }, [getAuthHeaders]);
+
+  const redirectToAdminIfNeeded = useCallback(
+    async (nextSession?: Session | null) => {
+      const sessionToCheck = nextSession ?? sessionRef.current;
+      const normalizedEmail = normalizeEmail(sessionToCheck?.user.email ?? "");
+
+      if (!sessionToCheck) {
+        return false;
+      }
+
+      if (normalizedEmail === officialSuperAdminEmail) {
+        window.location.replace(`/${locale}/admin`);
+        return true;
+      }
+
+      const adminScope = await loadAdminScope();
+      if (adminScope?.roleKeys?.length) {
+        window.location.replace(`/${locale}/admin`);
+        return true;
+      }
+
+      return false;
+    },
+    [loadAdminScope, locale],
+  );
 
   const loadPortal = useCallback(async (options?: { silent?: boolean }) => {
     const silent = Boolean(options?.silent);
@@ -2145,6 +2170,13 @@ export function PortalClient({
           }
 
           setSession(nextSession.data.session);
+          if (
+            !hasRecoveryHint &&
+            (await redirectToAdminIfNeeded(nextSession.data.session))
+          ) {
+            return;
+          }
+
           const restoredPortal = restoreCachedPortal(nextSession.data.session);
 
           if (typeof window !== "undefined") {
@@ -2181,15 +2213,7 @@ export function PortalClient({
         setSession(data.session);
         if (data.session) {
           saveAdminSessionBridge(data.session);
-          const normalizedEmail = normalizeEmail(data.session.user.email ?? "");
-          if (normalizedEmail === officialSuperAdminEmail) {
-            window.location.replace(`/${locale}/admin`);
-            return;
-          }
-
-          const adminScope = await loadAdminScope();
-          if (adminScope?.roleKeys?.length) {
-            window.location.replace(`/${locale}/admin`);
+          if (!hasRecoveryHint && (await redirectToAdminIfNeeded(data.session))) {
             return;
           }
 
@@ -2253,9 +2277,21 @@ export function PortalClient({
       }
 
       if (nextSession) {
-        if (!recoveryMode && event !== "TOKEN_REFRESHED" && !(sameUserSession && portalRef.current)) {
-          void loadPortal({ silent: true });
+        if (recoveryMode || event === "TOKEN_REFRESHED") {
+          return;
         }
+
+        void redirectToAdminIfNeeded(nextSession).then((redirected) => {
+          if (redirected) {
+            return;
+          }
+
+          if (sameUserSession && portalRef.current) {
+            return;
+          }
+
+          void loadPortal({ silent: true });
+        });
       } else {
         setPortal(null);
       }
@@ -2265,7 +2301,7 @@ export function PortalClient({
       active = false;
       subscription.unsubscribe();
     };
-  }, [copy.oldPkceLink, loadAdminScope, loadPortal, locale, recoveryMode, supabase]);
+  }, [copy.oldPkceLink, loadPortal, recoveryMode, redirectToAdminIfNeeded, supabase]);
 
   async function signIn() {
     if (!email || !password) {

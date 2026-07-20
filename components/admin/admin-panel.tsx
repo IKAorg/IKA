@@ -329,7 +329,8 @@ export function AdminPanel({ locale }: AdminPanelProps) {
         setSession(data.session);
         if (data.session) {
           saveAdminSessionBridge(data.session);
-          const cachedScope = readCachedScope(data.session);
+          const cachedScope =
+            getOptimisticScope(data.session) ?? readCachedScope(data.session);
           if (cachedScope) {
             setScope(cachedScope);
             setScopeMessage("");
@@ -360,15 +361,25 @@ export function AdminPanel({ locale }: AdminPanelProps) {
       }
 
       setSession(nextSession);
+      let hasOptimisticScope = false;
       if (nextSession) {
         saveAdminSessionBridge(nextSession);
+        const optimisticScope = getOptimisticScope(nextSession);
+        if (optimisticScope) {
+          hasOptimisticScope = true;
+          setScope(optimisticScope);
+          setScopeMessage("");
+          setLoadingScope(false);
+        }
       } else {
         setScope(null);
         setScopeMessage("");
         setLoadingScope(false);
         return;
       }
-      setLoadingScope(true);
+      if (!hasOptimisticScope) {
+        setLoadingScope(true);
+      }
       void loadScope(nextSession)
         .then((result) => {
           if (!active) {
