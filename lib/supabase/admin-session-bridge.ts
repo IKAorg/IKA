@@ -57,3 +57,11 @@ export function getAdminSessionBridgeHeaders(): Record<string, string> {
     return {};
   }
 }
+
+export function hasAdminSessionBridge() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return Boolean(window.sessionStorage.getItem(adminSessionBridgeKey));
+}
