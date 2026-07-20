@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   Copy,
@@ -94,6 +94,12 @@ export function RequestFormsAdmin({
   const [statusFilter, setStatusFilter] = useState<
     "all" | SubmissionStatus
   >("all");
+  const payloadRef = useRef<Payload | null>(null);
+  const loadInFlightRef = useRef(false);
+
+  useEffect(() => {
+    payloadRef.current = payload;
+  }, [payload]);
 
   const headers = useCallback(async () => {
     const session = await supabase.auth.getSession();
@@ -104,67 +110,81 @@ export function RequestFormsAdmin({
   }, [supabase]);
 
   const load = useCallback(async (attempt = 0) => {
+    if (loadInFlightRef.current) {
+      return;
+    }
+
+    loadInFlightRef.current = true;
     setLoading(true);
     setMessage("");
-    const requestHeaders = await headers();
-    const response = await fetch("/api/admin/requests", {
-      cache: "no-store",
-      headers: requestHeaders,
-    });
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      if (
-        attempt === 0 &&
-        (data.error === "No autenticado." ||
-          data.error === "No se encontro un perfil administrador para esta sesion.") &&
-        hasAdminSessionBridge()
-      ) {
-        await new Promise((resolve) => window.setTimeout(resolve, 250));
-        return load(1);
-      }
-
-      const fallbackResponse = await fetch("/api/admin/locations", {
+    try {
+      const requestHeaders = await headers();
+      const response = await fetch("/api/admin/requests", {
         cache: "no-store",
         headers: requestHeaders,
       });
-      const fallbackData =
-        (await fallbackResponse.json().catch(() => ({}))) as LocationsFallbackPayload;
+      const data = await response.json().catch(() => ({}));
 
-      if (fallbackResponse.ok) {
-        const roleKeys = fallbackData.scope?.roleKeys ?? [];
-        const countryIds = fallbackData.scope?.countryIds ?? [];
-        const dojoIds = fallbackData.scope?.dojoIds ?? [];
-        const isGlobal =
-          Boolean(fallbackData.scope?.isGlobal) ||
-          roleKeys.includes("super_admin") ||
-          roleKeys.includes("global_admin");
+      if (!response.ok) {
+        if (
+          attempt === 0 &&
+          (data.error === "No autenticado." ||
+            data.error === "No se encontro un perfil administrador para esta sesion.") &&
+          hasAdminSessionBridge()
+        ) {
+          await new Promise((resolve) => window.setTimeout(resolve, 250));
+          loadInFlightRef.current = false;
+          return load(1);
+        }
 
-        setPayload({
-          forms: [],
-          submissions: [],
-          countries: fallbackData.countries ?? [],
-          dojos: fallbackData.dojos ?? [],
-          permissions: {
-            canCreateCountryForms: roleKeys.includes("super_admin"),
-            canCreateDojoForms: isGlobal || countryIds.length > 0,
-            canCreateKenshiForms:
-              isGlobal || countryIds.length > 0 || dojoIds.length > 0,
-          },
+        const fallbackResponse = await fetch("/api/admin/locations", {
+          cache: "no-store",
+          headers: requestHeaders,
         });
-        setMessage("");
+        const fallbackData =
+          (await fallbackResponse.json().catch(() => ({}))) as LocationsFallbackPayload;
+
+        if (fallbackResponse.ok) {
+          const roleKeys = fallbackData.scope?.roleKeys ?? [];
+          const countryIds = fallbackData.scope?.countryIds ?? [];
+          const dojoIds = fallbackData.scope?.dojoIds ?? [];
+          const isGlobal =
+            Boolean(fallbackData.scope?.isGlobal) ||
+            roleKeys.includes("super_admin") ||
+            roleKeys.includes("global_admin");
+
+          setPayload({
+            forms: payloadRef.current?.forms ?? [],
+            submissions: payloadRef.current?.submissions ?? [],
+            countries: fallbackData.countries ?? [],
+            dojos: fallbackData.dojos ?? [],
+            permissions: {
+              canCreateCountryForms: roleKeys.includes("super_admin"),
+              canCreateDojoForms: isGlobal || countryIds.length > 0,
+              canCreateKenshiForms:
+                isGlobal || countryIds.length > 0 || dojoIds.length > 0,
+            },
+          });
+          setMessage("");
+          setLoading(false);
+          return;
+        }
+
+        setPayload(payloadRef.current);
+        setMessage(data.error ?? fallbackData.error ?? copy.loadError);
         setLoading(false);
         return;
       }
 
-      setPayload(null);
-      setMessage(data.error ?? fallbackData.error ?? copy.loadError);
+      setPayload(data as Payload);
       setLoading(false);
-      return;
+    } catch {
+      setPayload(payloadRef.current);
+      setMessage(copy.loadError);
+      setLoading(false);
+    } finally {
+      loadInFlightRef.current = false;
     }
-
-    setPayload(data as Payload);
-    setLoading(false);
   }, [copy.loadError, headers]);
 
   useEffect(() => {
@@ -183,7 +203,11 @@ export function RequestFormsAdmin({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+        return;
+      }
+
       if (nextSession) {
         saveAdminSessionBridge(nextSession);
       }
