@@ -10,7 +10,7 @@ type LocaleLayoutProps = {
 };
 
 export function generateStaticParams() {
-  return locales.map((locale) => ({ locale }));
+  return [];
 }
 
 export async function generateMetadata({
