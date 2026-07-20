@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarRange,
   FileUp,
@@ -365,6 +365,8 @@ export function MembersAdmin({
     "active" | "inactive" | "all"
   >("active");
   const [message, setMessage] = useState("");
+  const sessionUserIdRef = useRef("");
+  const loadMembersInFlightRef = useRef(false);
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -411,35 +413,57 @@ export function MembersAdmin({
   }, [copy.loadError, getAuthHeaders]);
 
   const loadMembers = useCallback(async () => {
+    if (loadMembersInFlightRef.current) {
+      return;
+    }
+
+    loadMembersInFlightRef.current = true;
     setLoading(true);
     setMessage("");
 
-    const result = await fetchMembersPayload();
+    try {
+      const result = await fetchMembersPayload();
 
-    if (!result.ok) {
-      setPayload(emptyPayload);
-      setMessage(result.error);
-    } else {
-      setPayload(result.payload);
+      if (!result.ok) {
+        setPayload(emptyPayload);
+        setMessage(result.error);
+      } else {
+        setPayload(result.payload);
+      }
+    } finally {
+      loadMembersInFlightRef.current = false;
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [fetchMembersPayload]);
 
   useEffect(() => {
     let ignore = false;
 
-    supabase.auth.getSession().then(() => {
+    supabase.auth.getSession().then(({ data }) => {
       if (ignore) {
         return;
       }
 
+      sessionUserIdRef.current = data.session?.user?.id ?? "";
       void loadMembers();
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+        return;
+      }
+
+      const nextUserId = nextSession?.user?.id ?? "";
+      const sameUserSession =
+        Boolean(nextUserId) && nextUserId === sessionUserIdRef.current;
+      sessionUserIdRef.current = nextUserId;
+
+      if (sameUserSession) {
+        return;
+      }
+
       setPayload(emptyPayload);
       setSelectedDojoId("");
 

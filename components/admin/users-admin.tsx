@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
   RefreshCw,
@@ -135,6 +135,8 @@ export function UsersAdmin({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [permissionSearch, setPermissionSearch] = useState("");
+  const sessionUserIdRef = useRef("");
+  const loadUsersInFlightRef = useRef(false);
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -144,37 +146,45 @@ export function UsersAdmin({
   }, [supabase]);
 
   const loadUsers = useCallback(async () => {
-    setLoading(true);
-    setMessage("");
-
-    const response = await fetch("/api/admin/users", {
-      cache: "no-store",
-      headers: await getAuthHeaders(),
-    });
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      setPayload(emptyPayload);
-      setForm(createEmptyForm());
-      setMessage(data.error ?? copy.loadUsersError);
-      setLoading(false);
+    if (loadUsersInFlightRef.current) {
       return;
     }
 
-    const nextPayload = data as UsersPayload;
-    const firstRole = nextPayload.assignableRoles[0] ?? "";
+    loadUsersInFlightRef.current = true;
+    setLoading(true);
+    setMessage("");
 
-    setPayload(nextPayload);
-    setForm((current) => ({
-      ...current,
-      roleKey:
-        current.roleKey && nextPayload.assignableRoles.includes(current.roleKey)
-          ? current.roleKey
-          : firstRole,
-      countryId: current.countryId,
-      dojoId: current.dojoId,
-    }));
-    setLoading(false);
+    try {
+      const response = await fetch("/api/admin/users", {
+        cache: "no-store",
+        headers: await getAuthHeaders(),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setPayload(emptyPayload);
+        setForm(createEmptyForm());
+        setMessage(data.error ?? copy.loadUsersError);
+        return;
+      }
+
+      const nextPayload = data as UsersPayload;
+      const firstRole = nextPayload.assignableRoles[0] ?? "";
+
+      setPayload(nextPayload);
+      setForm((current) => ({
+        ...current,
+        roleKey:
+          current.roleKey && nextPayload.assignableRoles.includes(current.roleKey)
+            ? current.roleKey
+            : firstRole,
+        countryId: current.countryId,
+        dojoId: current.dojoId,
+      }));
+    } finally {
+      loadUsersInFlightRef.current = false;
+      setLoading(false);
+    }
   }, [getAuthHeaders]);
 
   useEffect(() => {
@@ -186,6 +196,7 @@ export function UsersAdmin({
       }
 
       setSession(data.session);
+      sessionUserIdRef.current = data.session?.user?.id ?? "";
 
       if (data.session) {
         void loadUsers();
@@ -196,8 +207,22 @@ export function UsersAdmin({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+        return;
+      }
+
+      const nextUserId = nextSession?.user?.id ?? "";
+      const sameUserSession =
+        Boolean(nextUserId) && nextUserId === sessionUserIdRef.current;
+      sessionUserIdRef.current = nextUserId;
+
       setSession(nextSession);
+
+      if (sameUserSession) {
+        return;
+      }
+
       setPayload(emptyPayload);
       setForm(createEmptyForm());
 

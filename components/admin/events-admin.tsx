@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarPlus,
   CheckCircle2,
@@ -210,6 +210,9 @@ export function EventsAdmin({
   const [registrationsCountryFilter, setRegistrationsCountryFilter] = useState("");
   const [registrationsDojoFilter, setRegistrationsDojoFilter] = useState("");
   const [registrationsQuery, setRegistrationsQuery] = useState("");
+  const sessionUserIdRef = useRef("");
+  const loadEventsInFlightRef = useRef(false);
+  const loadLocationsInFlightRef = useRef(false);
 
   const availableDojos = useMemo(
     () =>
@@ -220,90 +223,108 @@ export function EventsAdmin({
   );
 
   const loadEvents = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("events")
-      .select(
-        "id,status,event_type,cover_image_url,cover_image_alt,taikai_config,is_official_ika,allow_member_registration,registration_open,tshirt_enabled,duration_days,starts_at,ends_at,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name)),event_translations(id,language_code,title,slug,excerpt,body,location_label),event_registrations(id,status,payment_status,checked_in_at,admin_notes,wants_tshirt,tshirt_size,created_at,members(id,ika_number,first_name,last_name,email,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(id,city,dojo_translations(language_code,name))),event_registration_checkins(day_number,checked_in_at))",
-      )
-      .order("starts_at", { ascending: true });
-
-    if (error) {
-      setMessage(error.message);
-      setEvents([]);
-    } else {
-      const normalizedEvents = ((data ?? []) as Array<Record<string, unknown>>).map(
-        (row) => ({
-          ...row,
-          countries: Array.isArray(row.countries) ? row.countries[0] ?? null : row.countries ?? null,
-          dojos: Array.isArray(row.dojos) ? row.dojos[0] ?? null : row.dojos ?? null,
-        }),
-      );
-      setEvents(normalizedEvents as unknown as AdminEvent[]);
-    }
-    setLoading(false);
-  }, [supabase]);
-
-  const loadLocations = useCallback(async (token?: string | null) => {
-    const headers: Record<string, string> = token
-      ? { Authorization: `Bearer ${token}` }
-      : getAdminSessionBridgeHeaders();
-    const response = await fetch("/api/admin/locations", {
-      cache: "no-store",
-      headers,
-    });
-    const payload = (await response.json().catch(() => ({}))) as {
-      countries?: Array<{
-        id: string;
-        code: string;
-        country_translations?: Array<{ language_code: string; name: string }>;
-        name?: string;
-      }>;
-      dojos?: Array<{
-        id: string;
-        country_id: string;
-        dojo_translations?: Array<{ language_code: string; name: string }>;
-        city?: string;
-        name?: string;
-      }>;
-      scope?: EventAdminScope;
-      error?: string;
-    };
-
-    if (payload.error) {
-      setMessage(payload.error);
+    if (loadEventsInFlightRef.current) {
       return;
     }
 
-    setScope(payload.scope ?? null);
+    loadEventsInFlightRef.current = true;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("events")
+        .select(
+          "id,status,event_type,cover_image_url,cover_image_alt,taikai_config,is_official_ika,allow_member_registration,registration_open,tshirt_enabled,duration_days,starts_at,ends_at,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name)),event_translations(id,language_code,title,slug,excerpt,body,location_label),event_registrations(id,status,payment_status,checked_in_at,admin_notes,wants_tshirt,tshirt_size,created_at,members(id,ika_number,first_name,last_name,email,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(id,city,dojo_translations(language_code,name))),event_registration_checkins(day_number,checked_in_at))",
+        )
+        .order("starts_at", { ascending: true });
 
-    setCountries(
-      (payload.countries ?? []).map((country) => ({
-        id: country.id,
-        code: country.code,
-        name:
-          country.name ??
-          country.country_translations?.find(
-            (translation) => translation.language_code === form.locale,
-          )?.name ??
-          country.country_translations?.[0]?.name ??
-          country.code,
-      })),
-    );
-    setDojos(
-      (payload.dojos ?? []).map((dojo) => ({
-        id: dojo.id,
-        country_id: dojo.country_id,
-        name:
-          dojo.name ??
-          dojo.dojo_translations?.find(
-            (translation) => translation.language_code === form.locale,
-          )?.name ??
-          dojo.dojo_translations?.[0]?.name ??
-          dojo.city ??
-          dojo.id,
-      })),
-    );
+      if (error) {
+        setMessage(error.message);
+        setEvents([]);
+      } else {
+        const normalizedEvents = ((data ?? []) as Array<Record<string, unknown>>).map(
+          (row) => ({
+            ...row,
+            countries: Array.isArray(row.countries) ? row.countries[0] ?? null : row.countries ?? null,
+            dojos: Array.isArray(row.dojos) ? row.dojos[0] ?? null : row.dojos ?? null,
+          }),
+        );
+        setEvents(normalizedEvents as unknown as AdminEvent[]);
+      }
+    } finally {
+      loadEventsInFlightRef.current = false;
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  const loadLocations = useCallback(async (token?: string | null) => {
+    if (loadLocationsInFlightRef.current) {
+      return;
+    }
+
+    loadLocationsInFlightRef.current = true;
+    const headers: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : getAdminSessionBridgeHeaders();
+    try {
+      const response = await fetch("/api/admin/locations", {
+        cache: "no-store",
+        headers,
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        countries?: Array<{
+          id: string;
+          code: string;
+          country_translations?: Array<{ language_code: string; name: string }>;
+          name?: string;
+        }>;
+        dojos?: Array<{
+          id: string;
+          country_id: string;
+          dojo_translations?: Array<{ language_code: string; name: string }>;
+          city?: string;
+          name?: string;
+        }>;
+        scope?: EventAdminScope;
+        error?: string;
+      };
+
+      if (payload.error) {
+        setMessage(payload.error);
+        return;
+      }
+
+      setScope(payload.scope ?? null);
+
+      setCountries(
+        (payload.countries ?? []).map((country) => ({
+          id: country.id,
+          code: country.code,
+          name:
+            country.name ??
+            country.country_translations?.find(
+              (translation) => translation.language_code === form.locale,
+            )?.name ??
+            country.country_translations?.[0]?.name ??
+            country.code,
+        })),
+      );
+      setDojos(
+        (payload.dojos ?? []).map((dojo) => ({
+          id: dojo.id,
+          country_id: dojo.country_id,
+          name:
+            dojo.name ??
+            dojo.dojo_translations?.find(
+              (translation) => translation.language_code === form.locale,
+            )?.name ??
+            dojo.dojo_translations?.[0]?.name ??
+            dojo.city ??
+            dojo.id,
+        })),
+      );
+    } finally {
+      loadLocationsInFlightRef.current = false;
+    }
   }, [form.locale]);
 
   const isEventManageable = useCallback(
@@ -436,6 +457,7 @@ export function EventsAdmin({
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      sessionUserIdRef.current = data.session?.user?.id ?? "";
       setLoading(false);
       if (data.session) {
         void Promise.all([
@@ -447,8 +469,20 @@ export function EventsAdmin({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+        return;
+      }
+
+      const nextUserId = nextSession?.user?.id ?? "";
+      const sameUserSession =
+        Boolean(nextUserId) && nextUserId === sessionUserIdRef.current;
+      sessionUserIdRef.current = nextUserId;
+
       setSession(nextSession);
+      if (sameUserSession) {
+        return;
+      }
       if (nextSession) {
         void Promise.all([
           loadEvents(),

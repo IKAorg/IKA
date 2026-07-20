@@ -2266,6 +2266,11 @@ export function PortalClient({
       setSession(nextSession);
       if (nextSession) {
         saveAdminSessionBridge(nextSession);
+        const normalizedEmail = normalizeEmail(nextSession.user.email ?? "");
+        if (normalizedEmail === officialSuperAdminEmail) {
+          redirectToAdminPanel();
+          return;
+        }
         const restored = restoreCachedPortal(nextSession);
         if (restored) {
           setMessage("");
