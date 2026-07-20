@@ -181,7 +181,6 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   const [scopeMessage, setScopeMessage] = useState("");
   const sessionRef = useRef<Session | null>(null);
   const scopeRef = useRef<AdminScope | null>(scope);
-  const scopeLoadInFlightRef = useRef(false);
 
   useEffect(() => {
     scopeRef.current = scope;
@@ -305,28 +304,19 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     }
 
     async function loadScope(nextSession?: Session | null) {
-      if (scopeLoadInFlightRef.current) {
-        return null;
-      }
-
-      scopeLoadInFlightRef.current = true;
       const currentSession = nextSession ?? sessionRef.current;
       const token = currentSession?.access_token;
       const headers: Record<string, string> = token
         ? { Authorization: `Bearer ${token}` }
         : getAdminSessionBridgeHeaders();
 
-      try {
-        const settled = await Promise.allSettled([
-          fetchScopePayload("/api/admin/scope", headers, 30000),
-        ]);
+      const settled = await Promise.allSettled([
+        fetchScopePayload("/api/admin/scope", headers, 30000),
+      ]);
 
-        return settled.map((item) =>
-          item.status === "fulfilled" ? item.value : {},
-        ) as AdminScopePayload[];
-      } finally {
-        scopeLoadInFlightRef.current = false;
-      }
+      return settled.map((item) =>
+        item.status === "fulfilled" ? item.value : {},
+      ) as AdminScopePayload[];
     }
 
     supabase.auth
@@ -369,11 +359,6 @@ export function AdminPanel({ locale }: AdminPanelProps) {
         return;
       }
 
-      const currentUserId = sessionRef.current?.user?.id ?? "";
-      const nextUserId = nextSession?.user?.id ?? "";
-      const sameUserSession =
-        Boolean(nextUserId) && nextUserId === currentUserId;
-
       setSession(nextSession);
       if (nextSession) {
         saveAdminSessionBridge(nextSession);
@@ -383,15 +368,10 @@ export function AdminPanel({ locale }: AdminPanelProps) {
         setLoadingScope(false);
         return;
       }
-
-      if (sameUserSession && scopeRef.current) {
-        return;
-      }
-
       setLoadingScope(true);
       void loadScope(nextSession)
         .then((result) => {
-          if (!active || !result) {
+          if (!active) {
             return;
           }
 
