@@ -45,8 +45,6 @@ type EventRegistrationRow = {
   } | null;
 };
 
-const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
-
 const memberSelect =
   "id,ika_number,first_name,last_name,email,phone,status,current_grade,last_exam_date,birth_date,joined_date,member_group,profile_image_url,consent_accepted,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))";
 
@@ -62,34 +60,6 @@ export async function GET(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  }
-
-  const normalizedUserEmail = normalizeEmail(getAuthUserEmail(user));
-
-  if (!includeDashboard && normalizedUserEmail === officialSuperAdminEmail) {
-    return NextResponse.json({
-      profile: {
-        id: user.id,
-        email: normalizedUserEmail,
-        display_name: "IKA org",
-        status: "active",
-      },
-      roles: [
-        {
-          id: "official-super-admin",
-          country_id: null,
-          dojo_id: null,
-          roles: { key: "super_admin", name: "Super admin" },
-          countries: null,
-          dojos: null,
-        },
-      ],
-      member: null,
-      gradeHistory: [],
-      achievements: [],
-      eventRegistrations: [],
-      dashboard: null,
-    });
   }
 
   const profile = await getPortalProfile(supabase, user.id, getAuthUserEmail(user));

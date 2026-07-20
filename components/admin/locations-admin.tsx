@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   Building2,
@@ -196,8 +196,6 @@ export function LocationsAdmin({
   const [message, setMessage] = useState("");
   const [countryCsvText, setCountryCsvText] = useState("");
   const [dojoCsvText, setDojoCsvText] = useState("");
-  const sessionUserIdRef = useRef("");
-  const loadLocationsInFlightRef = useRef(false);
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -209,78 +207,56 @@ export function LocationsAdmin({
   }, [supabase]);
 
   const loadLocations = useCallback(async () => {
-    if (loadLocationsInFlightRef.current) {
-      return;
-    }
-
-    loadLocationsInFlightRef.current = true;
     setLoading(true);
     setMessage("");
 
-    try {
-      const response = await fetch("/api/admin/locations", {
-        cache: "no-store",
-        headers: await getAuthHeaders(),
-      });
-      const data = await response.json().catch(() => ({}));
+    const response = await fetch("/api/admin/locations", {
+      cache: "no-store",
+      headers: await getAuthHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        setMessage(data.error ?? copy.loadLocationsError);
-        setCountries([]);
-        setDojos([]);
-        setMediaById(new Map());
-        setScope(null);
-        return;
-      }
-
-      const nextCountries = (data.countries ?? []) as CountryRow[];
-      const nextDojos = (data.dojos ?? []) as DojoRow[];
-      const nextScope = (data.scope ?? null) as LocationScope | null;
-
-      const nextMediaById = new Map(
-        ((data.media ?? []) as MediaRow[]).map((media) => [media.id, media]),
-      );
-
-      setCountries(nextCountries);
-      setDojos(nextDojos);
-      setMediaById(nextMediaById);
-      setScope(nextScope);
-      if (nextScope?.isGlobal === false && nextCountries.length === 1) {
-        setCountryForm((current) =>
-          current.id
-            ? current
-            : hydrateCountryForm(nextCountries[0], current.locale, nextMediaById),
-        );
-      }
-      return;
-    } finally {
-      loadLocationsInFlightRef.current = false;
+    if (!response.ok) {
+      setMessage(data.error ?? copy.loadLocationsError);
+      setCountries([]);
+      setDojos([]);
+      setMediaById(new Map());
+      setScope(null);
       setLoading(false);
+      return;
     }
+
+    const nextCountries = (data.countries ?? []) as CountryRow[];
+    const nextDojos = (data.dojos ?? []) as DojoRow[];
+    const nextScope = (data.scope ?? null) as LocationScope | null;
+
+    const nextMediaById = new Map(
+      ((data.media ?? []) as MediaRow[]).map((media) => [media.id, media]),
+    );
+
+    setCountries(nextCountries);
+    setDojos(nextDojos);
+    setMediaById(nextMediaById);
+    setScope(nextScope);
+    if (nextScope?.isGlobal === false && nextCountries.length === 1) {
+      setCountryForm((current) =>
+        current.id
+          ? current
+          : hydrateCountryForm(nextCountries[0], current.locale, nextMediaById),
+      );
+    }
+    setLoading(false);
+    return;
   }, [getAuthHeaders]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      sessionUserIdRef.current = data.session?.user?.id ?? "";
+    supabase.auth.getSession().then(() => {
       void loadLocations();
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
-        return;
-      }
-
-      const nextUserId = nextSession?.user?.id ?? "";
-      const sameUserSession =
-        Boolean(nextUserId) && nextUserId === sessionUserIdRef.current;
-      sessionUserIdRef.current = nextUserId;
-
-      if (sameUserSession) {
-        return;
-      }
-
+    } = supabase.auth.onAuthStateChange(() => {
       void loadLocations();
     });
 
