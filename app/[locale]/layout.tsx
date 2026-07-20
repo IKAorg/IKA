@@ -9,6 +9,10 @@ type LocaleLayoutProps = {
   params: Promise<{ locale: string }>;
 };
 
+export function generateStaticParams() {
+  return locales.map((locale) => ({ locale }));
+}
+
 export async function generateMetadata({
   params,
 }: LocaleLayoutProps): Promise<Metadata> {
