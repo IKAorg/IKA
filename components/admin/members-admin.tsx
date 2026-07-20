@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { Locale } from "@/lib/i18n/config";
+import { fileToDataUrl, optimizeImageForUpload } from "@/lib/media/optimize-image";
 import { createClient } from "@/lib/supabase/browser";
 import { getAdminSessionBridgeHeaders } from "@/lib/supabase/admin-session-bridge";
 
@@ -90,6 +91,27 @@ type CourseHistory = {
   exam_place: string | null;
   examiner: string | null;
   notes: string | null;
+  course_type?: string | null;
+  taikai_config?: {
+    categories?: string[];
+    results?: string[];
+    medals?: string[];
+    awards?: string[];
+  } | null;
+};
+
+type AchievementHistory = {
+  id: string;
+  member_id: string;
+  course_id: string | null;
+  title: string;
+  category: string | null;
+  result: string | null;
+  medal_type?: string | null;
+  podium_position?: number | null;
+  achieved_on: string;
+  achieved_place: string | null;
+  notes: string | null;
 };
 
 type CourseImportRow = {
@@ -127,12 +149,67 @@ type MemberEditForm = {
   profileImageUrl: string;
 };
 
+type ManualMemberForm = {
+  externalMemberId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  birthDate: string;
+  joinedDate: string;
+  currentGrade: string;
+  mainInstructor: string;
+  guardianName: string;
+  guardianEmail: string;
+  memberGroup: string;
+  notes: string;
+};
+
 type CourseEditForm = {
   title: string;
   date: string;
   place: string;
   instructor: string;
   notes: string;
+  type: string;
+};
+
+type AchievementEditForm = {
+  title: string;
+  category: string;
+  result: string;
+  medalType: string;
+  podiumPosition: string;
+  achievedOn: string;
+  achievedPlace: string;
+  notes: string;
+  courseId: string;
+};
+
+type BulkTaikaiAchievementForm = {
+  id?: string;
+  memberId: string;
+  title: string;
+  category: string;
+  result: string;
+  medalType: string;
+  podiumPosition: string;
+  notes: string;
+};
+
+type BulkCourseBuilderForm = {
+  title: string;
+  date: string;
+  place: string;
+  instructor: string;
+  notes: string;
+  type: string;
+  taikaiCategories: string;
+  taikaiResults: string;
+  taikaiMedals: string;
+  taikaiAwards: string;
+  selectedMemberIds: string[];
+  achievements: BulkTaikaiAchievementForm[];
 };
 
 type MembersPayload = {
@@ -140,6 +217,7 @@ type MembersPayload = {
   dojos: DojoOption[];
   members: MemberRow[];
   courseHistory: CourseHistory[];
+  achievements?: AchievementHistory[];
   scope?: {
     isGlobal: boolean;
     roleKeys?: string[];
@@ -157,6 +235,7 @@ const emptyPayload: MembersPayload = {
   dojos: [],
   members: [],
   courseHistory: [],
+  achievements: [],
 };
 
 const csvTemplate =
@@ -173,17 +252,88 @@ const emptyCourseForm: CourseEditForm = {
   place: "",
   instructor: "",
   notes: "",
+  type: "course",
 };
 
-export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
+const emptyAchievementForm: AchievementEditForm = {
+  title: "",
+  category: "",
+  result: "",
+  medalType: "",
+  podiumPosition: "",
+  achievedOn: "",
+  achievedPlace: "",
+  notes: "",
+  courseId: "",
+};
+
+const emptyManualMemberForm: ManualMemberForm = {
+  externalMemberId: "",
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  birthDate: "",
+  joinedDate: "",
+  currentGrade: "",
+  mainInstructor: "",
+  guardianName: "",
+  guardianEmail: "",
+  memberGroup: "",
+  notes: "",
+};
+
+const emptyBulkCourseBuilderForm: BulkCourseBuilderForm = {
+  title: "",
+  date: "",
+  place: "",
+  instructor: "",
+  notes: "",
+  type: "course",
+  taikaiCategories: "",
+  taikaiResults: "",
+  taikaiMedals: "",
+  taikaiAwards: "",
+  selectedMemberIds: [],
+  achievements: [],
+};
+
+type MembersAdminMode = "full" | "courses";
+
+type CourseRegistryForm = {
+  title: string;
+  date: string;
+  place: string;
+  instructor: string;
+  notes: string;
+  type: string;
+  taikaiCategories: string;
+  taikaiResults: string;
+  taikaiMedals: string;
+  taikaiAwards: string;
+  selectedMemberIds: string[];
+  achievements: BulkTaikaiAchievementForm[];
+};
+
+export function MembersAdmin({
+  initialLocale,
+  mode = "full",
+}: {
+  initialLocale: Locale;
+  mode?: MembersAdminMode;
+}) {
   const copy = useMemo(() => membersAdminCopy(initialLocale), [initialLocale]);
+  const taikaiResultsManagedInEvents = mode === "courses";
   const supabase = useMemo(() => createClient(), []);
   const [payload, setPayload] = useState<MembersPayload>(emptyPayload);
   const [csvText, setCsvText] = useState(csvTemplate);
   const [courseCsvText, setCourseCsvText] = useState(courseCsvTemplate);
   const [selectedDojoId, setSelectedDojoId] = useState("");
+  const [manualMemberForm, setManualMemberForm] =
+    useState<ManualMemberForm>(emptyManualMemberForm);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [creatingManualMember, setCreatingManualMember] = useState(false);
   const [importingCourses, setImportingCourses] = useState(false);
   const [inviteSendingId, setInviteSendingId] = useState("");
   const [deletingMemberId, setDeletingMemberId] = useState("");
@@ -193,9 +343,27 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   const [savingCourseId, setSavingCourseId] = useState("");
   const [deletingCourseId, setDeletingCourseId] = useState("");
   const [memberCourses, setMemberCourses] = useState<CourseHistory[]>([]);
+  const [memberAchievements, setMemberAchievements] = useState<AchievementHistory[]>([]);
   const [newCourseForm, setNewCourseForm] = useState<CourseEditForm>(emptyCourseForm);
+  const [newAchievementForm, setNewAchievementForm] =
+    useState<AchievementEditForm>(emptyAchievementForm);
+  const [bulkCourseForm, setBulkCourseForm] =
+    useState<BulkCourseBuilderForm>(emptyBulkCourseBuilderForm);
+  const [bulkCourseSearch, setBulkCourseSearch] = useState("");
+  const [bulkCountryFilter, setBulkCountryFilter] = useState("");
+  const [bulkDojoFilter, setBulkDojoFilter] = useState("");
+  const [savingBulkCourse, setSavingBulkCourse] = useState(false);
+  const [editingRegistryKey, setEditingRegistryKey] = useState("");
+  const [registryForm, setRegistryForm] = useState<CourseRegistryForm | null>(null);
+  const [registryMemberSearch, setRegistryMemberSearch] = useState("");
+  const [registryCountryFilter, setRegistryCountryFilter] = useState("");
+  const [registryDojoFilter, setRegistryDojoFilter] = useState("");
+  const [savingRegistryKey, setSavingRegistryKey] = useState("");
   const [memberForm, setMemberForm] = useState<MemberEditForm | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
+  const [memberStatusView, setMemberStatusView] = useState<
+    "active" | "inactive" | "all"
+  >("active");
   const [message, setMessage] = useState("");
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -290,6 +458,9 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     [courseCsvText, payload],
   );
   const isGlobalScope = payload.scope?.isGlobal === true;
+  const isSuperAdminScope =
+    payload.scope?.roleKeys?.includes("super_admin") === true;
+  const canManageCourses = isSuperAdminScope;
   const isLockedToSingleDojo = !isGlobalScope && payload.dojos.length === 1;
   const effectiveSelectedDojoId = isLockedToSingleDojo
     ? payload.dojos[0]?.id ?? ""
@@ -327,14 +498,31 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
   );
   const skippedRows = rows.length - validRows.length;
   const skippedCourseRows = courseRows.length - importableCourseRows.length;
+  const activeMembersCount = useMemo(
+    () => payload.members.filter((member) => member.status === "active").length,
+    [payload.members],
+  );
+  const inactiveMembersCount = useMemo(
+    () => payload.members.filter((member) => member.status !== "active").length,
+    [payload.members],
+  );
   const filteredMembers = useMemo(() => {
     const wanted = normalizeComparable(memberSearch);
+    const statusScopedMembers = payload.members.filter((member) => {
+      if (memberStatusView === "active") {
+        return member.status === "active";
+      }
+      if (memberStatusView === "inactive") {
+        return member.status !== "active";
+      }
+      return true;
+    });
 
     if (!wanted) {
-      return payload.members;
+      return statusScopedMembers;
     }
 
-    return payload.members.filter((member) =>
+    return statusScopedMembers.filter((member) =>
       normalizeComparable(
         [
           member.ika_number,
@@ -344,7 +532,226 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
         ].join(" "),
       ).includes(wanted),
     );
-  }, [memberSearch, payload.members]);
+  }, [memberSearch, memberStatusView, payload.members]);
+  const taikaiCourseOptions = useMemo(
+    () =>
+      memberCourses
+        .filter((course) => (course.course_type ?? "course") === "taikai")
+        .map((course) => ({
+          value: course.id,
+          label: formatAchievementCourseOption(course),
+        })),
+    [memberCourses],
+  );
+  const bulkScopeMembers = useMemo(() => {
+    const wanted = normalizeComparable(bulkCourseSearch);
+    const scopedMembers = payload.members.filter((member) => {
+      if (effectiveSelectedDojoId && member.dojo_id !== effectiveSelectedDojoId) {
+        return false;
+      }
+
+      if (bulkCountryFilter && member.country_id !== bulkCountryFilter) {
+        return false;
+      }
+
+      if (bulkDojoFilter && member.dojo_id !== bulkDojoFilter) {
+        return false;
+      }
+
+      return member.status === "active";
+    });
+
+    if (!wanted) {
+      return scopedMembers;
+    }
+
+    return scopedMembers.filter((member) =>
+      normalizeComparable(
+        [
+          member.ika_number,
+          member.first_name,
+          member.last_name,
+          member.email ?? "",
+        ].join(" "),
+      ).includes(wanted),
+    );
+  }, [bulkCountryFilter, bulkCourseSearch, bulkDojoFilter, effectiveSelectedDojoId, payload.members]);
+  const bulkCountryOptions = useMemo(() => {
+    return payload.countries
+      .filter((country) =>
+        payload.members.some((member) => member.status === "active" && member.country_id === country.id),
+      )
+      .map((country) => ({
+        value: country.id,
+        label: countryLabel(country, initialLocale),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, initialLocale));
+  }, [initialLocale, payload.countries, payload.members]);
+  const bulkDojoOptions = useMemo(() => {
+    return payload.dojos
+      .filter((dojo) => {
+        if (effectiveSelectedDojoId && dojo.id !== effectiveSelectedDojoId) {
+          return false;
+        }
+        if (bulkCountryFilter && dojo.country_id !== bulkCountryFilter) {
+          return false;
+        }
+        return payload.members.some((member) => member.status === "active" && member.dojo_id === dojo.id);
+      })
+      .map((dojo) => ({
+        value: dojo.id,
+        label: dojoLabel(dojo, initialLocale),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, initialLocale));
+  }, [bulkCountryFilter, effectiveSelectedDojoId, initialLocale, payload.dojos, payload.members]);
+  const registryScopeMembers = useMemo(() => {
+    const wanted = normalizeComparable(registryMemberSearch);
+    const scopedMembers = payload.members.filter((member) => {
+      if (effectiveSelectedDojoId && member.dojo_id !== effectiveSelectedDojoId) {
+        return false;
+      }
+      if (registryCountryFilter && member.country_id !== registryCountryFilter) {
+        return false;
+      }
+      if (registryDojoFilter && member.dojo_id !== registryDojoFilter) {
+        return false;
+      }
+      return member.status === "active";
+    });
+
+    if (!wanted) {
+      return scopedMembers;
+    }
+
+    return scopedMembers.filter((member) =>
+      normalizeComparable(
+        [
+          member.ika_number,
+          member.first_name,
+          member.last_name,
+          member.email ?? "",
+        ].join(" "),
+      ).includes(wanted),
+    );
+  }, [effectiveSelectedDojoId, payload.members, registryCountryFilter, registryDojoFilter, registryMemberSearch]);
+  const registryCountryOptions = useMemo(() => {
+    return payload.countries
+      .filter((country) =>
+        payload.members.some((member) => member.status === "active" && member.country_id === country.id),
+      )
+      .map((country) => ({
+        value: country.id,
+        label: countryLabel(country, initialLocale),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, initialLocale));
+  }, [initialLocale, payload.countries, payload.members]);
+  const registryDojoOptions = useMemo(() => {
+    return payload.dojos
+      .filter((dojo) => {
+        if (effectiveSelectedDojoId && dojo.id !== effectiveSelectedDojoId) {
+          return false;
+        }
+        if (registryCountryFilter && dojo.country_id !== registryCountryFilter) {
+          return false;
+        }
+        return payload.members.some((member) => member.status === "active" && member.dojo_id === dojo.id);
+      })
+      .map((dojo) => ({
+        value: dojo.id,
+        label: dojoLabel(dojo, initialLocale),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, initialLocale));
+  }, [effectiveSelectedDojoId, initialLocale, payload.dojos, payload.members, registryCountryFilter]);
+  const groupedCourses = useMemo(() => {
+    const scopedCourses = payload.courseHistory.filter((course) => {
+      const member = payload.members.find((item) => item.id === course.member_id);
+      if (!member) {
+        return false;
+      }
+      if (effectiveSelectedDojoId && member.dojo_id !== effectiveSelectedDojoId) {
+        return false;
+      }
+      return true;
+    });
+
+    const groups = new Map<
+      string,
+      {
+        key: string;
+        title: string;
+        date: string;
+        place: string;
+        instructor: string;
+        notes: string;
+        type: string;
+        courseIds: string[];
+        memberIds: string[];
+        achievements: AchievementHistory[];
+        taikaiConfig: {
+          categories: string[];
+          results: string[];
+          medals: string[];
+          awards: string[];
+        };
+      }
+    >();
+
+    for (const course of scopedCourses) {
+      const key = [
+        course.grade,
+        course.exam_date,
+        course.course_type ?? "course",
+        course.exam_place ?? "",
+        course.examiner ?? "",
+      ].join("||");
+
+      const current = groups.get(key);
+      if (current) {
+        current.courseIds.push(course.id);
+        current.memberIds.push(course.member_id);
+        continue;
+      }
+
+      groups.set(key, {
+        key,
+        title: course.grade,
+        date: course.exam_date,
+        place: course.exam_place ?? "",
+        instructor: course.examiner ?? "",
+        notes: course.notes ?? "",
+        type: course.course_type ?? "course",
+        courseIds: [course.id],
+        memberIds: [course.member_id],
+        achievements: [],
+        taikaiConfig: normalizeTaikaiConfig(course.taikai_config),
+      });
+    }
+
+    for (const achievement of payload.achievements ?? []) {
+      const linkedCourse = scopedCourses.find((course) => course.id === achievement.course_id);
+
+      if (!linkedCourse) {
+        continue;
+      }
+
+      const key = [
+        linkedCourse.grade,
+        linkedCourse.exam_date,
+        linkedCourse.course_type ?? "course",
+        linkedCourse.exam_place ?? "",
+        linkedCourse.examiner ?? "",
+      ].join("||");
+      const current = groups.get(key);
+
+      if (current) {
+        current.achievements.push(achievement);
+      }
+    }
+
+    return Array.from(groups.values()).sort((left, right) =>
+      right.date.localeCompare(left.date),
+    );
+  }, [effectiveSelectedDojoId, payload.courseHistory, payload.members]);
 
   async function importRows() {
     setImporting(true);
@@ -385,6 +792,175 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     );
     await loadMembers();
     setImporting(false);
+  }
+
+  async function createManualMember() {
+    if (!selectedDojoReady) {
+      setMessage(copy.selectDojoFirst);
+      return;
+    }
+
+    if (!manualMemberForm.firstName || !manualMemberForm.lastName) {
+      setMessage(copy.manualMemberRequired);
+      return;
+    }
+
+    setCreatingManualMember(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        rows: [
+          {
+            externalMemberId: manualMemberForm.externalMemberId,
+            firstName: manualMemberForm.firstName,
+            lastName: manualMemberForm.lastName,
+            email: manualMemberForm.email,
+            phone: manualMemberForm.phone,
+            countryId: selectedDojo?.country_id ?? "",
+            countryCode: "",
+            countryName: "",
+            dojoId: selectedDojo?.id ?? "",
+            dojoName: "",
+            birthDate: manualMemberForm.birthDate,
+            joinedDate: manualMemberForm.joinedDate,
+            currentGrade: manualMemberForm.currentGrade,
+            status: "active",
+            mainInstructor: manualMemberForm.mainInstructor,
+            guardianName: manualMemberForm.guardianName,
+            guardianEmail: manualMemberForm.guardianEmail,
+            isMinor: manualMemberForm.memberGroup === "child" ? "true" : "false",
+            notes: manualMemberForm.notes,
+            memberGroup: manualMemberForm.memberGroup,
+          },
+        ],
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.manualMemberError);
+      setCreatingManualMember(false);
+      return;
+    }
+
+    const errors = Array.isArray(data.errors) ? data.errors.length : 0;
+    if ((data.imported ?? 0) < 1 || errors > 0) {
+      const firstError =
+        Array.isArray(data.errors) && data.errors[0]?.error
+          ? data.errors[0].error
+          : copy.manualMemberError;
+      setMessage(firstError);
+      setCreatingManualMember(false);
+      return;
+    }
+
+    setManualMemberForm(emptyManualMemberForm);
+    await loadMembers();
+    setCreatingManualMember(false);
+    setMessage(copy.manualMemberCreated);
+  }
+
+  async function createBulkCourse() {
+    if (!bulkCourseForm.title || !bulkCourseForm.date) {
+      setMessage(copy.courseTitleDateRequired);
+      return;
+    }
+
+    if (bulkCourseForm.selectedMemberIds.length === 0) {
+      setMessage(copy.bulkSelectMembersRequired);
+      return;
+    }
+
+    setSavingBulkCourse(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "bulk_create_course",
+        course: {
+          ...bulkCourseForm,
+          taikaiConfig: buildTaikaiConfigFromForm(bulkCourseForm),
+        },
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.bulkCourseError);
+      setSavingBulkCourse(false);
+      return;
+    }
+
+    setBulkCourseForm(emptyBulkCourseBuilderForm);
+    setBulkCourseSearch("");
+    await loadMembers();
+    setSavingBulkCourse(false);
+    setMessage(
+      copy.bulkCourseCreated(
+        data.createdCourses ?? 0,
+        data.createdAchievements ?? 0,
+      ),
+    );
+  }
+
+  async function saveRegistryCourse(courseKey: string, courseIds: string[]) {
+    if (!registryForm) {
+      return;
+    }
+
+    setSavingRegistryKey(courseKey);
+    setMessage("");
+
+    const firstCourse = payload.courseHistory.find((course) => course.id === courseIds[0]);
+
+    if (!firstCourse) {
+      setMessage(copy.bulkCourseError);
+      setSavingRegistryKey("");
+      return;
+    }
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "update_bulk_courses",
+        memberId: firstCourse.member_id,
+        courseIds,
+        course: {
+          ...registryForm,
+          taikaiConfig: buildTaikaiConfigFromForm(registryForm),
+        },
+        selectedMemberIds: registryForm.selectedMemberIds,
+        achievements: registryForm.achievements,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.bulkCourseError);
+      setSavingRegistryKey("");
+      return;
+    }
+
+    await loadMembers();
+    setEditingRegistryKey("");
+    setRegistryForm(null);
+    setSavingRegistryKey("");
+    setMessage(copy.bulkCourseUpdated());
   }
 
   async function importCourseRows() {
@@ -501,7 +1077,13 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
         .filter((course) => course.member_id === member.id)
         .sort((left, right) => right.exam_date.localeCompare(left.exam_date)),
     );
+    setMemberAchievements(
+      (payload.achievements ?? [])
+        .filter((achievement) => achievement.member_id === member.id)
+        .sort((left, right) => right.achieved_on.localeCompare(left.achieved_on)),
+    );
     setNewCourseForm(emptyCourseForm);
+    setNewAchievementForm(emptyAchievementForm);
     setMessage("");
   }
 
@@ -531,6 +1113,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
               exam_place: field === "place" ? value : course.exam_place,
               examiner: field === "instructor" ? value : course.examiner,
               notes: field === "notes" ? value : course.notes,
+              course_type: field === "type" ? value : course.course_type,
             }
           : course,
       ),
@@ -542,6 +1125,320 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
       ...current,
       [field]: value,
     }));
+  }
+
+  function updateManualMemberForm(
+    field: keyof ManualMemberForm,
+    value: string,
+  ) {
+    setManualMemberForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function hydrateAchievementFromCourse(
+    current: AchievementEditForm,
+    courseId: string,
+  ) {
+    if (!courseId) {
+      return { ...current, courseId: "" };
+    }
+
+    const linkedCourse = memberCourses.find((course) => course.id === courseId);
+
+    if (!linkedCourse) {
+      return { ...current, courseId };
+    }
+
+    return {
+      ...current,
+      courseId,
+      title: current.title || linkedCourse.grade,
+      achievedOn: current.achievedOn || linkedCourse.exam_date,
+      achievedPlace: current.achievedPlace || linkedCourse.exam_place || "",
+      notes:
+        current.notes ||
+        ((linkedCourse.course_type ?? "course") === "taikai"
+          ? linkedCourse.notes ?? ""
+          : ""),
+    };
+  }
+
+  function updateAchievementForm(
+    achievementId: string,
+    field: keyof AchievementEditForm,
+    value: string,
+  ) {
+    setMemberAchievements((current) =>
+      current.map((achievement) =>
+        achievement.id === achievementId
+          ? (() => {
+              const nextAchievement = {
+                ...achievement,
+                title: field === "title" ? value : achievement.title,
+                category: field === "category" ? value : achievement.category,
+                result: field === "result" ? value : achievement.result,
+                medal_type: field === "medalType" ? value : achievement.medal_type,
+                podium_position:
+                  field === "podiumPosition"
+                    ? Number.parseInt(value, 10) || null
+                    : achievement.podium_position,
+                achieved_on: field === "achievedOn" ? value : achievement.achieved_on,
+                achieved_place:
+                  field === "achievedPlace" ? value : achievement.achieved_place,
+                notes: field === "notes" ? value : achievement.notes,
+                course_id: field === "courseId" ? value : achievement.course_id,
+              };
+
+              if (field !== "courseId" || !value) {
+                return nextAchievement;
+              }
+
+              const linkedCourse = memberCourses.find((course) => course.id === value);
+
+              if (!linkedCourse) {
+                return nextAchievement;
+              }
+
+              return {
+                ...nextAchievement,
+                title:
+                  nextAchievement.title === achievement.title && !achievement.title
+                    ? linkedCourse.grade
+                    : nextAchievement.title,
+                achieved_on:
+                  nextAchievement.achieved_on === achievement.achieved_on &&
+                  !achievement.achieved_on
+                    ? linkedCourse.exam_date
+                    : nextAchievement.achieved_on,
+                achieved_place:
+                  nextAchievement.achieved_place === achievement.achieved_place &&
+                  !achievement.achieved_place
+                    ? linkedCourse.exam_place
+                    : nextAchievement.achieved_place,
+              };
+            })()
+          : achievement,
+      ),
+    );
+  }
+
+  function updateNewAchievementForm(
+    field: keyof AchievementEditForm,
+    value: string,
+  ) {
+    setNewAchievementForm((current) =>
+      field === "courseId"
+        ? hydrateAchievementFromCourse(current, value)
+        : { ...current, [field]: value },
+    );
+  }
+
+  function updateBulkCourseForm(field: keyof Omit<BulkCourseBuilderForm, "selectedMemberIds" | "achievements">, value: string) {
+    setBulkCourseForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function toggleBulkMember(memberId: string) {
+    setBulkCourseForm((current) => {
+      const exists = current.selectedMemberIds.includes(memberId);
+      const selectedMemberIds = exists
+        ? current.selectedMemberIds.filter((id) => id !== memberId)
+        : [...current.selectedMemberIds, memberId];
+      const achievements = current.achievements.filter((entry) =>
+        selectedMemberIds.includes(entry.memberId),
+      );
+
+      return {
+        ...current,
+        selectedMemberIds,
+        achievements,
+      };
+    });
+  }
+
+  function addBulkAchievementRow() {
+    setBulkCourseForm((current) => ({
+      ...current,
+      achievements: [
+        ...current.achievements,
+        {
+          memberId: current.selectedMemberIds[0] ?? "",
+          title: current.title || "",
+          category: "",
+          result: "",
+          medalType: "",
+          podiumPosition: "",
+          notes: "",
+        },
+      ],
+    }));
+  }
+
+  function updateBulkAchievementRow(
+    index: number,
+    field: keyof BulkTaikaiAchievementForm,
+    value: string,
+  ) {
+    setBulkCourseForm((current) => ({
+      ...current,
+      achievements: current.achievements.map((entry, entryIndex) =>
+        entryIndex === index
+          ? {
+              ...entry,
+              [field]: value,
+            }
+          : entry,
+      ),
+    }));
+  }
+
+  function removeBulkAchievementRow(index: number) {
+    setBulkCourseForm((current) => ({
+      ...current,
+      achievements: current.achievements.filter((_, entryIndex) => entryIndex !== index),
+    }));
+  }
+
+  function startEditingRegistryCourse(course: {
+    key: string;
+    title: string;
+    date: string;
+    place: string;
+    instructor: string;
+    notes: string;
+    type: string;
+    memberIds: string[];
+    achievements: AchievementHistory[];
+    taikaiConfig: {
+      categories: string[];
+      results: string[];
+      medals: string[];
+      awards: string[];
+    };
+  }) {
+    setEditingRegistryKey(course.key);
+    setRegistryForm({
+      title: course.title,
+      date: course.date,
+      place: course.place,
+      instructor: course.instructor,
+      notes: course.notes,
+      type: course.type,
+      taikaiCategories: course.taikaiConfig.categories.join("\n"),
+      taikaiResults: course.taikaiConfig.results.join("\n"),
+      taikaiMedals: course.taikaiConfig.medals.join("\n"),
+      taikaiAwards: course.taikaiConfig.awards.join("\n"),
+      selectedMemberIds: [...course.memberIds],
+      achievements: course.achievements.map((achievement) => ({
+        id: achievement.id,
+        memberId: achievement.member_id,
+        title: achievement.title,
+        category: achievement.category ?? "",
+        result: achievement.result ?? "",
+        medalType: achievement.medal_type ?? "",
+        podiumPosition: achievement.podium_position
+          ? String(achievement.podium_position)
+          : "",
+        notes: achievement.notes ?? "",
+      })),
+    });
+  }
+
+  function updateRegistryForm(field: keyof CourseRegistryForm, value: string) {
+    setRegistryForm((current) =>
+      current
+        ? {
+            ...current,
+            [field]: value,
+          }
+        : current,
+    );
+  }
+
+  function toggleRegistryMember(memberId: string) {
+    setRegistryForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const exists = current.selectedMemberIds.includes(memberId);
+      const selectedMemberIds = exists
+        ? current.selectedMemberIds.filter((id) => id !== memberId)
+        : [...current.selectedMemberIds, memberId];
+
+      return {
+        ...current,
+        selectedMemberIds,
+        achievements: current.achievements.filter((entry) =>
+          selectedMemberIds.includes(entry.memberId),
+        ),
+      };
+    });
+  }
+
+  function addRegistryAchievementRow() {
+    setRegistryForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        achievements: [
+          ...current.achievements,
+          {
+            memberId: current.selectedMemberIds[0] ?? "",
+            title: current.title,
+            category: "",
+            result: "",
+            medalType: "",
+            podiumPosition: "",
+            notes: "",
+          },
+        ],
+      };
+    });
+  }
+
+  function updateRegistryAchievementRow(
+    index: number,
+    field: keyof BulkTaikaiAchievementForm,
+    value: string,
+  ) {
+    setRegistryForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        achievements: current.achievements.map((entry, entryIndex) =>
+          entryIndex === index
+            ? {
+                ...entry,
+                [field]: value,
+              }
+            : entry,
+        ),
+      };
+    });
+  }
+
+  function removeRegistryAchievementRow(index: number) {
+    setRegistryForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        achievements: current.achievements.filter((_, entryIndex) => entryIndex !== index),
+      };
+    });
   }
 
   async function uploadMemberProfileImage(member: MemberRow, file: File) {
@@ -556,7 +1453,16 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     let imageDataUrl = "";
 
     try {
-      imageDataUrl = await fileToDataUrl(file);
+      const optimizedFile = await optimizeImageForUpload(file, {
+        maxWidth: 960,
+        maxHeight: 960,
+        quality: 0.76,
+        maxBytes: 280 * 1024,
+        outputType: "image/webp",
+        fileNameBase: `${member.ika_number || member.id}-profile`,
+      });
+      imageDataUrl = await fileToDataUrl(optimizedFile);
+      file = optimizedFile;
     } catch {
       setMessage(copy.uploadPhotoError);
       setUploadingMemberImageId("");
@@ -708,6 +1614,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           place: course.exam_place ?? "",
           instructor: course.examiner ?? "",
           notes: course.notes ?? "",
+          type: course.course_type ?? "course",
         },
       }),
     });
@@ -770,6 +1677,136 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
     setMessage(copy.courseDeleted);
   }
 
+  async function addAchievement(member: MemberRow) {
+    if (!newAchievementForm.title || !newAchievementForm.achievedOn) {
+      setMessage(copy.achievementTitleDateRequired);
+      return;
+    }
+
+    setSavingCourseId("new-achievement");
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "add_achievement",
+        memberId: member.id,
+        achievement: newAchievementForm,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.achievementSaveError);
+      setSavingCourseId("");
+      return;
+    }
+
+    const nextAchievement = data.achievement as AchievementHistory;
+    setPayload((current) => ({
+      ...current,
+      achievements: [nextAchievement, ...(current.achievements ?? [])],
+    }));
+    setMemberAchievements((current) =>
+      [nextAchievement, ...current].sort((left, right) =>
+        right.achieved_on.localeCompare(left.achieved_on),
+      ),
+    );
+    setNewAchievementForm(emptyAchievementForm);
+    setSavingCourseId("");
+    setMessage(copy.achievementAdded);
+  }
+
+  async function saveAchievement(member: MemberRow, achievement: AchievementHistory) {
+    setSavingCourseId(`achievement-${achievement.id}`);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "update_achievement",
+        memberId: member.id,
+        achievementId: achievement.id,
+        achievement: {
+          title: achievement.title,
+          category: achievement.category ?? "",
+          result: achievement.result ?? "",
+          medalType: achievement.medal_type ?? "",
+          podiumPosition: achievement.podium_position ? String(achievement.podium_position) : "",
+          achievedOn: achievement.achieved_on,
+          achievedPlace: achievement.achieved_place ?? "",
+          notes: achievement.notes ?? "",
+          courseId: achievement.course_id ?? "",
+        },
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.achievementSaveError);
+      setSavingCourseId("");
+      return;
+    }
+
+    const nextAchievement = data.achievement as AchievementHistory;
+    setPayload((current) => ({
+      ...current,
+      achievements: (current.achievements ?? []).map((item) =>
+        item.id === nextAchievement.id ? nextAchievement : item,
+      ),
+    }));
+    setMemberAchievements((current) =>
+      current
+        .map((item) => (item.id === nextAchievement.id ? nextAchievement : item))
+        .sort((left, right) => right.achieved_on.localeCompare(left.achieved_on)),
+    );
+    setSavingCourseId("");
+    setMessage(copy.achievementUpdated);
+  }
+
+  async function deleteAchievement(member: MemberRow, achievementId: string) {
+    setDeletingCourseId(`achievement-${achievementId}`);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "delete_achievement",
+        memberId: member.id,
+        achievementId,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.achievementDeleteError);
+      setDeletingCourseId("");
+      return;
+    }
+
+    setPayload((current) => ({
+      ...current,
+      achievements: (current.achievements ?? []).filter((item) => item.id !== achievementId),
+    }));
+    setMemberAchievements((current) =>
+      current.filter((item) => item.id !== (data.achievementId as string)),
+    );
+    setDeletingCourseId("");
+    setMessage(copy.achievementDeleted);
+  }
+
   async function deleteMember(member: MemberRow) {
     const memberName = `${member.first_name} ${member.last_name}`.trim();
 
@@ -814,14 +1851,158 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
+      {mode === "full" ? (
+      <details className="border border-[var(--line)] bg-white" open>
+        <summary className="cursor-pointer px-5 py-4 text-xl font-semibold marker:text-[var(--accent)]">
+          {copy.manualMemberTitle}
+        </summary>
+      <section className="grid gap-4 border-t border-[var(--line)] p-5">
+        <div className="flex items-center gap-3">
+          <UsersRound size={22} className="text-[var(--accent)]" />
+          <div>
+            <p className="text-sm leading-6 text-[var(--muted)]">
+              {copy.manualMemberHelp}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <EditField
+            label={copy.externalMemberId}
+            value={manualMemberForm.externalMemberId}
+            onChange={(value) => updateManualMemberForm("externalMemberId", value)}
+          />
+          <div className="grid gap-1 font-semibold">
+            <span>{copy.dojoDestination}</span>
+            <select
+              value={effectiveSelectedDojoId}
+              disabled={isLockedToSingleDojo}
+              onChange={(event) => setSelectedDojoId(event.target.value)}
+              className="border border-[var(--line)] px-3 py-2 font-normal disabled:bg-[var(--paper)]"
+            >
+              <option value="">{copy.selectDojo}</option>
+              {payload.dojos.map((dojo) => (
+                <option key={dojo.id} value={dojo.id}>
+                  {dojoLabel(dojo, initialLocale)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <EditField
+            label={copy.firstName}
+            value={manualMemberForm.firstName}
+            onChange={(value) => updateManualMemberForm("firstName", value)}
+          />
+          <EditField
+            label={copy.lastName}
+            value={manualMemberForm.lastName}
+            onChange={(value) => updateManualMemberForm("lastName", value)}
+          />
+          <EditField
+            label={copy.email}
+            value={manualMemberForm.email}
+            onChange={(value) => updateManualMemberForm("email", value)}
+          />
+          <EditField
+            label={copy.phone}
+            value={manualMemberForm.phone}
+            onChange={(value) => updateManualMemberForm("phone", value)}
+          />
+          <EditField
+            label={copy.birthDate}
+            type="date"
+            value={manualMemberForm.birthDate}
+            onChange={(value) => updateManualMemberForm("birthDate", value)}
+          />
+          <EditField
+            label={copy.joinedDate}
+            type="date"
+            value={manualMemberForm.joinedDate}
+            onChange={(value) => updateManualMemberForm("joinedDate", value)}
+          />
+          <EditField
+            label={copy.grade}
+            value={manualMemberForm.currentGrade}
+            onChange={(value) => updateManualMemberForm("currentGrade", value)}
+          />
+          <EditField
+            label={copy.instructor}
+            value={manualMemberForm.mainInstructor}
+            onChange={(value) => updateManualMemberForm("mainInstructor", value)}
+          />
+          <label className="grid gap-1 font-semibold">
+            {copy.group}
+            <select
+              value={manualMemberForm.memberGroup}
+              onChange={(event) => updateManualMemberForm("memberGroup", event.target.value)}
+              className="border border-[var(--line)] px-3 py-2 font-normal"
+            >
+              <option value="">{copy.noGroup}</option>
+              <option value="adult">{copy.adults}</option>
+              <option value="child">{copy.children}</option>
+            </select>
+          </label>
+          <EditField
+            label={copy.guardian}
+            value={manualMemberForm.guardianName}
+            onChange={(value) => updateManualMemberForm("guardianName", value)}
+          />
+          <EditField
+            label={copy.guardianEmail}
+            value={manualMemberForm.guardianEmail}
+            onChange={(value) => updateManualMemberForm("guardianEmail", value)}
+          />
+        </div>
+
+        <label className="grid gap-1 font-semibold">
+          {copy.notes}
+          <textarea
+            value={manualMemberForm.notes}
+            onChange={(event) => updateManualMemberForm("notes", event.target.value)}
+            rows={3}
+            className="border border-[var(--line)] px-3 py-2 font-normal"
+          />
+        </label>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void createManualMember()}
+            disabled={creatingManualMember || !effectiveSelectedDojoId}
+            className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+          >
+            {creatingManualMember ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Save size={16} />
+            )}
+            {copy.createMember}
+          </button>
+          <button
+            type="button"
+            onClick={() => setManualMemberForm(emptyManualMemberForm)}
+            className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
+          >
+            <X size={16} />
+            {copy.clearForm}
+          </button>
+        </div>
+      </section>
+      </details>
+      ) : null}
+
+      {mode === "full" ? (
+      <details className="border border-[var(--line)] bg-white">
+        <summary className="cursor-pointer px-5 py-4 text-xl font-semibold marker:text-[var(--accent)]">
+          {copy.importTitle}
+        </summary>
+      <section className="grid gap-4 border-t border-[var(--line)] p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
               <UsersRound size={22} className="text-[var(--accent)]" />
-              <h2 className="text-2xl font-semibold">{copy.importTitle}</h2>
             </div>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+            <p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">
               {isLockedToSingleDojo
                 ? copy.lockedDojoHelp
                 : copy.importHelp}
@@ -869,7 +2050,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                 return (
                   <option key={dojo.id} value={dojo.id}>
                     {dojoLabel(dojo, initialLocale)}
-                    {countryLabelText ? ` · ${countryLabelText}` : ""}
+                    {countryLabelText ? ` | ${countryLabelText}` : ""}
                   </option>
                 );
               })}
@@ -919,8 +2100,305 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           <p className="text-sm font-semibold text-[var(--accent)]">{message}</p>
         ) : null}
       </section>
+      </details>
+      ) : null}
 
+
+
+
+      {mode === "courses" && canManageCourses ? (
       <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
+        <div className="border border-[var(--line)] bg-[var(--paper)] p-4">
+          <p className="text-sm font-semibold">{copy.taikaiResultsUnifiedTitle}</p>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            {copy.taikaiResultsUnifiedHelp}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <CalendarRange size={22} className="text-[var(--accent)]" />
+          <div>
+            <h2 className="text-2xl font-semibold">{copy.bulkCourseTitle}</h2>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">
+              {copy.bulkCourseHelp}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <EditField
+            label={copy.courseName}
+            value={bulkCourseForm.title}
+            onChange={(value) => updateBulkCourseForm("title", value)}
+          />
+          <SelectField
+            label={copy.courseType}
+            value={bulkCourseForm.type}
+            onChange={(value) => updateBulkCourseForm("type", value)}
+            options={courseTypeOptions(copy)}
+          />
+          <EditField
+            label={copy.courseDate}
+            type="date"
+            value={bulkCourseForm.date}
+            onChange={(value) => updateBulkCourseForm("date", value)}
+          />
+          <EditField
+            label={copy.coursePlace}
+            value={bulkCourseForm.place}
+            onChange={(value) => updateBulkCourseForm("place", value)}
+          />
+          <EditField
+            label={copy.courseInstructor}
+            value={bulkCourseForm.instructor}
+            onChange={(value) => updateBulkCourseForm("instructor", value)}
+          />
+        </div>
+
+        <label className="grid gap-1 font-semibold">
+          {copy.notes}
+          <textarea
+            value={bulkCourseForm.notes}
+            onChange={(event) => updateBulkCourseForm("notes", event.target.value)}
+            rows={2}
+            className="border border-[var(--line)] px-3 py-2 font-normal"
+          />
+        </label>
+        {bulkCourseForm.type === "taikai" && taikaiResultsManagedInEvents ? (
+          <div className="border border-[var(--line)] bg-[var(--paper)] p-4 text-sm text-[var(--muted)]">
+            {copy.taikaiResultsUnifiedHelp}
+          </div>
+        ) : null}
+        {bulkCourseForm.type === "taikai" && !taikaiResultsManagedInEvents ? (
+          <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
+            <h3 className="text-lg font-semibold">{copy.taikaiSetupTitle}</h3>
+            <p className="text-sm text-[var(--muted)]">{copy.taikaiSetupHelp}</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1 font-semibold">
+                {copy.taikaiCategories}
+                <textarea
+                  value={bulkCourseForm.taikaiCategories}
+                  onChange={(event) => updateBulkCourseForm("taikaiCategories", event.target.value)}
+                  rows={4}
+                  className="border border-[var(--line)] px-3 py-2 font-normal"
+                />
+              </label>
+              <label className="grid gap-1 font-semibold">
+                {copy.taikaiResults}
+                <textarea
+                  value={bulkCourseForm.taikaiResults}
+                  onChange={(event) => updateBulkCourseForm("taikaiResults", event.target.value)}
+                  rows={4}
+                  className="border border-[var(--line)] px-3 py-2 font-normal"
+                />
+              </label>
+              <label className="grid gap-1 font-semibold">
+                {copy.taikaiMedals}
+                <textarea
+                  value={bulkCourseForm.taikaiMedals}
+                  onChange={(event) => updateBulkCourseForm("taikaiMedals", event.target.value)}
+                  rows={4}
+                  className="border border-[var(--line)] px-3 py-2 font-normal"
+                />
+              </label>
+              <label className="grid gap-1 font-semibold">
+                {copy.taikaiAwards}
+                <textarea
+                  value={bulkCourseForm.taikaiAwards}
+                  onChange={(event) => updateBulkCourseForm("taikaiAwards", event.target.value)}
+                  rows={4}
+                  className="border border-[var(--line)] px-3 py-2 font-normal"
+                />
+              </label>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">{copy.bulkMembersTitle}</h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">{copy.bulkMembersHelp}</p>
+            </div>
+            <input
+              value={bulkCourseSearch}
+              onChange={(event) => setBulkCourseSearch(event.target.value)}
+              placeholder={copy.searchPlaceholder}
+              className="min-w-[260px] border border-[var(--line)] px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <SelectField
+              label={copy.filterCountry}
+              value={bulkCountryFilter}
+              onChange={(value) => {
+                setBulkCountryFilter(value);
+                setBulkDojoFilter("");
+              }}
+              options={[
+                { value: "", label: copy.allCountries },
+                ...bulkCountryOptions,
+              ]}
+            />
+            <SelectField
+              label={copy.filterDojo}
+              value={bulkDojoFilter}
+              onChange={setBulkDojoFilter}
+              options={[
+                { value: "", label: copy.allDojos },
+                ...bulkDojoOptions,
+              ]}
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto border border-[var(--line)] bg-white">
+            {bulkScopeMembers.map((member) => {
+              const checked = bulkCourseForm.selectedMemberIds.includes(member.id);
+              return (
+                <label
+                  key={member.id}
+                  className="flex cursor-pointer items-center justify-between gap-3 border-b border-[var(--line)] px-3 py-3 text-sm last:border-b-0"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold">
+                      {member.first_name} {member.last_name}
+                    </p>
+                    <p className="text-[var(--muted)]">
+                      {[member.ika_number, member.email ?? "", member.dojos ? dojoLabel(member.dojos, initialLocale) : ""]
+                        .filter(Boolean)
+                        .join(" | ")}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleBulkMember(member.id)}
+                    className="size-4"
+                  />
+                </label>
+              );
+            })}
+          </div>
+          {bulkScopeMembers.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">{copy.noBulkMembersForFilters}</p>
+          ) : null}
+          <p className="text-sm text-[var(--muted)]">
+            {copy.bulkMembersSelected(bulkCourseForm.selectedMemberIds.length)}
+          </p>
+        </div>
+
+        {bulkCourseForm.type === "taikai" && !taikaiResultsManagedInEvents ? (
+          <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">{copy.bulkTaikaiAchievementsTitle}</h3>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  {copy.bulkTaikaiAchievementsHelp}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={addBulkAchievementRow}
+                className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+              >
+                <Save size={16} />
+                {copy.addAchievement}
+              </button>
+            </div>
+
+            {bulkCourseForm.achievements.length === 0 ? (
+              <p className="text-sm text-[var(--muted)]">{copy.noAchievements}</p>
+            ) : (
+              <div className="grid gap-3">
+                {bulkCourseForm.achievements.map((achievement, index) => (
+                  <div
+                    key={`${achievement.memberId}-${index}`}
+                    className="grid gap-3 border border-[var(--line)] bg-white p-3"
+                  >
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <SelectField
+                        label={copy.name}
+                        value={achievement.memberId}
+                        onChange={(value) => updateBulkAchievementRow(index, "memberId", value)}
+                        options={bulkCourseForm.selectedMemberIds.map((memberId) => {
+                          const member = payload.members.find((item) => item.id === memberId);
+                          return {
+                            value: memberId,
+                            label: member ? `${member.first_name} ${member.last_name}` : memberId,
+                          };
+                        })}
+                      />
+                      <SelectField
+                        label={copy.achievementTitle}
+                        value={achievement.title}
+                        onChange={(value) => updateBulkAchievementRow(index, "title", value)}
+                        options={taikaiAwardOptions(copy, bulkCourseForm.taikaiAwards)}
+                      />
+                      <SelectField
+                        label={copy.achievementCategory}
+                        value={achievement.category}
+                        onChange={(value) => updateBulkAchievementRow(index, "category", value)}
+                        options={taikaiListOptions(copy, bulkCourseForm.taikaiCategories, copy.noCategory)}
+                      />
+                      <SelectField
+                        label={copy.achievementResult}
+                        value={achievement.result}
+                        onChange={(value) => updateBulkAchievementRow(index, "result", value)}
+                        options={taikaiListOptions(copy, bulkCourseForm.taikaiResults, copy.noResult)}
+                      />
+                      <SelectField
+                        label={copy.medalType}
+                        value={achievement.medalType}
+                        onChange={(value) => updateBulkAchievementRow(index, "medalType", value)}
+                        options={taikaiMedalOptions(copy, bulkCourseForm.taikaiMedals)}
+                      />
+                      <EditField
+                        label={copy.podiumPosition}
+                        value={achievement.podiumPosition}
+                        onChange={(value) => updateBulkAchievementRow(index, "podiumPosition", value)}
+                      />
+                    </div>
+                    <label className="grid gap-1 font-semibold">
+                      {copy.notes}
+                      <textarea
+                        value={achievement.notes}
+                        onChange={(event) => updateBulkAchievementRow(index, "notes", event.target.value)}
+                        rows={2}
+                        className="border border-[var(--line)] px-3 py-2 font-normal"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeBulkAchievementRow(index)}
+                      className="inline-flex w-fit items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
+                    >
+                      <Trash2 size={16} />
+                      {copy.deleteAchievement}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => void createBulkCourse()}
+            disabled={savingBulkCourse}
+            className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+          >
+            {savingBulkCourse ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            {copy.bulkCreateCourse}
+          </button>
+        </div>
+      </section>
+      ) : null}
+
+
+      {mode === "courses" && canManageCourses ? (
+      <details className="border border-[var(--line)] bg-white">
+        <summary className="cursor-pointer px-5 py-4 text-xl font-semibold marker:text-[var(--accent)]">{copy.coursesTitle}</summary>
+        <section className="grid gap-4 border-t border-[var(--line)] p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
@@ -980,11 +2458,11 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--line)]">
-                <th className="py-2 pr-4">IKA ID</th>
-                <th className="py-2 pr-4">Email</th>
+                <th className="py-2 pr-4">{copy.ikaId}</th>
+                <th className="py-2 pr-4">{copy.email}</th>
                 <th className="py-2 pr-4">{copy.courseName}</th>
                 <th className="py-2 pr-4">{copy.courseDate}</th>
-                <th className="py-2 pr-4">Dojo</th>
+                <th className="py-2 pr-4">{copy.dojo}</th>
               </tr>
             </thead>
             <tbody>
@@ -1008,11 +2486,366 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           </p>
         ) : null}
       </section>
+      </details>
+      ) : null}
 
-      <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
+      {mode === "courses" && canManageCourses ? (
+      <details className="border border-[var(--line)] bg-white">
+        <summary className="cursor-pointer px-5 py-4 text-xl font-semibold marker:text-[var(--accent)]">{copy.courseRegistryTitle}</summary>
+        <section className="grid gap-4 border-t border-[var(--line)] p-5">
+        <div className="flex items-center gap-3">
+          <CalendarRange size={22} className="text-[var(--accent)]" />
+          <div>
+            <h2 className="text-2xl font-semibold">{copy.courseRegistryTitle}</h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+              {copy.courseRegistryHelp}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          {groupedCourses.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">{copy.noCourses}</p>
+          ) : (
+            groupedCourses.map((course) => (
+              <div key={course.key} className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
+                {editingRegistryKey === course.key && registryForm ? (
+                  <>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <EditField
+                        label={copy.courseName}
+                        value={registryForm.title}
+                        onChange={(value) => updateRegistryForm("title", value)}
+                      />
+                      <SelectField
+                        label={copy.courseType}
+                        value={registryForm.type}
+                        onChange={(value) => updateRegistryForm("type", value)}
+                        options={courseTypeOptions(copy)}
+                      />
+                      <EditField
+                        label={copy.courseDate}
+                        type="date"
+                        value={registryForm.date}
+                        onChange={(value) => updateRegistryForm("date", value)}
+                      />
+                      <EditField
+                        label={copy.coursePlace}
+                        value={registryForm.place}
+                        onChange={(value) => updateRegistryForm("place", value)}
+                      />
+                      <EditField
+                        label={copy.courseInstructor}
+                        value={registryForm.instructor}
+                        onChange={(value) => updateRegistryForm("instructor", value)}
+                      />
+                    </div>
+                    <label className="grid gap-1 font-semibold">
+                      {copy.notes}
+                      <textarea
+                        value={registryForm.notes}
+                        onChange={(event) => updateRegistryForm("notes", event.target.value)}
+                        rows={2}
+                        className="border border-[var(--line)] px-3 py-2 font-normal"
+                      />
+                    </label>
+                    {registryForm.type === "taikai" && taikaiResultsManagedInEvents ? (
+                      <div className="border border-[var(--line)] bg-[var(--paper)] p-4 text-sm text-[var(--muted)]">
+                        {copy.taikaiResultsUnifiedHelp}
+                      </div>
+                    ) : null}
+                    {registryForm.type === "taikai" && !taikaiResultsManagedInEvents ? (
+                      <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
+                        <h4 className="text-base font-semibold">{copy.taikaiSetupTitle}</h4>
+                        <p className="text-sm text-[var(--muted)]">{copy.taikaiSetupHelp}</p>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <label className="grid gap-1 font-semibold">
+                            {copy.taikaiCategories}
+                            <textarea
+                              value={registryForm.taikaiCategories}
+                              onChange={(event) => updateRegistryForm("taikaiCategories", event.target.value)}
+                              rows={4}
+                              className="border border-[var(--line)] px-3 py-2 font-normal"
+                            />
+                          </label>
+                          <label className="grid gap-1 font-semibold">
+                            {copy.taikaiResults}
+                            <textarea
+                              value={registryForm.taikaiResults}
+                              onChange={(event) => updateRegistryForm("taikaiResults", event.target.value)}
+                              rows={4}
+                              className="border border-[var(--line)] px-3 py-2 font-normal"
+                            />
+                          </label>
+                          <label className="grid gap-1 font-semibold">
+                            {copy.taikaiMedals}
+                            <textarea
+                              value={registryForm.taikaiMedals}
+                              onChange={(event) => updateRegistryForm("taikaiMedals", event.target.value)}
+                              rows={4}
+                              className="border border-[var(--line)] px-3 py-2 font-normal"
+                            />
+                          </label>
+                          <label className="grid gap-1 font-semibold">
+                            {copy.taikaiAwards}
+                            <textarea
+                              value={registryForm.taikaiAwards}
+                              onChange={(event) => updateRegistryForm("taikaiAwards", event.target.value)}
+                              rows={4}
+                              className="border border-[var(--line)] px-3 py-2 font-normal"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="grid gap-3 border border-[var(--line)] bg-white p-4">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                          <h4 className="text-base font-semibold">{copy.bulkMembersTitle}</h4>
+                          <p className="mt-1 text-sm text-[var(--muted)]">
+                            {copy.registryMembersHelp}
+                          </p>
+                        </div>
+                        <p className="text-sm text-[var(--muted)]">
+                          {copy.bulkMembersSelected(registryForm.selectedMemberIds.length)}
+                        </p>
+                      </div>
+                      <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
+                        <input
+                          value={registryMemberSearch}
+                          onChange={(event) => setRegistryMemberSearch(event.target.value)}
+                          placeholder={copy.searchPlaceholder}
+                          className="border border-[var(--line)] px-3 py-2 text-sm"
+                        />
+                        <SelectField
+                          label={copy.filterCountry}
+                          value={registryCountryFilter}
+                          onChange={(value) => {
+                            setRegistryCountryFilter(value);
+                            setRegistryDojoFilter("");
+                          }}
+                          options={[
+                            { value: "", label: copy.allCountries },
+                            ...registryCountryOptions,
+                          ]}
+                        />
+                        <SelectField
+                          label={copy.filterDojo}
+                          value={registryDojoFilter}
+                          onChange={setRegistryDojoFilter}
+                          options={[
+                            { value: "", label: copy.allDojos },
+                            ...registryDojoOptions,
+                          ]}
+                        />
+                      </div>
+                      <div className="max-h-72 overflow-y-auto border border-[var(--line)] bg-[var(--paper)]">
+                        {registryScopeMembers
+                          .map((member) => {
+                            const checked = registryForm.selectedMemberIds.includes(member.id);
+                            return (
+                              <label
+                                key={member.id}
+                                className="flex cursor-pointer items-center justify-between gap-3 border-b border-[var(--line)] px-3 py-3 text-sm last:border-b-0"
+                              >
+                                <div className="min-w-0">
+                                  <p className="font-semibold">
+                                    {member.first_name} {member.last_name}
+                                  </p>
+                                  <p className="text-[var(--muted)]">
+                                    {[member.ika_number, member.email ?? "", member.dojos ? dojoLabel(member.dojos, initialLocale) : ""]
+                                      .filter(Boolean)
+                                      .join(" | ")}
+                                  </p>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleRegistryMember(member.id)}
+                                  className="size-4"
+                                />
+                              </label>
+                            );
+                          })}
+                      </div>
+                      {registryScopeMembers.length === 0 ? (
+                        <p className="text-sm text-[var(--muted)]">{copy.noBulkMembersForFilters}</p>
+                      ) : null}
+                    </div>
+                    {registryForm.type === "taikai" && !taikaiResultsManagedInEvents ? (
+                      <div className="grid gap-3 border border-[var(--line)] bg-white p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-base font-semibold">{copy.bulkTaikaiAchievementsTitle}</h4>
+                            <p className="mt-1 text-sm text-[var(--muted)]">
+                              {copy.registryTaikaiHelp}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={addRegistryAchievementRow}
+                            className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+                          >
+                            <Save size={16} />
+                            {copy.addAchievement}
+                          </button>
+                        </div>
+                        {registryForm.achievements.length === 0 ? (
+                          <p className="text-sm text-[var(--muted)]">{copy.noAchievements}</p>
+                        ) : (
+                          <div className="grid gap-3">
+                            {registryForm.achievements.map((achievement, index) => (
+                              <div
+                                key={`${achievement.id ?? "new"}-${index}`}
+                                className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-3"
+                              >
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  <SelectField
+                                    label={copy.name}
+                                    value={achievement.memberId}
+                                    onChange={(value) =>
+                                      updateRegistryAchievementRow(index, "memberId", value)
+                                    }
+                                    options={registryForm.selectedMemberIds.map((memberId) => {
+                                      const member = payload.members.find((item) => item.id === memberId);
+                                      return {
+                                        value: memberId,
+                                        label: member ? `${member.first_name} ${member.last_name}` : memberId,
+                                      };
+                                    })}
+                                  />
+                                  <SelectField
+                                    label={copy.achievementTitle}
+                                    value={achievement.title}
+                                    onChange={(value) =>
+                                      updateRegistryAchievementRow(index, "title", value)
+                                    }
+                                    options={taikaiAwardOptions(copy, registryForm.taikaiAwards)}
+                                  />
+                                  <SelectField
+                                    label={copy.achievementCategory}
+                                    value={achievement.category}
+                                    onChange={(value) =>
+                                      updateRegistryAchievementRow(index, "category", value)
+                                    }
+                                    options={taikaiListOptions(copy, registryForm.taikaiCategories, copy.noCategory)}
+                                  />
+                                  <SelectField
+                                    label={copy.achievementResult}
+                                    value={achievement.result}
+                                    onChange={(value) =>
+                                      updateRegistryAchievementRow(index, "result", value)
+                                    }
+                                    options={taikaiListOptions(copy, registryForm.taikaiResults, copy.noResult)}
+                                  />
+                                  <SelectField
+                                    label={copy.medalType}
+                                    value={achievement.medalType}
+                                    onChange={(value) =>
+                                      updateRegistryAchievementRow(index, "medalType", value)
+                                    }
+                                    options={taikaiMedalOptions(copy, registryForm.taikaiMedals)}
+                                  />
+                                  <EditField
+                                    label={copy.podiumPosition}
+                                    value={achievement.podiumPosition}
+                                    onChange={(value) =>
+                                      updateRegistryAchievementRow(index, "podiumPosition", value)
+                                    }
+                                  />
+                                </div>
+                                <label className="grid gap-1 font-semibold">
+                                  {copy.notes}
+                                  <textarea
+                                    value={achievement.notes}
+                                    onChange={(event) =>
+                                      updateRegistryAchievementRow(index, "notes", event.target.value)
+                                    }
+                                    rows={2}
+                                    className="border border-[var(--line)] px-3 py-2 font-normal"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => removeRegistryAchievementRow(index)}
+                                  className="inline-flex w-fit items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
+                                >
+                                  <Trash2 size={16} />
+                                  {copy.deleteAchievement}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void saveRegistryCourse(course.key, course.courseIds)}
+                        disabled={savingRegistryKey === course.key}
+                        className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+                      >
+                        {savingRegistryKey === course.key ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                        {copy.saveCourse}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRegistryKey("");
+                          setRegistryForm(null);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
+                      >
+                        <X size={16} />
+                        {copy.cancel}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">{course.title}</h3>
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        {[
+                          course.type.toUpperCase(),
+                          course.date,
+                          course.place,
+                          course.instructor,
+                        ]
+                          .filter(Boolean)
+                          .join(" | ")}
+                      </p>
+                      <p className="mt-2 text-sm text-[var(--muted)]">
+                        {copy.bulkMembersSelected(course.memberIds.length)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => startEditingRegistryCourse(course)}
+                      className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-4 py-2 font-semibold text-white"
+                    >
+                      <Pencil size={16} />
+                      {copy.edit}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+      </details>
+      ) : null}
+
+      {mode === "full" ? (
+      <details className="border border-[var(--line)] bg-white p-5">
+        <summary className="cursor-pointer text-xl font-semibold">
+          {copy.previewTitle}
+        </summary>
+        <section className="mt-4 grid gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 className="text-xl font-semibold">{copy.previewTitle}</h3>
             <p className="mt-1 text-sm text-[var(--muted)]">
               {copy.previewHelp}
             </p>
@@ -1026,11 +2859,11 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             <thead>
               <tr className="border-b border-[var(--line)]">
                 <th className="py-2 pr-4">{copy.name}</th>
-                <th className="py-2 pr-4">Email</th>
+                <th className="py-2 pr-4">{copy.email}</th>
                 {!isLockedToSingleDojo ? (
                   <th className="py-2 pr-4">{copy.country}</th>
                 ) : null}
-                <th className="py-2 pr-4">Dojo</th>
+                <th className="py-2 pr-4">{copy.dojo}</th>
                 <th className="py-2 pr-4">{copy.grade}</th>
               </tr>
             </thead>
@@ -1073,26 +2906,74 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
             {copy.showingRows(validRows.length)}
           </p>
         ) : null}
-      </section>
+        </section>
+      </details>
+      ) : null}
 
-      <section className="grid gap-3 border border-[var(--line)] bg-white p-5">
+      {mode === "full" ? (
+      <section className="grid gap-4 border border-[var(--line)] bg-white p-5">
         <div className="grid gap-3 md:grid-cols-[1fr_minmax(220px,360px)] md:items-end">
           <div>
-            <h3 className="text-xl font-semibold">Kenshi</h3>
+            <h3 className="text-xl font-semibold">{copy.kenshiTitle}</h3>
             <p className="mt-1 text-sm text-[var(--muted)]">
               {copy.visibleMembers(filteredMembers.length, payload.members.length)}
             </p>
           </div>
-          <label className="grid gap-1 text-sm font-semibold">
-            {copy.search}
-            <input
-              type="search"
-              value={memberSearch}
-              onChange={(event) => setMemberSearch(event.target.value)}
-              placeholder={copy.searchPlaceholder}
-              className="border border-[var(--line)] px-3 py-2 font-normal"
-            />
-          </label>
+        </div>
+        <div className="grid gap-4 border border-[var(--line)] bg-[var(--paper)] p-4">
+          <div className="grid gap-3 lg:grid-cols-[1fr_minmax(260px,360px)] lg:items-end">
+            <div>
+              <p className="text-sm font-semibold">{copy.kenshiControlTitle}</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {copy.kenshiControlHelp}
+              </p>
+            </div>
+            <label className="grid gap-1 text-sm font-semibold">
+              {copy.search}
+              <input
+                type="search"
+                value={memberSearch}
+                onChange={(event) => setMemberSearch(event.target.value)}
+                placeholder={copy.searchPlaceholder}
+                className="border border-[var(--line)] px-3 py-2 font-normal"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setMemberStatusView("active")}
+              className={`inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold transition ${
+                memberStatusView === "active"
+                  ? "bg-[var(--accent)] text-white"
+                  : "border border-[var(--line)] bg-white text-[var(--ink)]"
+              }`}
+            >
+              {copy.activeMembersView(activeMembersCount)}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMemberStatusView("inactive")}
+              className={`inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold transition ${
+                memberStatusView === "inactive"
+                  ? "bg-[var(--accent)] text-white"
+                  : "border border-[var(--line)] bg-white text-[var(--ink)]"
+              }`}
+            >
+              {copy.inactiveMembersView(inactiveMembersCount)}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMemberStatusView("all")}
+              className={`inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold transition ${
+                memberStatusView === "all"
+                  ? "bg-[var(--accent)] text-white"
+                  : "border border-[var(--line)] bg-white text-[var(--ink)]"
+              }`}
+            >
+              {copy.allMembersView(payload.members.length)}
+            </button>
+          </div>
         </div>
         {loading ? (
           <p className="text-sm text-[var(--muted)]">{copy.loadingKenshi}</p>
@@ -1112,14 +2993,11 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                     {member.first_name} {member.last_name}
                   </strong>{" "}
                   <span className="text-[var(--muted)]">
-                    {member.ika_number} · {member.email ?? copy.noEmail}
+                    {member.ika_number} | {member.email ?? copy.noEmail}
                   </span>
                 </span>
                 <span className="text-[var(--muted)]">
-                  {member.current_grade ?? copy.noGrade} ·{" "}
-                  {member.countries
-                    ? countryLabel(member.countries, initialLocale)
-                    : "-"}
+                  {member.current_grade ?? copy.noGrade} | {member.countries ? countryLabel(member.countries, initialLocale) : "-"} | {member.status === "active" ? copy.active : copy.inactiveLabel(member.status)}
                 </span>
                 <div className="grid gap-2 md:col-span-2 md:grid-cols-[1fr_auto] md:items-center">
                   {member.portal_invite_sent_to ? (
@@ -1182,7 +3060,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                         onChange={(value) => updateMemberForm("lastName", value)}
                       />
                       <EditField
-                        label="Email"
+                        label={copy.email}
                         value={memberForm.email}
                         onChange={(value) => updateMemberForm("email", value)}
                       />
@@ -1320,151 +3198,376 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
                         </div>
                       </div>
                     </div>
-                    <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
-                      <div className="flex items-center gap-2">
-                        <CalendarRange size={18} className="text-[var(--accent)]" />
-                        <span>{copy.memberCourses}</span>
-                      </div>
-
-                      <div className="grid gap-3">
-                        {memberCourses.length === 0 ? (
-                          <p className="text-sm font-normal text-[var(--muted)]">
-                            {copy.noCourses}
-                          </p>
-                        ) : (
-                          memberCourses.map((course) => (
-                            <div
-                              key={course.id}
-                              className="grid gap-3 border border-[var(--line)] bg-white p-3"
-                            >
-                              <div className="grid gap-3 md:grid-cols-2">
-                                <EditField
-                                  label={copy.courseName}
-                                  value={course.grade}
-                                  onChange={(value) =>
-                                    updateCourseForm(course.id, "title", value)
-                                  }
-                                />
-                                <EditField
-                                  label={copy.courseDate}
-                                  type="date"
-                                  value={course.exam_date}
-                                  onChange={(value) =>
-                                    updateCourseForm(course.id, "date", value)
-                                  }
-                                />
-                                <EditField
-                                  label={copy.coursePlace}
-                                  value={course.exam_place ?? ""}
-                                  onChange={(value) =>
-                                    updateCourseForm(course.id, "place", value)
-                                  }
-                                />
-                                <EditField
-                                  label={copy.courseInstructor}
-                                  value={course.examiner ?? ""}
-                                  onChange={(value) =>
-                                    updateCourseForm(course.id, "instructor", value)
-                                  }
-                                />
-                              </div>
-                              <label className="grid gap-1 font-semibold">
-                                {copy.notes}
-                                <textarea
-                                  value={course.notes ?? ""}
-                                  onChange={(event) =>
-                                    updateCourseForm(course.id, "notes", event.target.value)
-                                  }
-                                  rows={2}
-                                  className="border border-[var(--line)] px-3 py-2 font-normal"
-                                />
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => void saveCourse(member, course)}
-                                  disabled={savingCourseId === course.id}
-                                  className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                                >
-                                  {savingCourseId === course.id ? (
-                                    <Loader2 size={16} className="animate-spin" />
-                                  ) : (
-                                    <Save size={16} />
-                                  )}
-                                  {copy.saveCourse}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void deleteCourse(member, course.id)}
-                                  disabled={deletingCourseId === course.id}
-                                  className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)] disabled:opacity-50"
-                                >
-                                  {deletingCourseId === course.id ? (
-                                    <Loader2 size={16} className="animate-spin" />
-                                  ) : (
-                                    <Trash2 size={16} />
-                                  )}
-                                  {copy.deleteCourse}
-                                </button>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      <div className="grid gap-3 border border-dashed border-[var(--line)] bg-white p-3">
-                        <span className="font-semibold">{copy.addCourse}</span>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <EditField
-                            label={copy.courseName}
-                            value={newCourseForm.title}
-                            onChange={(value) => updateNewCourseForm("title", value)}
-                          />
-                          <EditField
-                            label={copy.courseDate}
-                            type="date"
-                            value={newCourseForm.date}
-                            onChange={(value) => updateNewCourseForm("date", value)}
-                          />
-                          <EditField
-                            label={copy.coursePlace}
-                            value={newCourseForm.place}
-                            onChange={(value) => updateNewCourseForm("place", value)}
-                          />
-                          <EditField
-                            label={copy.courseInstructor}
-                            value={newCourseForm.instructor}
-                            onChange={(value) =>
-                              updateNewCourseForm("instructor", value)
-                            }
-                          />
+                    {canManageCourses ? (
+                      <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
+                        <div className="flex items-center gap-2">
+                          <CalendarRange size={18} className="text-[var(--accent)]" />
+                          <span>{copy.memberCourses}</span>
                         </div>
-                        <label className="grid gap-1 font-semibold">
-                          {copy.notes}
-                          <textarea
-                            value={newCourseForm.notes}
-                            onChange={(event) =>
-                              updateNewCourseForm("notes", event.target.value)
-                            }
-                            rows={2}
-                            className="border border-[var(--line)] px-3 py-2 font-normal"
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => void addCourse(member)}
-                          disabled={savingCourseId === "new"}
-                          className="inline-flex w-fit items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
-                        >
-                          {savingCourseId === "new" ? (
-                            <Loader2 size={16} className="animate-spin" />
+
+                        <div className="grid gap-3">
+                          {memberCourses.length === 0 ? (
+                            <p className="text-sm font-normal text-[var(--muted)]">
+                              {copy.noCourses}
+                            </p>
                           ) : (
-                            <Save size={16} />
+                            memberCourses.map((course) => (
+                              <div
+                                key={course.id}
+                                className="grid gap-3 border border-[var(--line)] bg-white p-3"
+                              >
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  <EditField
+                                    label={copy.courseName}
+                                    value={course.grade}
+                                    onChange={(value) =>
+                                      updateCourseForm(course.id, "title", value)
+                                    }
+                                  />
+                                  <SelectField
+                                    label={copy.courseType}
+                                    value={course.course_type ?? "course"}
+                                    onChange={(value) =>
+                                      updateCourseForm(course.id, "type", value)
+                                    }
+                                    options={courseTypeOptions(copy)}
+                                  />
+                                  <EditField
+                                    label={copy.courseDate}
+                                    type="date"
+                                    value={course.exam_date}
+                                    onChange={(value) =>
+                                      updateCourseForm(course.id, "date", value)
+                                    }
+                                  />
+                                  <EditField
+                                    label={copy.coursePlace}
+                                    value={course.exam_place ?? ""}
+                                    onChange={(value) =>
+                                      updateCourseForm(course.id, "place", value)
+                                    }
+                                  />
+                                  <EditField
+                                    label={copy.courseInstructor}
+                                    value={course.examiner ?? ""}
+                                    onChange={(value) =>
+                                      updateCourseForm(course.id, "instructor", value)
+                                    }
+                                  />
+                                </div>
+                                <label className="grid gap-1 font-semibold">
+                                  {copy.notes}
+                                  <textarea
+                                    value={course.notes ?? ""}
+                                    onChange={(event) =>
+                                      updateCourseForm(course.id, "notes", event.target.value)
+                                    }
+                                    rows={2}
+                                    className="border border-[var(--line)] px-3 py-2 font-normal"
+                                  />
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => void saveCourse(member, course)}
+                                    disabled={savingCourseId === course.id}
+                                    className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                  >
+                                    {savingCourseId === course.id ? (
+                                      <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                      <Save size={16} />
+                                    )}
+                                    {copy.saveCourse}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteCourse(member, course.id)}
+                                    disabled={deletingCourseId === course.id}
+                                    className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)] disabled:opacity-50"
+                                  >
+                                    {deletingCourseId === course.id ? (
+                                      <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                      <Trash2 size={16} />
+                                    )}
+                                    {copy.deleteCourse}
+                                  </button>
+                                </div>
+                              </div>
+                            ))
                           )}
-                          {copy.addCourse}
-                        </button>
+                        </div>
+
+                        <div className="grid gap-3 border border-dashed border-[var(--line)] bg-white p-3">
+                          <span className="font-semibold">{copy.addCourse}</span>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <EditField
+                              label={copy.courseName}
+                              value={newCourseForm.title}
+                              onChange={(value) => updateNewCourseForm("title", value)}
+                            />
+                            <SelectField
+                              label={copy.courseType}
+                              value={newCourseForm.type}
+                              onChange={(value) => updateNewCourseForm("type", value)}
+                              options={courseTypeOptions(copy)}
+                            />
+                            <EditField
+                              label={copy.courseDate}
+                              type="date"
+                              value={newCourseForm.date}
+                              onChange={(value) => updateNewCourseForm("date", value)}
+                            />
+                            <EditField
+                              label={copy.coursePlace}
+                              value={newCourseForm.place}
+                              onChange={(value) => updateNewCourseForm("place", value)}
+                            />
+                            <EditField
+                              label={copy.courseInstructor}
+                              value={newCourseForm.instructor}
+                              onChange={(value) =>
+                                updateNewCourseForm("instructor", value)
+                              }
+                            />
+                          </div>
+                          <label className="grid gap-1 font-semibold">
+                            {copy.notes}
+                            <textarea
+                              value={newCourseForm.notes}
+                              onChange={(event) =>
+                                updateNewCourseForm("notes", event.target.value)
+                              }
+                              rows={2}
+                              className="border border-[var(--line)] px-3 py-2 font-normal"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => void addCourse(member)}
+                            disabled={savingCourseId === "new"}
+                            className="inline-flex w-fit items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+                          >
+                            {savingCourseId === "new" ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Save size={16} />
+                            )}
+                            {copy.addCourse}
+                          </button>
+                        </div>
+                        <div className="grid gap-3 border border-[var(--line)] bg-white p-4">
+                          <div className="flex items-center gap-2">
+                            <CalendarRange size={18} className="text-[var(--accent)]" />
+                            <span>{copy.memberAchievements}</span>
+                          </div>
+                          <p className="text-sm font-normal text-[var(--muted)]">
+                            {copy.achievementHelp}
+                          </p>
+                          <div className="grid gap-3">
+                            {memberAchievements.length === 0 ? (
+                              <p className="text-sm font-normal text-[var(--muted)]">
+                                {copy.noAchievements}
+                              </p>
+                            ) : (
+                              memberAchievements.map((achievement) => (
+                                <div
+                                  key={achievement.id}
+                                  className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-3"
+                                >
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    <EditField
+                                      label={copy.achievementTitle}
+                                      value={achievement.title}
+                                      onChange={(value) =>
+                                        updateAchievementForm(achievement.id, "title", value)
+                                      }
+                                    />
+                                    <EditField
+                                      label={copy.achievementCategory}
+                                      value={achievement.category ?? ""}
+                                      onChange={(value) =>
+                                        updateAchievementForm(achievement.id, "category", value)
+                                      }
+                                    />
+                                    <EditField
+                                      label={copy.achievementResult}
+                                      value={achievement.result ?? ""}
+                                      onChange={(value) =>
+                                        updateAchievementForm(achievement.id, "result", value)
+                                      }
+                                    />
+                                    <SelectField
+                                      label={copy.medalType}
+                                      value={achievement.medal_type ?? ""}
+                                      onChange={(value) =>
+                                        updateAchievementForm(achievement.id, "medalType", value)
+                                      }
+                                      options={achievementMedalOptions(copy)}
+                                    />
+                                    <EditField
+                                      label={copy.podiumPosition}
+                                      value={achievement.podium_position ? String(achievement.podium_position) : ""}
+                                      onChange={(value) =>
+                                        updateAchievementForm(achievement.id, "podiumPosition", value)
+                                      }
+                                    />
+                                    <EditField
+                                      label={copy.achievementDate}
+                                      type="date"
+                                      value={achievement.achieved_on}
+                                      onChange={(value) =>
+                                        updateAchievementForm(achievement.id, "achievedOn", value)
+                                      }
+                                    />
+                                    <EditField
+                                      label={copy.achievementPlace}
+                                      value={achievement.achieved_place ?? ""}
+                                      onChange={(value) =>
+                                        updateAchievementForm(achievement.id, "achievedPlace", value)
+                                      }
+                                    />
+                                    <SelectField
+                                      label={copy.relatedCourse}
+                                      value={achievement.course_id ?? ""}
+                                      onChange={(value) =>
+                                        updateAchievementForm(achievement.id, "courseId", value)
+                                      }
+                                      options={[
+                                        { value: "", label: copy.noRelatedCourse },
+                                        ...taikaiCourseOptions,
+                                      ]}
+                                    />
+                                  </div>
+                                  <label className="grid gap-1 font-semibold">
+                                    {copy.notes}
+                                    <textarea
+                                      value={achievement.notes ?? ""}
+                                      onChange={(event) =>
+                                        updateAchievementForm(achievement.id, "notes", event.target.value)
+                                      }
+                                      rows={2}
+                                      className="border border-[var(--line)] px-3 py-2 font-normal"
+                                    />
+                                  </label>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => void saveAchievement(member, achievement)}
+                                      disabled={savingCourseId === `achievement-${achievement.id}`}
+                                      className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                    >
+                                      {savingCourseId === `achievement-${achievement.id}` ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                      ) : (
+                                        <Save size={16} />
+                                      )}
+                                      {copy.saveAchievement}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void deleteAchievement(member, achievement.id)}
+                                      disabled={deletingCourseId === `achievement-${achievement.id}`}
+                                      className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)] disabled:opacity-50"
+                                    >
+                                      {deletingCourseId === `achievement-${achievement.id}` ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                      ) : (
+                                        <Trash2 size={16} />
+                                      )}
+                                      {copy.deleteAchievement}
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          <div className="grid gap-3 border border-dashed border-[var(--line)] bg-[var(--paper)] p-3">
+                            <span className="font-semibold">{copy.addAchievement}</span>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <EditField
+                                label={copy.achievementTitle}
+                                value={newAchievementForm.title}
+                                onChange={(value) => updateNewAchievementForm("title", value)}
+                              />
+                              <EditField
+                                label={copy.achievementCategory}
+                                value={newAchievementForm.category}
+                                onChange={(value) => updateNewAchievementForm("category", value)}
+                              />
+                              <EditField
+                                label={copy.achievementResult}
+                                value={newAchievementForm.result}
+                                onChange={(value) => updateNewAchievementForm("result", value)}
+                              />
+                              <SelectField
+                                label={copy.medalType}
+                                value={newAchievementForm.medalType}
+                                onChange={(value) => updateNewAchievementForm("medalType", value)}
+                                options={achievementMedalOptions(copy)}
+                              />
+                              <EditField
+                                label={copy.podiumPosition}
+                                value={newAchievementForm.podiumPosition}
+                                onChange={(value) =>
+                                  updateNewAchievementForm("podiumPosition", value)
+                                }
+                              />
+                              <EditField
+                                label={copy.achievementDate}
+                                type="date"
+                                value={newAchievementForm.achievedOn}
+                                onChange={(value) => updateNewAchievementForm("achievedOn", value)}
+                              />
+                              <EditField
+                                label={copy.achievementPlace}
+                                value={newAchievementForm.achievedPlace}
+                                onChange={(value) => updateNewAchievementForm("achievedPlace", value)}
+                              />
+                              <SelectField
+                                label={copy.relatedCourse}
+                                value={newAchievementForm.courseId}
+                                onChange={(value) => updateNewAchievementForm("courseId", value)}
+                                options={[
+                                  { value: "", label: copy.noRelatedCourse },
+                                  ...taikaiCourseOptions,
+                                ]}
+                              />
+                            </div>
+                            {taikaiCourseOptions.length === 0 ? (
+                              <p className="text-sm font-normal text-[var(--muted)]">
+                                {copy.noTaikaiCourses}
+                              </p>
+                            ) : null}
+                            <label className="grid gap-1 font-semibold">
+                              {copy.notes}
+                              <textarea
+                                value={newAchievementForm.notes}
+                                onChange={(event) =>
+                                  updateNewAchievementForm("notes", event.target.value)
+                                }
+                                rows={2}
+                                className="border border-[var(--line)] px-3 py-2 font-normal"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => void addAchievement(member)}
+                              disabled={savingCourseId === "new-achievement"}
+                              className="inline-flex w-fit items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+                            >
+                              {savingCourseId === "new-achievement" ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Save size={16} />
+                              )}
+                              {copy.addAchievement}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -1500,6 +3603,7 @@ export function MembersAdmin({ initialLocale }: { initialLocale: Locale }) {
           </div>
         )}
       </section>
+      ) : null}
     </div>
   );
 }
@@ -1523,11 +3627,15 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
     const values = splitCsvLine(line, delimiter);
     const record = new Map(headers.map((header, index) => [header, values[index] ?? ""]));
     const countryInput =
-      getValue(record, "country") || getValue(record, "pais") || getValue(record, "país");
+      getValue(record, "country") || getValue(record, "pais") || getValue(record, "paÃ­s");
     const dojoInput = getValue(record, "dojo") || getValue(record, "club");
     const country = resolveCountryInput(payload, countryInput);
     const dojo = resolveDojoInput(payload, dojoInput, country?.id ?? "");
-    const classInput = getValue(record, "clase");
+    const classInput =
+      getValue(record, "clase") ||
+      getValue(record, "member_group") ||
+      getValue(record, "grupo") ||
+      getValue(record, "group");
     const memberGroup = normalizeMemberGroup(classInput);
     const familyEmail =
       getValue(record, "email_familia") || getValue(record, "emailfamilia");
@@ -1555,7 +3663,7 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
         getValue(record, "phone") ||
         getValue(record, "telefono") ||
         getValue(record, "telefono_alumno") ||
-        getValue(record, "teléfono alumno"),
+        getValue(record, "telÃ©fono alumno"),
       countryId: getValue(record, "country_id") || country?.id || "",
       countryCode:
         getValue(record, "country_code") ||
@@ -1567,6 +3675,7 @@ function parseCsvRows(csv: string, payload: MembersPayload): ImportRow[] {
       birthDate: getValue(record, "birth_date") || getValue(record, "fecha_nacimiento"),
       joinedDate:
         getValue(record, "joined_date") ||
+        getValue(record, "join_date") ||
         getValue(record, "fecha_alta") ||
         getValue(record, "fecha_ingreso") ||
         getValue(record, "fecha ingreso"),
@@ -1608,7 +3717,7 @@ function parseCourseCsvRows(csv: string, payload: MembersPayload): CourseImportR
     const values = splitCsvLine(line, delimiter);
     const record = new Map(headers.map((header, index) => [header, values[index] ?? ""]));
     const countryInput =
-      getValue(record, "country") || getValue(record, "pais") || getValue(record, "paÃ­s");
+      getValue(record, "country") || getValue(record, "pais") || getValue(record, "paÃÂ­s");
     const dojoInput = getValue(record, "dojo") || getValue(record, "club");
     const country = resolveCountryInput(payload, countryInput);
     const dojo = resolveDojoInput(payload, dojoInput, country?.id ?? "");
@@ -1655,6 +3764,13 @@ function parseCourseCsvRows(csv: string, payload: MembersPayload): CourseImportR
         getValue(record, "course_place") ||
         getValue(record, "place") ||
         getValue(record, "lugar"),
+      courseType:
+        getValue(record, "course_type") ||
+        getValue(record, "type") ||
+        getValue(record, "format") ||
+        getValue(record, "tipo") ||
+        getValue(record, "formato") ||
+        getValue(record, "modalidad"),
       instructor:
         getValue(record, "instructor") ||
         getValue(record, "teacher") ||
@@ -1714,6 +3830,12 @@ function parseFlexibleCourseCsvRows(
     "course",
     "curso",
     "activity",
+    "course_type",
+    "type",
+    "format",
+    "tipo",
+    "formato",
+    "modalidad",
     "course_date",
     "date",
     "fecha",
@@ -1757,6 +3879,7 @@ function parseFlexibleCourseCsvRows(
         courseTitle: values[3]?.trim() ?? "",
         courseDate: values[0]?.trim() ?? "",
         coursePlace: values[2]?.trim() ?? "",
+        courseType: values[8]?.trim() ?? "",
         instructor: values[4]?.trim() ?? "",
         notes: [values[5], values[6], values[7]].filter(Boolean).join(" | "),
       };
@@ -1816,6 +3939,14 @@ function parseFlexibleCourseCsvRows(
         "lugar",
         "donde",
         "where",
+      ]),
+      courseType: getAnyValue(record, [
+        "course_type",
+        "type",
+        "format",
+        "tipo",
+        "formato",
+        "modalidad",
       ]),
       instructor: getAnyValue(record, [
         "instructor",
@@ -1981,7 +4112,7 @@ function normalizeMemberGroup(value: string) {
     return "adult";
   }
 
-  if (["child", "children", "nino", "ninos", "niño", "niños", "infantil"].includes(comparable)) {
+  if (["child", "children", "nino", "ninos", "niÃ±o", "niÃ±os", "infantil"].includes(comparable)) {
     return "child";
   }
 
@@ -2011,15 +4142,6 @@ function memberToForm(member: MemberRow): MemberEditForm {
   };
 }
 
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 function EditField({
   label,
   value,
@@ -2042,6 +4164,161 @@ function EditField({
       />
     </label>
   );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <label className="grid gap-1 font-semibold">
+      {label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="border border-[var(--line)] px-3 py-2 font-normal"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function courseTypeOptions(copy: ReturnType<typeof membersAdminCopy>) {
+  const es = copy.courseType === "Formato del curso";
+
+  return [
+    { value: "course", label: es ? "Curso" : "Course" },
+    { value: "seminar", label: es ? "Seminario" : "Seminar" },
+    { value: "taikai", label: "Taikai" },
+    { value: "encounter", label: es ? "Encuentro" : "Encounter" },
+    { value: "busen", label: "Busen" },
+  ];
+}
+
+function achievementMedalOptions(copy: ReturnType<typeof membersAdminCopy>) {
+  const es = copy.medalType === "Medalla";
+
+  return [
+    { value: "", label: es ? "Sin medalla" : "No medal" },
+    { value: "gold", label: es ? "Oro" : "Gold" },
+    { value: "silver", label: es ? "Plata" : "Silver" },
+    { value: "bronze", label: es ? "Bronce" : "Bronze" },
+    { value: "finalist", label: es ? "Finalista" : "Finalist" },
+    { value: "participant", label: es ? "Participante" : "Participant" },
+  ];
+}
+
+function normalizeTextareaList(value: string) {
+  const seen = new Set<string>();
+  return value
+    .split(/\r?\n|,/)
+    .map((entry) => entry.trim())
+    .filter((entry) => {
+      if (!entry) {
+        return false;
+      }
+      const comparable = normalizeComparable(entry);
+      if (seen.has(comparable)) {
+        return false;
+      }
+      seen.add(comparable);
+      return true;
+    });
+}
+
+function normalizeTaikaiConfig(
+  config:
+    | {
+        categories?: string[];
+        results?: string[];
+        medals?: string[];
+        awards?: string[];
+      }
+    | null
+    | undefined,
+) {
+  return {
+    categories: config?.categories ?? [],
+    results: config?.results ?? [],
+    medals: config?.medals ?? [],
+    awards: config?.awards ?? [],
+  };
+}
+
+function buildTaikaiConfigFromForm(form: {
+  type: string;
+  taikaiCategories: string;
+  taikaiResults: string;
+  taikaiMedals: string;
+  taikaiAwards: string;
+}) {
+  if (form.type !== "taikai") {
+    return {
+      categories: [],
+      results: [],
+      medals: [],
+      awards: [],
+    };
+  }
+
+  return {
+    categories: normalizeTextareaList(form.taikaiCategories),
+    results: normalizeTextareaList(form.taikaiResults),
+    medals: normalizeTextareaList(form.taikaiMedals),
+    awards: normalizeTextareaList(form.taikaiAwards),
+  };
+}
+
+function taikaiListOptions(
+  copy: ReturnType<typeof membersAdminCopy>,
+  rawValue: string,
+  emptyLabel: string,
+) {
+  return [
+    { value: "", label: emptyLabel },
+    ...normalizeTextareaList(rawValue).map((value) => ({
+      value,
+      label: value,
+    })),
+  ];
+}
+
+function taikaiAwardOptions(copy: ReturnType<typeof membersAdminCopy>, rawValue: string) {
+  return taikaiListOptions(copy, rawValue, copy.noAward);
+}
+
+function taikaiMedalOptions(copy: ReturnType<typeof membersAdminCopy>, rawValue: string) {
+  const values = normalizeTextareaList(rawValue);
+
+  if (values.length === 0) {
+    return achievementMedalOptions(copy);
+  }
+
+  return [
+    { value: "", label: copy.noMedal },
+    ...values.map((value) => ({
+      value,
+      label: value,
+    })),
+  ];
+}
+
+function formatAchievementCourseOption(course: CourseHistory) {
+  const typeLabel = (course.course_type ?? "course").toUpperCase();
+  const parts = [typeLabel, course.grade, course.exam_date, course.exam_place ?? ""].filter(Boolean);
+  return parts.join(" | ");
 }
 
 function formatAdminError(error: string, diagnostics: unknown) {
@@ -2090,6 +4367,7 @@ function membersAdminCopy(locale: Locale) {
     memberDeleted: es ? "Kenshi eliminado." : "Kenshi deleted.",
     importTitle: es ? "Importacion Kenshi" : "Kenshi import",
     coursesTitle: es ? "Importacion de cursos IKA" : "IKA course import",
+    bulkCourseTitle: es ? "Crear curso historico IKA" : "Create historical IKA course",
     lockedDojoHelp: es
       ? "Tu usuario esta limitado a este dojo. Sube el CSV y se importara solo aqui."
       : "Your user is limited to this dojo. Upload the CSV and it will be imported only here.",
@@ -2099,6 +4377,15 @@ function membersAdminCopy(locale: Locale) {
     coursesHelp: es
       ? "Importa cursos masivamente usando IKA ID, email o nombre+dojo. El sistema colocara cada curso en el Kenshi correspondiente dentro de tu ambito."
       : "Import courses in bulk using IKA ID, email, or name plus dojo. The system will place each course on the matching Kenshi within your scope.",
+    bulkCourseHelp: es
+      ? "Crea aqui cursos y registros historicos de IKA. Para taikai con inscripciones, check-in y adjudicacion de premios usa siempre el modulo de Eventos y calendario."
+      : "Create historical IKA courses and manual records here. For taikai with registrations, check-in, and award assignment, always use the Events and calendar module.",
+    taikaiResultsUnifiedTitle: es
+      ? "Resultados de taikai unificados en Eventos"
+      : "Taikai results unified in Events",
+    taikaiResultsUnifiedHelp: es
+      ? "Super admin y admin de pais usan ahora la misma logica para resultados de taikai: Eventos y calendario > Ver inscritos. Este modulo queda solo para cursos historicos o cargas manuales."
+      : "Super admin and country admin now use the same taikai results workflow: Events and calendar > View registrations. This module remains only for historical courses or manual loads.",
     uploadCsv: es ? "Subir CSV" : "Upload CSV",
     uploadCoursesCsv: es ? "Subir CSV cursos" : "Upload courses CSV",
     targetDojo: es ? "Dojo destino" : "Target dojo",
@@ -2119,23 +4406,101 @@ function membersAdminCopy(locale: Locale) {
     importCoursesError: es
       ? "No se pudo importar el lote de cursos."
       : "The course batch could not be imported.",
+    bulkCourseError: es
+      ? "No se pudo crear el curso historico."
+      : "The historical course could not be created.",
+    bulkCourseCreated: (courses: number, achievements: number) =>
+      es
+        ? `Curso historico adjuntado a ${courses} Kenshis. Logros creados o actualizados: ${achievements}.`
+        : `Historical course attached to ${courses} Kenshis. Achievements created or updated: ${achievements}.`,
+    bulkCreateCourse: es ? "Crear y adjuntar" : "Create and attach",
+    bulkMembersTitle: es ? "Kenshis asistentes" : "Attending Kenshis",
+    filterCountry: es ? "Filtrar por pais" : "Filter by country",
+    filterDojo: es ? "Filtrar por dojo" : "Filter by dojo",
+    allCountries: es ? "Todos los paises" : "All countries",
+    allDojos: es ? "Todos los dojos" : "All dojos",
+    bulkMembersHelp: es
+      ? "Selecciona los Kenshis asistentes dentro de tu alcance. El curso se guardara en todos ellos."
+      : "Select the attending Kenshis within your scope. The course will be saved for all of them.",
+    bulkMembersSelected: (count: number) =>
+      es ? `${count} Kenshis seleccionados.` : `${count} Kenshis selected.`,
+    noBulkMembersForFilters: es
+      ? "No hay Kenshis que coincidan con los filtros actuales."
+      : "No Kenshis match the current filters.",
+    bulkSelectMembersRequired: es
+      ? "Selecciona al menos un Kenshi para adjuntar el curso."
+      : "Select at least one Kenshi to attach the course.",
+    taikaiSetupTitle: es ? "Configuracion del Taikai" : "Taikai setup",
+    taikaiSetupHelp: es
+      ? "Define aqui las modalidades, resultados, medallas y premios que despues apareceran como desplegables en los resultados del Taikai."
+      : "Define here the categories, results, medals, and awards that will later appear as dropdowns in Taikai results.",
+    taikaiCategories: es ? "Modalidades o categorias" : "Categories or divisions",
+    taikaiResults: es ? "Resultados posibles" : "Available results",
+    taikaiMedals: es ? "Medallas o distintivos" : "Medals or distinctions",
+    taikaiAwards: es ? "Premios o logros" : "Awards or achievements",
+    bulkTaikaiAchievementsTitle: es ? "Resultados del Taikai" : "Taikai results",
+    bulkTaikaiAchievementsHelp: es
+      ? "AÃ±ade aqui podios, medallas y logros de competicion. La asistencia se guardara para todos los Kenshis seleccionados aunque solo algunos tengan resultado."
+      : "Add podiums, medals, and competition achievements here. Attendance will be saved for all selected Kenshis even if only some receive a result.",
+    courseRegistryTitle: es ? "Cursos ya creados" : "Created courses",
+    courseRegistryHelp: es
+      ? "Selecciona cualquier curso historico ya creado para revisar y editar sus datos globales. Los taikai operativos se gestionan desde Eventos."
+      : "Select any previously created historical course to review and edit its global data. Operational taikai are managed from Events.",
+    registryMembersHelp: es
+      ? "Aqui puedes anadir o quitar Kenshis asistentes despues de crear el curso o Taikai."
+      : "Here you can add or remove Kenshi attendees after creating the course or Taikai.",
+    registryTaikaiHelp: es
+      ? "Si el formato es Taikai, completa aqui categorias, resultados, medallas y posiciones para los Kenshis seleccionados."
+      : "If the format is Taikai, complete categories, results, medals, and positions here for the selected Kenshi.",
+    bulkCourseUpdated: () =>
+      es
+        ? "Curso o Taikai actualizado correctamente."
+        : "Course or Taikai updated successfully.",
     coursesImported: (imported: number, updated: number, skipped: number, errors: number) =>
       es
         ? `Cursos nuevos: ${imported}. Actualizados: ${updated}. Omitidos: ${skipped}. Errores: ${errors}.`
         : `New courses: ${imported}. Updated: ${updated}. Skipped: ${skipped}. Errors: ${errors}.`,
     previewTitle: es ? "Previsualizacion" : "Preview",
     previewHelp: es ? "Solo se muestran las filas activas que se van a importar." : "Only active rows that will be imported are shown.",
+    manualMemberTitle: es ? "Alta manual de Kenshi" : "Manual Kenshi registration",
+    manualMemberHelp: es
+      ? "Crea un Kenshi nuevo rapidamente rellenando la ficha y asignandolo a un dojo existente."
+      : "Create a new Kenshi quickly by filling out the form and assigning them to an existing dojo.",
+    manualMemberRequired: es
+      ? "Nombre y apellido son obligatorios para crear el Kenshi."
+      : "First name and surname are required to create the Kenshi.",
+    manualMemberCreated: es ? "Kenshi creado correctamente." : "Kenshi created successfully.",
+    manualMemberError: es ? "No se pudo crear el Kenshi." : "The Kenshi could not be created.",
+    createMember: es ? "Crear Kenshi" : "Create Kenshi",
+    clearForm: es ? "Limpiar formulario" : "Clear form",
+    selectDojoFirst: es ? "Selecciona primero un dojo." : "Select a dojo first.",
+    dojoDestination: es ? "Dojo destino" : "Target dojo",
+    externalMemberId: es ? "ID externo del club" : "Club external ID",
     activeSkipped: (active: number, skipped: number) =>
       es ? `Activos: ${active} / Omitidos: ${skipped}` : `Active: ${active} / Skipped: ${skipped}`,
     courseRowsSummary: (valid: number, skipped: number) =>
       es ? `Cursos validos: ${valid} / Omitidos: ${skipped}` : `Valid courses: ${valid} / Skipped: ${skipped}`,
     name: es ? "Nombre" : "Name",
+    kenshiTitle: es ? "Kenshi" : "Kenshi",
+    ikaId: es ? "IKA ID" : "IKA ID",
+    email: es ? "Email" : "Email",
     country: es ? "Pais" : "Country",
+    dojo: es ? "Dojo" : "Dojo",
     grade: es ? "Grado" : "Grade",
     showingRows: (count: number) =>
       es ? `Mostrando 20 de ${count} filas activas.` : `Showing 20 of ${count} active rows.`,
     visibleMembers: (visible: number, total: number) =>
       es ? `${visible} visibles de ${total}.` : `${visible} visible of ${total}.`,
+    kenshiControlTitle: es ? "Control de listado" : "List controls",
+    kenshiControlHelp: es
+      ? "Filtra por estado y busca rapidamente por numero, nombre o apellidos antes de editar."
+      : "Filter by status and search quickly by number, first name, or surname before editing.",
+    activeMembersView: (count: number) =>
+      es ? `Activos (${count})` : `Active (${count})`,
+    inactiveMembersView: (count: number) =>
+      es ? `Inactivos y bajas (${count})` : `Inactive and archived (${count})`,
+    allMembersView: (count: number) =>
+      es ? `Todos (${count})` : `All (${count})`,
     search: es ? "Buscar" : "Search",
     searchPlaceholder: es ? "Numero, nombre o apellidos" : "Number, first name or surname",
     loadingKenshi: es ? "Cargando Kenshi..." : "Loading Kenshi...",
@@ -2158,14 +4523,44 @@ function membersAdminCopy(locale: Locale) {
     status: es ? "Estado" : "Status",
     active: es ? "Activo" : "Active",
     inactive: es ? "Inactivo" : "Inactive",
+    inactiveLabel: (status: string) =>
+      es
+        ? status === "temporary_leave"
+          ? "Baja temporal"
+          : "Inactivo"
+        : status === "temporary_leave"
+          ? "Temporary leave"
+          : "Inactive",
     temporaryLeave: es ? "Baja temporal" : "Temporary leave",
     instructor: es ? "Instructor" : "Instructor",
     courseName: es ? "Curso" : "Course",
     courseDate: es ? "Fecha del curso" : "Course date",
     coursePlace: es ? "Lugar" : "Place",
+    courseType: es ? "Formato del curso" : "Course format",
     courseInstructor: es ? "Instructor del curso" : "Course instructor",
     memberCourses: es ? "Cursos IKA del Kenshi" : "Kenshi IKA courses",
     noCourses: es ? "Este Kenshi todavia no tiene cursos registrados." : "This Kenshi has no registered courses yet.",
+    memberAchievements: es ? "Logros y medallero" : "Achievements and medals",
+    achievementHelp: es
+      ? "Usa este bloque para registrar podios, medallas y resultados de competicion. Lo ideal es vincular cada logro a un Taikai ya creado."
+      : "Use this area to register podiums, medals, and competition results. Ideally, link each achievement to an existing Taikai.",
+    noAchievements: es ? "Este Kenshi todavia no tiene logros registrados." : "This Kenshi has no registered achievements yet.",
+    noTaikaiCourses: es
+      ? "Todavia no hay Taikais creados para vincular logros. Crea primero el Taikai como curso IKA con formato Taikai."
+      : "There are no Taikai records yet to link achievements. Create the Taikai first as an IKA course with Taikai format.",
+    achievementTitle: es ? "Logro" : "Achievement",
+    achievementCategory: es ? "Categoria" : "Category",
+    achievementResult: es ? "Resultado" : "Result",
+    medalType: es ? "Medalla" : "Medal",
+    podiumPosition: es ? "Posicion" : "Position",
+    noCategory: es ? "Sin categoria" : "No category",
+    noResult: es ? "Sin resultado" : "No result",
+    noAward: es ? "Sin premio" : "No award",
+    noMedal: es ? "Sin medalla" : "No medal",
+    achievementDate: es ? "Fecha del logro" : "Achievement date",
+    achievementPlace: es ? "Lugar" : "Place",
+    relatedCourse: es ? "Curso relacionado" : "Related course",
+    noRelatedCourse: es ? "Sin curso relacionado" : "No related course",
     addCourse: es ? "Anadir curso" : "Add course",
     saveCourse: es ? "Guardar curso" : "Save course",
     deleteCourse: es ? "Quitar curso" : "Remove course",
@@ -2177,6 +4572,17 @@ function membersAdminCopy(locale: Locale) {
     courseTitleDateRequired: es
       ? "El curso necesita titulo y fecha."
       : "The course needs a title and date.",
+    addAchievement: es ? "Anadir logro" : "Add achievement",
+    saveAchievement: es ? "Guardar logro" : "Save achievement",
+    deleteAchievement: es ? "Quitar logro" : "Remove achievement",
+    achievementAdded: es ? "Logro anadido." : "Achievement added.",
+    achievementUpdated: es ? "Logro actualizado." : "Achievement updated.",
+    achievementDeleted: es ? "Logro eliminado." : "Achievement deleted.",
+    achievementSaveError: es ? "No se pudo guardar el logro." : "The achievement could not be saved.",
+    achievementDeleteError: es ? "No se pudo eliminar el logro." : "The achievement could not be deleted.",
+    achievementTitleDateRequired: es
+      ? "El logro necesita titulo y fecha."
+      : "The achievement needs a title and date.",
     guardian: es ? "Tutor" : "Guardian",
     guardianEmail: es ? "Email tutor" : "Guardian email",
     birthDate: es ? "Fecha nacimiento" : "Birth date",
@@ -2191,3 +4597,6 @@ function membersAdminCopy(locale: Locale) {
     cancel: es ? "Cancelar" : "Cancel",
   };
 }
+
+
+
