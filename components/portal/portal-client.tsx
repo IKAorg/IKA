@@ -2241,7 +2241,10 @@ export function PortalClient({
       setSession(nextSession);
       if (nextSession) {
         saveAdminSessionBridge(nextSession);
-        restoreCachedPortal(nextSession);
+        const restored = restoreCachedPortal(nextSession);
+        if (restored) {
+          setMessage("");
+        }
       }
       if (event === "PASSWORD_RECOVERY") {
         setRecoveryEmail(nextSession?.user.email ?? "");
@@ -2253,7 +2256,11 @@ export function PortalClient({
       }
 
       if (nextSession) {
-        if (!recoveryMode && event !== "TOKEN_REFRESHED" && !(sameUserSession && portalRef.current)) {
+        const shouldSkipReload =
+          event === "TOKEN_REFRESHED" ||
+          (sameUserSession && Boolean(portalRef.current));
+
+        if (!recoveryMode && !shouldSkipReload) {
           void loadPortal({ silent: true });
         }
       } else {
