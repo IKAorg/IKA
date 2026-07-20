@@ -1,4 +1,5 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { extendedLatestReportTranslations } from "@/lib/i18n/extended-public-locales";
 
 export type LatestReport = {
   date: string;
@@ -12,7 +13,7 @@ type ReportSource = {
   date: string;
   image: string;
   slug: string;
-  translations: Record<Locale, { title: string; excerpt: string }>;
+  translations: Partial<Record<Locale, { title: string; excerpt: string }>>;
 };
 
 const reportSources: ReportSource[] = [
@@ -263,7 +264,11 @@ export function getLatestReports(locale: Locale): LatestReport[] {
     date: report.date,
     image: report.image,
     slug: report.slug,
-    ...(report.translations[locale] ?? report.translations[defaultLocale]),
+    ...(
+      report.translations[locale] ??
+      extendedLatestReportTranslations[locale]?.[report.slug] ??
+      report.translations[defaultLocale]!
+    ),
   }));
 }
 

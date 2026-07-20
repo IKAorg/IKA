@@ -95,18 +95,18 @@ const emptyPayload: UsersPayload = {
   },
 };
 
-const roleLabels: Record<"es" | "en", Record<RoleKey, string>> = {
-  es: {
-    global_admin: "Admin global",
-    country_admin: "Admin de pais",
-    dojo_admin: "Admin de dojo",
-  },
+const roleLabels = {
   en: {
     global_admin: "Global admin",
     country_admin: "Country admin",
     dojo_admin: "Dojo admin",
   },
-};
+  es: {
+    global_admin: "Admin global",
+    country_admin: "Admin de pais",
+    dojo_admin: "Admin de dojo",
+  },
+} as const;
 
 function createEmptyForm(): FormState {
   return {
@@ -156,7 +156,7 @@ export function UsersAdmin({
     if (!response.ok) {
       setPayload(emptyPayload);
       setForm(createEmptyForm());
-      setMessage(data.error ?? "No se pudieron cargar usuarios y permisos.");
+      setMessage(data.error ?? copy.loadUsersError);
       setLoading(false);
       return;
     }
@@ -234,7 +234,7 @@ export function UsersAdmin({
     if (result.error) {
       setMessage(result.error.message);
     } else if (!password) {
-      setMessage("Revisa tu email para entrar al admin.");
+      setMessage(copy.checkAdminEmail);
     }
 
     setLoading(false);
@@ -255,7 +255,7 @@ export function UsersAdmin({
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo guardar el rol.");
+      setMessage(data.error ?? copy.saveRoleError);
       setSaving(false);
       return;
     }
@@ -265,7 +265,7 @@ export function UsersAdmin({
       roleKey: payload.assignableRoles[0] ?? "",
       sendInvite: current.sendInvite,
     }));
-    setMessage(data.invited ? "Invitacion enviada y rol guardado." : "Rol guardado.");
+    setMessage(data.invited ? copy.invitationSentAndRoleSaved : copy.roleSaved);
     await loadUsers();
     setSaving(false);
   }
@@ -280,11 +280,11 @@ export function UsersAdmin({
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo quitar el rol.");
+      setMessage(data.error ?? copy.removeRoleError);
       return;
     }
 
-    setMessage("Rol eliminado.");
+    setMessage(copy.roleRemoved);
     await loadUsers();
   }
 
@@ -408,7 +408,7 @@ export function UsersAdmin({
         <input
           value={loginEmail}
           onChange={(event) => setLoginEmail(event.target.value)}
-          placeholder="Email"
+          placeholder={copy.email}
           type="email"
           className="border border-[var(--line)] px-3 py-2"
         />
@@ -436,8 +436,8 @@ export function UsersAdmin({
   }
 
   return (
-    <div className="grid gap-8 xl:grid-cols-[0.9fr_1.1fr]">
-      <section className="border border-[var(--line)] bg-white p-5">
+    <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr] xl:gap-8">
+      <section className="border border-[var(--line)] bg-white p-4 sm:p-5">
         <div className="flex items-center gap-3">
           <UserPlus size={22} className="text-[var(--accent)]" />
           <h2 className="text-2xl font-semibold">{copy.createAdmin}</h2>
@@ -458,7 +458,7 @@ export function UsersAdmin({
               <button
                 type="button"
                 onClick={loadUsers}
-                className="inline-flex items-center justify-center gap-2 border border-[var(--line)] bg-white px-3 py-2 font-semibold"
+                className="inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--line)] bg-white px-3 py-2 font-semibold"
               >
                 <RefreshCw size={16} />
                 {copy.reloadPermissions}
@@ -467,7 +467,7 @@ export function UsersAdmin({
           ) : null}
 
           <TextInput
-            label="Email"
+            label={copy.email}
             value={form.email}
             type="email"
             disabled={payload.assignableRoles.length === 0}
@@ -579,7 +579,7 @@ export function UsersAdmin({
             type="button"
             onClick={saveUserRole}
             disabled={saving || loading || !canSave}
-            className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+            className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : null}
             {copy.saveRole}
@@ -594,7 +594,7 @@ export function UsersAdmin({
         </div>
       </section>
 
-      <section className="border border-[var(--line)] bg-white p-5">
+      <section className="border border-[var(--line)] bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <ShieldCheck size={22} className="text-[var(--accent)]" />
@@ -608,7 +608,7 @@ export function UsersAdmin({
           <button
             type="button"
             onClick={loadUsers}
-            className="inline-flex items-center justify-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold"
+            className="inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold"
           >
             <RefreshCw size={16} />
             {copy.reload}
@@ -637,7 +637,7 @@ export function UsersAdmin({
               (count, row) => count + row.assignments.length,
               0,
             )}{" "}
-            roles
+            {copy.rolesWord}
           </span>
         </div>
 
@@ -662,6 +662,7 @@ export function UsersAdmin({
                         profile={row.profile}
                         assignment={assignment}
                         locale={initialLocale}
+                        copy={copy}
                         onDelete={deleteAssignment}
                       />
                     ))}
@@ -676,7 +677,7 @@ export function UsersAdmin({
                       {countryLabel(countrySection.country, initialLocale)}
                     </span>
                     <span className="text-sm text-[var(--muted)]">
-                      {countrySection.total} roles - {countrySection.dojoSections.length} dojos
+                      {countrySection.total} {copy.rolesWord} - {countrySection.dojoSections.length} {copy.dojosWord}
                     </span>
                   </summary>
 
@@ -684,7 +685,7 @@ export function UsersAdmin({
                     {countrySection.countryAssignments.length > 0 ? (
                       <details open className="bg-[var(--paper)]">
                         <summary className="cursor-pointer list-none p-3 text-sm font-semibold marker:hidden">
-                          Administradores de pais - {countrySection.countryAssignments.length}
+                          {copy.countryAdmins(countrySection.countryAssignments.length)}
                         </summary>
                         <div className="grid gap-2 px-3 pb-3">
                           {countrySection.countryAssignments.map(({ row, assignment }) => (
@@ -693,6 +694,7 @@ export function UsersAdmin({
                               profile={row.profile}
                               assignment={assignment}
                               locale={initialLocale}
+                              copy={copy}
                               onDelete={deleteAssignment}
                             />
                           ))}
@@ -707,7 +709,7 @@ export function UsersAdmin({
                             {dojoLabel(dojoSection.dojo, initialLocale)}
                           </span>
                           <span className="text-xs text-[var(--muted)]">
-                            {dojoSection.assignments.length} roles
+                            {dojoSection.assignments.length} {copy.rolesWord}
                           </span>
                         </summary>
                         <div className="grid gap-2 px-3 pb-3">
@@ -717,6 +719,7 @@ export function UsersAdmin({
                               profile={row.profile}
                               assignment={assignment}
                               locale={initialLocale}
+                              copy={copy}
                               onDelete={deleteAssignment}
                             />
                           ))}
@@ -730,7 +733,7 @@ export function UsersAdmin({
               {hierarchicalPermissions.unlocatedAssignments.length > 0 ? (
                 <details className="border border-[var(--line)] bg-white">
                   <summary className="cursor-pointer list-none p-4 font-semibold marker:hidden">
-                    Roles sin ubicacion visible - {hierarchicalPermissions.unlocatedAssignments.length}
+                    {copy.unlocatedRoles(hierarchicalPermissions.unlocatedAssignments.length)}
                   </summary>
                   <div className="grid gap-2 border-t border-[var(--line)] p-3">
                     {hierarchicalPermissions.unlocatedAssignments.map(({ row, assignment }) => (
@@ -739,6 +742,7 @@ export function UsersAdmin({
                         profile={row.profile}
                         assignment={assignment}
                         locale={initialLocale}
+                        copy={copy}
                         onDelete={deleteAssignment}
                       />
                     ))}
@@ -757,11 +761,13 @@ function PermissionAssignmentRow({
   profile,
   assignment,
   locale,
+  copy,
   onDelete,
 }: {
   profile: Profile;
   assignment: Assignment;
   locale: Locale;
+  copy: ReturnType<typeof usersAdminCopy>;
   onDelete: (id: string) => void;
 }) {
   const kenshiIds = profile.kenshiIds ?? [];
@@ -787,7 +793,7 @@ function PermissionAssignmentRow({
           className="inline-flex items-center gap-2 text-[var(--accent)]"
         >
           <Trash2 size={15} />
-          Quitar
+          {copy.remove}
         </button>
       </div>
       <p className="mt-3 bg-[var(--paper)] px-3 py-2">
@@ -880,7 +886,7 @@ function dojoLabel(dojo: DojoOption, locale: Locale) {
 
 function getRoleLabel(role: Assignment["roles"], locale: Locale) {
   if (!role) {
-    return "Rol";
+    return locale === "es" ? "Rol" : "Role";
   }
 
   const language = locale === "es" ? "es" : "en";
@@ -900,6 +906,22 @@ function usersAdminCopy(locale: Locale) {
 
   return {
     roleLabels: roleLabels[es ? "es" : "en"],
+    loadUsersError: es
+      ? "No se pudieron cargar usuarios y permisos."
+      : "Could not load users and permissions.",
+    checkAdminEmail: es
+      ? "Revisa tu email para entrar al admin."
+      : "Check your email to access admin.",
+    saveRoleError: es ? "No se pudo guardar el rol." : "Could not save the role.",
+    invitationSentAndRoleSaved: es
+      ? "Invitacion enviada y rol guardado."
+      : "Invitation sent and role saved.",
+    roleSaved: es ? "Rol guardado." : "Role saved.",
+    removeRoleError: es
+      ? "No se pudo quitar el rol."
+      : "Could not remove the role.",
+    roleRemoved: es ? "Rol eliminado." : "Role removed.",
+    email: "Email",
     adminAccess: es ? "Acceso admin" : "Admin access",
     loginHelp: es
       ? "Entra con un usuario administrador para gestionar permisos."
@@ -937,11 +959,22 @@ function usersAdminCopy(locale: Locale) {
       : "Search by email, name, role, country, dojo or Kenshi ID",
     visibleUsers: (count: number) =>
       es ? `${count} usuarios visibles` : `${count} visible users`,
+    rolesWord: es ? "roles" : "roles",
+    dojosWord: es ? "dojos" : "dojos",
+    countryAdmins: (count: number) =>
+      es
+        ? `Administradores de pais - ${count}`
+        : `Country administrators - ${count}`,
+    unlocatedRoles: (count: number) =>
+      es
+        ? `Roles sin ubicacion visible - ${count}`
+        : `Roles without visible location - ${count}`,
     loadingPermissions: es ? "Cargando permisos..." : "Loading permissions...",
     noMatchingUsers: es
       ? "No hay usuarios que coincidan con la busqueda."
       : "No users match the search.",
     globalAdministration: (count: number) =>
       es ? `Administracion global - ${count} roles` : `Global administration - ${count} roles`,
+    remove: es ? "Quitar" : "Remove",
   };
 }

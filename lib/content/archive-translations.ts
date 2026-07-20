@@ -1,5 +1,6 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { getLatestReports } from "./latest-reports";
+import { extendedOlderArchiveTranslations } from "@/lib/i18n/extended-public-locales";
 
 export type ArchiveCopy = {
   title: string;
@@ -7,9 +8,8 @@ export type ArchiveCopy = {
   bodyHtml?: string;
 };
 
-const olderArchiveTranslations: Record<
-  Locale,
-  Record<string, ArchiveCopy>
+const olderArchiveTranslations: Partial<
+  Record<Locale, Record<string, ArchiveCopy>>
 > = {
   en: {},
   es: {
@@ -369,7 +369,9 @@ export function getArchiveCopy(locale: Locale, slug: string) {
   }
 
   const copy =
+    extendedOlderArchiveTranslations[locale]?.[slug] ??
     olderArchiveTranslations[locale]?.[slug] ??
+    extendedOlderArchiveTranslations[defaultLocale]?.[slug] ??
     olderArchiveTranslations[defaultLocale]?.[slug];
 
   return copy ? { ...copy, bodyHtml } : undefined;

@@ -185,12 +185,12 @@ export function getArchiveDetailHtml(detail: ArchiveDetail, locale: Locale = def
     return `${copy.bodyHtml.replaceAll("/__LOCALE__/", `/${locale}/`)}${getArchiveMediaHtml(originalHtml)}`;
   }
 
-  const labels = getArchiveDetailLabels(locale);
+  const labels = getArchiveDetailLabels(locale) ?? getArchiveDetailLabels(defaultLocale)!;
 
   return `<div class="archive-translated-summary"><h2>${labels.summary}</h2><p>${copy.excerpt}</p></div>${getArchiveMediaHtml(originalHtml)}`;
 }
 
-const archiveDetailLabels: Record<Locale, { summary: string; original: string }> = {
+const archiveDetailLabels: Partial<Record<Locale, { summary: string; original: string }>> = {
   en: {
     summary: "Translated summary",
     original: "Original archive report",

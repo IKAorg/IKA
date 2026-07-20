@@ -1,17 +1,20 @@
 import type { Locale } from "./config";
+import { extendedArchiveLabels } from "./extended-public-locales";
 
-export const archiveLabels: Record<
-  Locale,
-  {
-    eyebrow: string;
-    title: string;
-    intro: string;
-    all: string;
-    months: string;
-    category: string;
-    read: string;
-    noImage: string;
-  }
+export const archiveLabels: Partial<
+  Record<
+    Locale,
+    {
+      eyebrow: string;
+      title: string;
+      intro: string;
+      all: string;
+      months: string;
+      category: string;
+      read: string;
+      noImage: string;
+    }
+  >
 > = {
   en: {
     eyebrow: "Old news archive",
@@ -61,7 +64,7 @@ export const archiveLabels: Record<
     eyebrow: "旧ニュースアーカイブ",
     title: "IKA過去ニュース",
     intro:
-      "Archive of historical IKA reports, organised by date and month.",
+      "Historical IKA reports, organised by date and month.",
     all: "すべて",
     months: "アーカイブ",
     category: "カテゴリー",
@@ -72,7 +75,7 @@ export const archiveLabels: Record<
     eyebrow: "旧新闻档案",
     title: "IKA 历史新闻",
     intro:
-      "Archive of historical IKA reports, organised by date and month.",
+      "Historical IKA reports, organised by date and month.",
     all: "全部",
     months: "档案",
     category: "类别",
@@ -91,3 +94,5 @@ export const archiveLabels: Record<
     noImage: "Archiv",
   },
 };
+
+Object.assign(archiveLabels, extendedArchiveLabels);

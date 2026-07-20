@@ -1,19 +1,20 @@
 import Link from "next/link";
-import type { Locale } from "@/lib/i18n/config";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import {
-  archiveMonths,
+  getArchiveMonths,
   getArchiveMonthLabel,
 } from "@/lib/content/news-archive";
 import { archiveLabels } from "@/lib/i18n/news-archive";
 
-export function ArchiveSidebar({
+export async function ArchiveSidebar({
   locale,
   activeMonth,
 }: {
   locale: Locale;
   activeMonth?: string;
 }) {
-  const labels = archiveLabels[locale];
+  const labels = archiveLabels[locale] ?? archiveLabels[defaultLocale]!;
+  const archiveMonths = await getArchiveMonths();
 
   return (
     <aside className="h-fit border border-[var(--line)] bg-white p-5 lg:sticky lg:top-6">

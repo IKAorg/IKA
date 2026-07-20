@@ -13,6 +13,7 @@ type CountryRow = {
   code: string;
   ika_country_id: string | null;
   responsible_person: string | null;
+  representative_entity: string | null;
   responsible_email: string | null;
   flag_media_id: string | null;
   country_translations: Array<{
@@ -30,6 +31,7 @@ type DojoRow = {
   city: string;
   address: string | null;
   responsible_instructor: string | null;
+  responsible_instructor_media_id: string | null;
   email: string | null;
   phone: string | null;
   website: string | null;
@@ -50,6 +52,7 @@ export type PublicCountry = {
   slug: string;
   description: string;
   responsiblePerson: string;
+  representativeEntity: string;
   responsibleEmail: string;
   logoUrl: string;
   flagUrls: string[];
@@ -66,6 +69,8 @@ export type PublicDojo = {
   city: string;
   address: string;
   responsibleInstructor: string;
+  responsibleInstructorPhotoUrl: string;
+  responsibleInstructorPhotoAlt: string;
   email: string;
   phone: string;
   website: string;
@@ -83,7 +88,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   const { data: countriesData } = await supabase
     .from("countries")
     .select(
-      "id,code,ika_country_id,responsible_person,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,ika_country_id,responsible_person,representative_entity,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
     )
     .eq("status", "published")
     .eq("is_public", true)
@@ -100,7 +105,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       ? await supabase
           .from("dojos")
           .select(
-            "id,country_id,ika_dojo_id,city,address,responsible_instructor,email,phone,website,main_image_media_id,dojo_translations(language_code,name,slug,description)",
+            "id,country_id,ika_dojo_id,city,address,responsible_instructor,responsible_instructor_media_id,email,phone,website,main_image_media_id,dojo_translations(language_code,name,slug,description)",
           )
           .in("country_id", countryIds)
           .eq("status", "published")
@@ -115,6 +120,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   const mediaIds = [
     ...countries.map((country) => country.flag_media_id),
     ...dojos.map((dojo) => dojo.main_image_media_id),
+    ...dojos.map((dojo) => dojo.responsible_instructor_media_id),
   ].filter(Boolean) as string[];
 
   const mediaById = await getMediaById(supabase, mediaIds);
@@ -136,6 +142,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       slug: translation.slug,
       description: translation.description ?? "",
       responsiblePerson: country.responsible_person ?? "",
+      representativeEntity: country.representative_entity ?? "",
       responsibleEmail: country.responsible_email ?? "",
       logoUrl: logo?.storage_path ?? "",
       flagUrls: getCountryFlagUrls(country.code, logo?.storage_path),
@@ -151,6 +158,9 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
     const image = dojo.main_image_media_id
       ? mediaById.get(dojo.main_image_media_id)
       : undefined;
+    const instructorImage = dojo.responsible_instructor_media_id
+      ? mediaById.get(dojo.responsible_instructor_media_id)
+      : undefined;
 
     return {
       id: dojo.id,
@@ -163,6 +173,9 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       city: dojo.city,
       address: dojo.address ?? "",
       responsibleInstructor: dojo.responsible_instructor ?? "",
+      responsibleInstructorPhotoUrl: instructorImage?.storage_path ?? "",
+      responsibleInstructorPhotoAlt:
+        instructorImage?.alt_text ?? dojo.responsible_instructor ?? translation.name,
       email: dojo.email ?? "",
       phone: dojo.phone ?? "",
       website: dojo.website ?? "",

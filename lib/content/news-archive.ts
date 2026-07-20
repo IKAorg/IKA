@@ -1,6 +1,7 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { getArchiveDetail } from "./archive-details";
 import { getLatestReports, type LatestReport } from "./latest-reports";
+import { getActiveCmsNews, getArchivedCmsNews } from "./news-cms";
 
 export type ArchiveNewsItem = LatestReport & {
   month: string;
@@ -132,7 +133,7 @@ const monthBySlug: Record<string, string> = {
   "report-from-international-seminar-in-spain": "06-2019",
 };
 
-export const archiveMonths = [
+export const staticArchiveMonths = [
   "06-2023",
   "02-2023",
   "10-2022",
@@ -150,13 +151,13 @@ export const archiveMonths = [
   "10-2015",
 ] as const;
 
-export type ArchiveMonth = (typeof archiveMonths)[number];
+export type ArchiveMonth = (typeof staticArchiveMonths)[number];
 
 export function isArchiveMonth(value: string): value is ArchiveMonth {
-  return archiveMonths.includes(value as ArchiveMonth);
+  return staticArchiveMonths.includes(value as ArchiveMonth);
 }
 
-export function getArchiveNews(locale: Locale): ArchiveNewsItem[] {
+export async function getArchiveNews(locale: Locale): Promise<ArchiveNewsItem[]> {
   const migrated = getLatestReports(locale).map((report) => ({
     ...report,
     image:
@@ -167,7 +168,7 @@ export function getArchiveNews(locale: Locale): ArchiveNewsItem[] {
     month: monthBySlug[report.slug] ?? "",
   }));
 
-  return [...migrated, ...olderArchiveItems].map((item) => {
+  const staticItems = [...migrated, ...olderArchiveItems].map((item) => {
     const detail = getArchiveDetail(locale, item.slug);
 
     return {
@@ -177,18 +178,31 @@ export function getArchiveNews(locale: Locale): ArchiveNewsItem[] {
       excerpt: detail?.excerpt || item.excerpt,
     };
   });
+
+  const archivedCmsItems = (await getArchivedCmsNews(locale)).map((item) => ({
+    date: item.date,
+    month: item.month,
+    title: item.title,
+    excerpt: item.excerpt,
+    image: item.image,
+    slug: item.slug,
+  }));
+
+  return [...archivedCmsItems, ...staticItems];
 }
 
-export function getArchiveNewsByMonth(locale: Locale, month: string) {
-  return getArchiveNews(locale).filter((item) => item.month === month);
+export async function getArchiveNewsByMonth(locale: Locale, month: string) {
+  const items = await getArchiveNews(locale);
+  return items.filter((item) => item.month === month);
 }
 
-export function getArchiveNewsItem(locale: Locale, slug: string) {
-  return getArchiveNews(locale).find((item) => item.slug === slug);
+export async function getArchiveNewsItem(locale: Locale, slug: string) {
+  const items = await getArchiveNews(locale);
+  return items.find((item) => item.slug === slug);
 }
 
-export function getNewNews(): LatestReport[] {
-  return [];
+export async function getNewNews(locale: Locale) {
+  return getActiveCmsNews(locale);
 }
 
 export function getArchiveMonthLabel(month: string, locale: Locale = defaultLocale) {
@@ -200,6 +214,20 @@ export function getArchiveMonthLabel(month: string, locale: Locale = defaultLoca
   }).format(date);
 }
 
-export function getDefaultArchiveNews() {
+export async function getDefaultArchiveNews() {
   return getArchiveNews(defaultLocale);
+}
+
+export async function getArchiveMonths() {
+  const dynamicMonths = await getArchivedCmsNews(defaultLocale);
+  return Array.from(
+    new Set([
+      ...dynamicMonths.map((item) => item.month).filter(Boolean),
+      ...staticArchiveMonths,
+    ]),
+  ).sort((left, right) => {
+    const [leftMonth, leftYear] = left.split("-").map(Number);
+    const [rightMonth, rightYear] = right.split("-").map(Number);
+    return rightYear - leftYear || rightMonth - leftMonth;
+  });
 }

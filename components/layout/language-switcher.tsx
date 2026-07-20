@@ -13,6 +13,7 @@ type LanguageSwitcherProps = {
 export function LanguageSwitcher({ locale }: LanguageSwitcherProps) {
   const pathname = usePathname();
   const pathParts = pathname.split("/").filter(Boolean);
+  const ariaLabel = switcherLabels[locale] ?? switcherLabels.en!;
 
   return (
     <details className="group relative">
@@ -25,7 +26,7 @@ export function LanguageSwitcher({ locale }: LanguageSwitcherProps) {
       </summary>
 
       <nav
-        aria-label="Language selection"
+        aria-label={ariaLabel}
         className="absolute right-0 z-50 mt-2 grid min-w-44 border border-[var(--line)] bg-white p-2 shadow-[0_18px_44px_rgba(18,20,22,0.12)]"
       >
         {locales.map((item) => {
@@ -56,3 +57,18 @@ export function LanguageSwitcher({ locale }: LanguageSwitcherProps) {
     </details>
   );
 }
+
+const switcherLabels: Partial<Record<Locale, string>> = {
+  en: "Language selection",
+  es: "Seleccion de idioma",
+  it: "Selezione lingua",
+  fr: "Selection de langue",
+  ja: "\u8a00\u8a9e\u9078\u629e",
+  zh: "\u8bed\u8a00\u9009\u62e9",
+  cs: "Vyber jazyka",
+  id: "Pilihan bahasa",
+  ms: "Pilihan bahasa",
+  eu: "Hizkuntza aukeraketa",
+  pt: "Selecao de idioma",
+  de: "Sprachauswahl",
+};

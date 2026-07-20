@@ -12,7 +12,9 @@ type SiteShellProps = {
 
 export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
   const nav = dictionary.nav;
-  const instructorsLabel = instructorNavLabels[locale];
+  const instructorsLabel =
+    instructorNavLabels[locale] ?? instructorNavLabels.en!;
+  const brandLabel = brandLabels[locale] ?? brandLabels.en!;
   const publicLinks = [
     { href: `/${locale}`, label: nav.home },
     { href: `/${locale}/about`, label: nav.about },
@@ -27,26 +29,26 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--background)]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center gap-5 px-5 py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:gap-5 sm:px-5">
           <Link
             href={`/${locale}`}
-            className="flex min-w-fit items-center gap-3"
-            aria-label="International Kempo Association"
+            className="flex min-w-0 items-center gap-3"
+            aria-label={brandLabel}
           >
             <Image
               src="/images/ika-logo.webp"
-              alt="International Kempo Association"
+              alt={brandLabel}
               width={48}
               height={48}
               className="size-12 object-contain"
               priority
             />
-            <span className="hidden leading-tight sm:grid">
-              <span className="text-lg font-semibold uppercase text-[var(--foreground)]">
+            <span className="hidden min-w-0 leading-tight sm:grid">
+              <span className="truncate text-lg font-semibold uppercase text-[var(--foreground)]">
                 IKA
               </span>
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                International Kempo Association
+                {brandLabel}
               </span>
             </span>
           </Link>
@@ -63,23 +65,23 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             <LanguageSwitcher locale={locale} />
             <Link
               href={`/${locale}/portal`}
-              className="inline-flex h-11 items-center border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--accent-dark)]"
+              className="inline-flex min-h-11 items-center border border-[var(--accent)] bg-[var(--accent)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-dark)] sm:px-4"
             >
               {nav.portal}
             </Link>
           </div>
         </div>
 
-        <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-2 border-t border-[var(--line)] px-5 py-3 text-sm font-medium text-[var(--muted)] xl:hidden">
+        <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm font-medium text-[var(--muted)] sm:px-5 xl:hidden">
           {publicLinks.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="transition hover:text-[var(--foreground)]"
+              className="inline-flex min-h-10 items-center transition hover:text-[var(--foreground)]"
             >
               {item.label}
             </Link>
@@ -95,13 +97,13 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
             <Link href={`/${locale}`} className="flex items-center gap-3">
               <Image
                 src="/images/ika-logo.webp"
-                alt="International Kempo Association"
+                alt={brandLabel}
                 width={52}
                 height={52}
                 className="size-13 object-contain"
               />
               <span className="max-w-64 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--foreground)]">
-                International Kempo Association
+                {brandLabel}
               </span>
             </Link>
             <p className="mt-5 max-w-md leading-7">
@@ -150,7 +152,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
   );
 }
 
-const instructorNavLabels: Record<Locale, string> = {
+const instructorNavLabels: Partial<Record<Locale, string>> = {
   en: "Official instructors",
   es: "Instructores oficiales",
   it: "Istruttori ufficiali",
@@ -158,4 +160,24 @@ const instructorNavLabels: Record<Locale, string> = {
   ja: "公認指導者",
   zh: "IKA 正式教练",
   cs: "Oficialni instruktori",
+  id: "Instruktur resmi",
+  ms: "Jurulatih rasmi",
+  eu: "Irakasle ofizialak",
+  pt: "Instrutores oficiais",
+  de: "Offizielle Instruktoren",
+};
+
+const brandLabels: Partial<Record<Locale, string>> = {
+  en: "International Kempo Association",
+  es: "International Kempo Association",
+  it: "International Kempo Association",
+  fr: "International Kempo Association",
+  ja: "International Kempo Association",
+  zh: "International Kempo Association",
+  cs: "International Kempo Association",
+  id: "International Kempo Association",
+  ms: "International Kempo Association",
+  eu: "International Kempo Association",
+  pt: "International Kempo Association",
+  de: "International Kempo Association",
 };

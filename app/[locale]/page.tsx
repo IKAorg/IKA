@@ -30,7 +30,7 @@ export default async function HomePage({ params }: HomePageProps) {
 
   return (
     <div>
-      <section className="relative min-h-[82vh] overflow-hidden border-b border-[var(--line)] bg-black text-white">
+      <section className="relative min-h-[78vh] overflow-hidden border-b border-[var(--line)] bg-black text-white sm:min-h-[82vh]">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-70"
           style={{ backgroundImage: `url(${heroImage})` }}
@@ -38,28 +38,28 @@ export default async function HomePage({ params }: HomePageProps) {
         />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.78),rgba(0,0,0,0.42),rgba(0,0,0,0.18))]" />
 
-        <div className="relative mx-auto flex min-h-[82vh] max-w-7xl items-center px-5 py-20">
+        <div className="relative mx-auto flex min-h-[78vh] max-w-7xl items-center px-4 py-16 sm:min-h-[82vh] sm:px-5 sm:py-20">
           <div className="max-w-3xl">
             <p className="mb-5 text-sm font-semibold uppercase tracking-[0.22em] text-white/75">
               {dictionary.home.eyebrow}
             </p>
-            <h1 className="text-5xl font-semibold leading-tight md:text-7xl">
+            <h1 className="text-4xl font-semibold leading-tight sm:text-5xl md:text-7xl">
               {dictionary.home.title}
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-white/82">
+            <p className="mt-6 max-w-2xl text-base leading-7 text-white/82 sm:text-lg sm:leading-8">
               {dictionary.home.summary}
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 href={`/${locale}/about`}
-                className="inline-flex items-center gap-2 bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.28)]"
+                className="inline-flex min-h-11 items-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.28)] sm:px-5"
               >
                 {dictionary.home.primaryAction}
                 <ArrowRight size={16} aria-hidden="true" />
               </Link>
               <Link
                 href={`/${locale}/countries`}
-                className="inline-flex items-center gap-2 border border-white/55 px-5 py-3 text-sm font-semibold text-white"
+                className="inline-flex min-h-11 items-center gap-2 border border-white/55 px-4 py-3 text-sm font-semibold text-white sm:px-5"
               >
                 {dictionary.home.secondaryAction}
               </Link>
@@ -69,8 +69,8 @@ export default async function HomePage({ params }: HomePageProps) {
       </section>
 
       <section className="border-b border-[var(--line)] bg-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 lg:grid-cols-[0.9fr_1.1fr]">
-          <blockquote className="border-l-4 border-[var(--accent)] pl-6 text-3xl font-semibold leading-tight text-[var(--ink-blue)] md:text-4xl">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:gap-10 sm:px-5 sm:py-16 lg:grid-cols-[0.9fr_1.1fr]">
+          <blockquote className="border-l-4 border-[var(--accent)] pl-5 text-2xl font-semibold leading-tight text-[var(--ink-blue)] sm:pl-6 sm:text-3xl md:text-4xl">
             “{dictionary.home.quote}”
           </blockquote>
           <div>
@@ -87,7 +87,7 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-5 py-16 lg:grid-cols-2">
+      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-12 sm:gap-8 sm:px-5 sm:py-16 lg:grid-cols-2">
         <PublicPillar
           icon={<Globe2 size={24} />}
           title={dictionary.home.familyTitle}
@@ -101,7 +101,7 @@ export default async function HomePage({ params }: HomePageProps) {
       </section>
 
       <section className="overflow-hidden border-t border-[var(--line)] bg-[var(--ink-blue)] text-white">
-        <div className="mx-auto max-w-7xl px-5 pt-16">
+        <div className="mx-auto max-w-7xl px-4 pt-12 sm:px-5 sm:pt-16">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
@@ -146,7 +146,7 @@ export default async function HomePage({ params }: HomePageProps) {
       </section>
 
       <section className="overflow-hidden border-y border-[var(--line)] bg-white">
-        <div className="mx-auto max-w-7xl px-5 pt-16">
+        <div className="mx-auto max-w-7xl px-4 pt-12 sm:px-5 sm:pt-16">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
             {dictionary.home.readMoreEyebrow}
           </p>
@@ -213,7 +213,7 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
       </section>
 
-      <section className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-16 md:flex-row md:items-center md:justify-between">
+      <section className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-12 sm:px-5 sm:py-16 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
             {dictionary.home.joinEyebrow}
@@ -224,7 +224,7 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
         <Link
           href={`/${locale}/join`}
-          className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white"
+          className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white sm:px-5"
         >
           {dictionary.home.joinAction}
           <MapPin size={16} aria-hidden="true" />
@@ -254,14 +254,14 @@ function ReportCard({
       href={href}
       aria-hidden={ariaHidden}
       tabIndex={ariaHidden ? -1 : undefined}
-      className="group grid min-h-[300px] w-[min(86vw,620px)] shrink-0 overflow-hidden border border-white/20 bg-white/8 text-white backdrop-blur transition-colors hover:bg-white/14 md:grid-cols-[0.95fr_1.05fr]"
+      className="group grid min-h-[300px] w-[min(90vw,620px)] shrink-0 overflow-hidden border border-white/20 bg-white/8 text-white backdrop-blur transition-colors hover:bg-white/14 md:grid-cols-[0.95fr_1.05fr]"
     >
       <div
         className="min-h-[220px] bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.03]"
         style={{ backgroundImage: `url(${image})` }}
         aria-hidden="true"
       />
-      <div className="flex flex-col justify-between p-6">
+      <div className="flex flex-col justify-between p-5 sm:p-6">
         <span className="text-sm font-semibold text-white/65">{date}</span>
         <h3 className="mt-8 text-2xl font-semibold leading-tight">{title}</h3>
         <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold">
@@ -283,7 +283,7 @@ function PublicPillar({
   text: string;
 }) {
   return (
-    <div className="border-l border-[var(--line)] pl-5">
+    <div className="border-l border-[var(--line)] pl-4 sm:pl-5">
       <div className="mb-5 flex size-12 items-center justify-center bg-[var(--ink-blue)] text-white">
         {icon}
       </div>
@@ -313,14 +313,14 @@ function ArticleLink({
       href={href}
       aria-hidden={ariaHidden}
       tabIndex={ariaHidden ? -1 : undefined}
-      className="group grid min-h-[360px] w-[min(86vw,720px)] shrink-0 overflow-hidden border border-[var(--line)] md:grid-cols-2"
+      className="group grid min-h-[360px] w-[min(90vw,720px)] shrink-0 overflow-hidden border border-[var(--line)] md:grid-cols-2"
     >
       <div
         className="min-h-[240px] bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.03]"
         style={{ backgroundImage: `url(${image})` }}
         aria-hidden="true"
       />
-      <div className="flex flex-col justify-end bg-[var(--background)] p-6">
+      <div className="flex flex-col justify-end bg-[var(--background)] p-5 sm:p-6">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
           {label}
         </p>

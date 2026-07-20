@@ -13,8 +13,9 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
+import { optimizeImageForUpload } from "@/lib/media/optimize-image";
 import { getAdminSessionBridgeHeaders } from "@/lib/supabase/admin-session-bridge";
-import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { defaultLocale, localeLabels, type Locale } from "@/lib/i18n/config";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
 type ContentStatus = "draft" | "published" | "archived";
@@ -39,6 +40,7 @@ type CountryRow = {
   status: ContentStatus;
   is_public: boolean;
   responsible_person: string | null;
+  representative_entity: string | null;
   responsible_email: string | null;
   flag_media_id: string | null;
   main_image_media_id: string | null;
@@ -59,6 +61,7 @@ type DojoRow = {
   city: string;
   address: string | null;
   responsible_instructor: string | null;
+  responsible_instructor_media_id: string | null;
   email: string | null;
   phone: string | null;
   website: string | null;
@@ -79,6 +82,7 @@ type CountryForm = {
   slugTouched: boolean;
   description: string;
   responsiblePerson: string;
+  representativeEntity: string;
   responsibleEmail: string;
   logoUrl: string;
   imageUrl: string;
@@ -97,6 +101,7 @@ type DojoForm = {
   city: string;
   address: string;
   responsibleInstructor: string;
+  responsibleInstructorPhotoUrl: string;
   email: string;
   phone: string;
   website: string;
@@ -112,15 +117,9 @@ type LocationScope = {
   roleKeys: string[];
 };
 
-const locales: Array<{ key: Locale; label: string }> = [
-  { key: "en", label: "English" },
-  { key: "es", label: "Español" },
-  { key: "it", label: "Italiano" },
-  { key: "fr", label: "Français" },
-  { key: "ja", label: "日本語" },
-  { key: "zh", label: "中文" },
-  { key: "cs", label: "Čeština" },
-];
+const locales: Array<{ key: Locale; label: string }> = (
+  Object.entries(localeLabels) as Array<[Locale, string]>
+).map(([key, label]) => ({ key, label }));
 
 function createEmptyCountryForm(locale: Locale): CountryForm {
   return {
@@ -133,6 +132,7 @@ function createEmptyCountryForm(locale: Locale): CountryForm {
     slugTouched: false,
     description: "",
     responsiblePerson: "",
+    representativeEntity: "",
     responsibleEmail: "",
     logoUrl: "",
     imageUrl: "",
@@ -152,6 +152,7 @@ function createEmptyDojoForm(locale: Locale): DojoForm {
     city: "",
     address: "",
     responsibleInstructor: "",
+    responsibleInstructorPhotoUrl: "",
     email: "",
     phone: "",
     website: "",
@@ -193,6 +194,8 @@ export function LocationsAdmin({
   const [saving, setSaving] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [countryCsvText, setCountryCsvText] = useState("");
+  const [dojoCsvText, setDojoCsvText] = useState("");
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -214,7 +217,7 @@ export function LocationsAdmin({
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudieron cargar paises y dojos.");
+      setMessage(data.error ?? copy.loadLocationsError);
       setCountries([]);
       setDojos([]);
       setMediaById(new Map());
@@ -294,10 +297,6 @@ export function LocationsAdmin({
     setSaving(true);
     setMessage("");
 
-    const logoMediaId = await saveMediaReference(
-      countryForm.logoUrl,
-      `${countryForm.name} logo`,
-    );
     const response = await fetch("/api/admin/locations", {
       method: "POST",
       headers: {
@@ -308,14 +307,14 @@ export function LocationsAdmin({
         action: "save_country",
         country: {
           ...countryForm,
-          flagMediaId: logoMediaId,
+          flagMediaUrl: countryForm.logoUrl || null,
         },
       }),
     });
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo guardar el pais.");
+      setMessage(data.error ?? copy.saveCountryError);
       setSaving(false);
       return;
     }
@@ -325,6 +324,7 @@ export function LocationsAdmin({
     await loadLocations();
     setSaving(false);
     return;
+    /*
 
     const payload = {
       code: countryForm.code.toUpperCase(),
@@ -373,13 +373,13 @@ export function LocationsAdmin({
     setMessage("País guardado.");
     await loadLocations();
     setSaving(false);
+    */
   }
 
   async function saveDojo() {
     setSaving(true);
     setMessage("");
 
-    const imageMediaId = await saveMediaReference(dojoForm.imageUrl, dojoForm.name);
     const response = await fetch("/api/admin/locations", {
       method: "POST",
       headers: {
@@ -391,23 +391,26 @@ export function LocationsAdmin({
         dojo: {
           ...dojoForm,
           countryId: dojoForm.countryId || countries[0]?.id || "",
-          mainImageMediaId: imageMediaId,
+          mainImageMediaUrl: dojoForm.imageUrl || null,
+          responsibleInstructorMediaUrl:
+            dojoForm.responsibleInstructorPhotoUrl || null,
         },
       }),
     });
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo guardar el dojo.");
+      setMessage(data.error ?? copy.saveDojoError);
       setSaving(false);
       return;
     }
 
     setDojoForm(createEmptyDojoForm(dojoForm.locale));
-    setMessage("Dojo guardado.");
+    setMessage(copy.dojoSaved);
     await loadLocations();
     setSaving(false);
     return;
+    /*
 
     const payload = {
       country_id: dojoForm.countryId,
@@ -465,6 +468,7 @@ export function LocationsAdmin({
     setMessage("Dojo guardado.");
     await loadLocations();
     setSaving(false);
+    */
   }
 
   async function importExistingCountries() {
@@ -609,7 +613,7 @@ export function LocationsAdmin({
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo borrar el pais.");
+      setMessage(data.error ?? copy.deleteCountryError);
       return;
     }
 
@@ -640,11 +644,11 @@ export function LocationsAdmin({
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo borrar el dojo.");
+      setMessage(data.error ?? copy.deleteDojoError);
       return;
     }
 
-    setMessage("Dojo eliminado.");
+    setMessage(copy.dojoDeleted);
     await loadLocations();
     return;
 
@@ -659,6 +663,70 @@ export function LocationsAdmin({
     await loadLocations();
   }
 
+  async function importCountriesCsv() {
+    setSaving(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/locations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({ action: "import_countries_csv", csv: countryCsvText }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.importCountriesError);
+      setSaving(false);
+      return;
+    }
+
+    setCountryCsvText("");
+    setMessage(
+      `${copy.importSummary}: ${data.imported ?? 0} ${copy.created}, ${data.updated ?? 0} ${copy.updated}, ${data.skipped ?? 0} ${copy.skipped}.`,
+    );
+    await loadLocations();
+    setSaving(false);
+  }
+
+  async function importDojosCsv() {
+    setSaving(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/locations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({ action: "import_dojos_csv", csv: dojoCsvText }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.importDojosError);
+      setSaving(false);
+      return;
+    }
+
+    setDojoCsvText("");
+    setMessage(
+      `${copy.importSummary}: ${data.imported ?? 0} ${copy.created}, ${data.updated ?? 0} ${copy.updated}, ${data.skipped ?? 0} ${copy.skipped}.`,
+    );
+    await loadLocations();
+    setSaving(false);
+  }
+
+  async function readCsvFile(
+    file: File,
+    setter: React.Dispatch<React.SetStateAction<string>>,
+  ) {
+    const text = await file.text();
+    setter(text);
+  }
+
   async function uploadPublicImage(file: File, scope: string) {
     if (!file.type.startsWith("image/")) {
       setMessage(copy.selectImageFile);
@@ -667,18 +735,26 @@ export function LocationsAdmin({
 
     setUploadingField(scope);
     setMessage("");
+    const optimizedFile = await optimizeImageForUpload(file, {
+      maxWidth: 1800,
+      maxHeight: 1800,
+      quality: 0.8,
+      maxBytes: 520 * 1024,
+      outputType: "image/webp",
+      fileNameBase: `${scope}-${file.name}`,
+    });
 
-    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const extension = optimizedFile.name.split(".").pop()?.toLowerCase() || "webp";
     const safeScope = slugify(scope) || "image";
     const safeName =
-      slugify(file.name.replace(/\.[^.]+$/, "")) || `imagen-${Date.now()}`;
+      slugify(optimizedFile.name.replace(/\.[^.]+$/, "")) || `imagen-${Date.now()}`;
     const storagePath = `locations/${safeScope}/${Date.now()}-${safeName}.${extension}`;
 
     const { error } = await supabase.storage
       .from("public-media")
-      .upload(storagePath, file, {
+      .upload(storagePath, optimizedFile, {
         cacheControl: "31536000",
-        contentType: file.type,
+        contentType: optimizedFile.type,
         upsert: true,
       });
 
@@ -694,34 +770,6 @@ export function LocationsAdmin({
       .getPublicUrl(storagePath);
 
     return data.publicUrl;
-  }
-
-  async function saveMediaReference(url: string, title: string) {
-    if (!url) {
-      return null;
-    }
-
-    const { data, error } = await supabase
-      .from("media_library")
-      .upsert(
-        {
-          storage_bucket: "public-media",
-          storage_path: url,
-          title,
-          alt_text: title,
-          visibility: "public",
-        },
-        { onConflict: "storage_bucket,storage_path" },
-      )
-      .select("id")
-      .single();
-
-    if (error || !data) {
-      setMessage(error?.message ?? "No se pudo guardar la imagen.");
-      return null;
-    }
-
-    return data.id as string;
   }
 
   async function getUniqueDojoSlug(
@@ -770,7 +818,9 @@ export function LocationsAdmin({
   }
 
   const isGlobalScope = scope?.isGlobal === true;
+  const isSuperAdminScope = scope?.roleKeys?.includes("super_admin") === true;
   const canEditCountry = isGlobalScope || (scope?.countryIds.length ?? 0) > 0;
+  const canCreateCountry = isSuperAdminScope;
 
   return (
     <section className="mt-8 border border-[var(--line)] bg-white p-5">
@@ -796,8 +846,8 @@ export function LocationsAdmin({
               displayLocale={countryForm.locale}
               loading={loading}
               saving={saving}
-              canImport={isGlobalScope}
-              canDelete={isGlobalScope}
+              canImport={canCreateCountry}
+              canDelete={isSuperAdminScope}
               onImportExisting={importExistingCountries}
               onEdit={editCountry}
               onDelete={deleteCountry}
@@ -816,12 +866,40 @@ export function LocationsAdmin({
         </div>
 
         <div className="grid gap-5">
+          {canCreateCountry ? (
+            <CsvImportPanel
+              title={copy.importCountriesTitle}
+              description={copy.importCountriesDescription}
+              csvText={countryCsvText}
+              setCsvText={setCountryCsvText}
+              saving={saving}
+              buttonLabel={copy.importCountriesButton}
+              helper={copy.importCountriesHelper}
+              uploadLabel={copy.uploadCsv}
+              onImport={importCountriesCsv}
+              onFile={async (file) => readCsvFile(file, setCountryCsvText)}
+            />
+          ) : null}
+          {canEditCountry ? (
+            <CsvImportPanel
+              title={copy.importDojosTitle}
+              description={copy.importDojosDescription}
+              csvText={dojoCsvText}
+              setCsvText={setDojoCsvText}
+              saving={saving}
+              buttonLabel={copy.importDojosButton}
+              helper={copy.importDojosHelper}
+              uploadLabel={copy.uploadCsv}
+              onImport={importDojosCsv}
+              onFile={async (file) => readCsvFile(file, setDojoCsvText)}
+            />
+          ) : null}
           {canEditCountry ? (
             <CountryFormView
               form={countryForm}
               setForm={setCountryForm}
               onLocaleChange={changeCountryFormLocale}
-              canCreate={isGlobalScope}
+              canCreate={canCreateCountry}
               saving={saving}
               uploadingField={uploadingField}
               onUploadImage={uploadPublicImage}
@@ -999,7 +1077,7 @@ function DojoList({
   return (
     <details className="border border-[var(--line)] p-4">
       <summary className="cursor-pointer text-xl font-semibold">
-        Dojos ({dojos.length})
+        {copy.dojos} ({dojos.length})
       </summary>
       <div className="mt-4 grid gap-3">
         {loading ? (
@@ -1022,7 +1100,7 @@ function DojoList({
                 </p>
                 <h4 className="mt-1 text-lg font-semibold">{name}</h4>
                 <p className="text-sm text-[var(--muted)]">
-                  {dojo.ika_dojo_id ?? "ID pendiente"} · {dojo.city}
+                  {dojo.ika_dojo_id ?? copy.pendingId} - {dojo.city}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
@@ -1096,7 +1174,7 @@ function CountryFormView({
         />
         <div className="grid gap-3 md:grid-cols-2">
           <TextInput
-            label="Código país"
+            label={copy.countryCode}
             value={form.code}
             onChange={(value) =>
               setForm((current) => ({ ...current, code: value.toUpperCase() }))
@@ -1115,7 +1193,7 @@ function CountryFormView({
           />
         </div>
         <Checkbox
-          label="Visible en la web pública"
+          label={copy.visibleOnPublicSite}
           checked={form.isPublic}
           onChange={(checked) =>
             setForm((current) => ({ ...current, isPublic: checked }))
@@ -1133,7 +1211,7 @@ function CountryFormView({
           }
         />
         <TextInput
-          label="Slug"
+          label={copy.slug}
           value={form.slug}
           onChange={(value) =>
             setForm((current) => ({
@@ -1158,6 +1236,15 @@ function CountryFormView({
               setForm((current) => ({ ...current, responsiblePerson: value }))
             }
           />
+          <TextInput
+          label={copy.representativeEntity}
+            value={form.representativeEntity}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, representativeEntity: value }))
+            }
+          />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
           <TextInput
           label={copy.responsibleEmail}
             value={form.responsibleEmail}
@@ -1185,6 +1272,7 @@ function CountryFormView({
           disabled={!form.code || !form.name || (!canCreate && !form.id)}
           onSave={onSave}
           onReset={onReset}
+          showReset={canCreate}
           copy={copy}
         />
       </div>
@@ -1270,7 +1358,7 @@ function DojoFormView({
             options={statusOptions(copy)}
           />
           <TextInput
-            label="Ciudad"
+            label={copy.city}
             value={form.city}
             onChange={(value) =>
               setForm((current) => ({ ...current, city: value }))
@@ -1278,7 +1366,7 @@ function DojoFormView({
           />
         </div>
         <Checkbox
-          label="Visible en la web pública"
+          label={copy.visibleOnPublicSite}
           checked={form.isPublic}
           onChange={(checked) =>
             setForm((current) => ({ ...current, isPublic: checked }))
@@ -1296,7 +1384,7 @@ function DojoFormView({
           }
         />
         <TextInput
-          label="Slug"
+          label={copy.slug}
           value={form.slug}
           onChange={(value) =>
             setForm((current) => ({
@@ -1330,9 +1418,31 @@ function DojoFormView({
             }))
           }
         />
+        <ImageUploadField
+          label={copy.instructorPhoto}
+          helperText={copy.instructorPhotoHelp}
+          value={form.responsibleInstructorPhotoUrl}
+          uploading={uploadingField === "dojo-instructor-photo"}
+          onUpload={async (file) => {
+            const url = await onUploadImage(file, "dojo-instructor-photo");
+            if (url) {
+              setForm((current) => ({
+                ...current,
+                responsibleInstructorPhotoUrl: url,
+              }));
+            }
+          }}
+          onClear={() =>
+            setForm((current) => ({
+              ...current,
+              responsibleInstructorPhotoUrl: "",
+            }))
+          }
+          copy={copy}
+        />
         <div className="grid gap-3 md:grid-cols-2">
           <TextInput
-            label="Email"
+            label={copy.email}
             value={form.email}
             onChange={(value) =>
               setForm((current) => ({ ...current, email: value }))
@@ -1372,6 +1482,7 @@ function DojoFormView({
           disabled={!effectiveCountryId || !form.city || !form.name}
           onSave={onSave}
           onReset={onReset}
+          showReset
           copy={copy}
         />
       </div>
@@ -1392,12 +1503,14 @@ function FormButtons({
   disabled,
   onSave,
   onReset,
+  showReset = true,
   copy,
 }: {
   saving: boolean;
   disabled: boolean;
   onSave: () => void;
   onReset: () => void;
+  showReset?: boolean;
   copy: ReturnType<typeof locationsAdminCopy>;
 }) {
   return (
@@ -1410,13 +1523,15 @@ function FormButtons({
         {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
         {copy.save}
       </button>
-      <button
-        onClick={onReset}
-        className="inline-flex items-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
-      >
-        <Plus size={16} />
-        {copy.new}
-      </button>
+      {showReset ? (
+        <button
+          onClick={onReset}
+          className="inline-flex items-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
+        >
+          <Plus size={16} />
+          {copy.new}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -1547,7 +1662,7 @@ function ImageUploadField({
           <div
             className="mb-3 h-36 border border-[var(--line)] bg-white bg-contain bg-center bg-no-repeat"
             style={{ backgroundImage: `url("${value}")` }}
-            aria-label={`Vista previa: ${label}`}
+            aria-label={`${copy.preview}: ${label}`}
           />
         ) : (
           <div className="mb-3 flex h-28 items-center justify-center border border-dashed border-[var(--line)] bg-white text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
@@ -1592,6 +1707,70 @@ function ImageUploadField({
   );
 }
 
+function CsvImportPanel({
+  title,
+  description,
+  csvText,
+  setCsvText,
+  saving,
+  buttonLabel,
+  helper,
+  uploadLabel,
+  onImport,
+  onFile,
+}: {
+  title: string;
+  description: string;
+  csvText: string;
+  setCsvText: React.Dispatch<React.SetStateAction<string>>;
+  saving: boolean;
+  buttonLabel: string;
+  helper: string;
+  uploadLabel: string;
+  onImport: () => void;
+  onFile: (file: File) => void;
+}) {
+  return (
+    <details className="border border-[var(--line)] p-4">
+      <summary className="cursor-pointer text-xl font-semibold">{title}</summary>
+      <div className="mt-4 grid gap-3">
+        <p className="text-sm leading-6 text-[var(--muted)]">{description}</p>
+        <label className="inline-flex w-fit cursor-pointer items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold">
+          <Plus size={16} />
+          {uploadLabel}
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) {
+                onFile(file);
+              }
+            }}
+          />
+        </label>
+        <textarea
+          value={csvText}
+          onChange={(event) => setCsvText(event.target.value)}
+          rows={8}
+          className="resize-y border border-[var(--line)] px-3 py-2 font-normal"
+        />
+        <p className="text-xs text-[var(--muted)]">{helper}</p>
+        <button
+          onClick={onImport}
+          disabled={saving || !csvText.trim()}
+          className="inline-flex w-fit items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {buttonLabel}
+        </button>
+      </div>
+    </details>
+  );
+}
+
 function hydrateCountryForm(
   country: CountryRow,
   locale: Locale,
@@ -1612,6 +1791,7 @@ function hydrateCountryForm(
     slugTouched: false,
     description: translation?.description ?? "",
     responsiblePerson: country.responsible_person ?? "",
+    representativeEntity: country.representative_entity ?? "",
     responsibleEmail: country.responsible_email ?? "",
     logoUrl: getMediaUrl(country.flag_media_id, mediaById),
     imageUrl: getMediaUrl(country.main_image_media_id, mediaById),
@@ -1640,6 +1820,10 @@ function hydrateDojoForm(
     city: dojo.city,
     address: dojo.address ?? "",
     responsibleInstructor: dojo.responsible_instructor ?? "",
+    responsibleInstructorPhotoUrl: getMediaUrl(
+      dojo.responsible_instructor_media_id,
+      mediaById,
+    ),
     email: dojo.email ?? "",
     phone: dojo.phone ?? "",
     website: dojo.website ?? "",
@@ -1665,15 +1849,51 @@ function locationsAdminCopy(locale: Locale) {
   const es = locale === "es";
 
   return {
+    loadLocationsError: es
+      ? "No se pudieron cargar paises y dojos."
+      : "Could not load countries and dojos.",
     countrySaved: es ? "Pais guardado." : "Country saved.",
     countryDeleted: es ? "Pais eliminado." : "Country deleted.",
+    saveCountryError: es
+      ? "No se pudo guardar el pais."
+      : "Could not save the country.",
+    saveDojoError: es
+      ? "No se pudo guardar el dojo."
+      : "Could not save the dojo.",
+    dojoSaved: es ? "Dojo guardado." : "Dojo saved.",
+    deleteCountryError: es
+      ? "No se pudo borrar el pais."
+      : "Could not delete the country.",
+    deleteDojoError: es
+      ? "No se pudo borrar el dojo."
+      : "Could not delete the dojo.",
+    importCountriesError: es
+      ? "No se pudo importar el CSV de paises."
+      : "Could not import the countries CSV.",
+    importDojosError: es
+      ? "No se pudo importar el CSV de dojos."
+      : "Could not import the dojos CSV.",
+    dojoDeleted: es ? "Dojo eliminado." : "Dojo deleted.",
     selectImageFile: es ? "Selecciona un archivo de imagen." : "Select an image file.",
+    importSummary: es ? "Resumen de importacion" : "Import summary",
+    created: es ? "creados" : "created",
+    updated: es ? "actualizados" : "updated",
+    skipped: es ? "omitidos" : "skipped",
+    uploadCsv: es ? "Subir CSV" : "Upload CSV",
     title: es ? "Paises y dojos" : "Countries and dojos",
     intro: es
       ? "Gestiona paises, logos, responsables y dojos asociados. Las fichas publicas se actualizan desde Supabase."
       : "Manage countries, logos, responsible contacts and associated dojos. Public records update from Supabase.",
     countries: es ? "Paises" : "Countries",
     importExistingCountries: es ? "Importar paises existentes" : "Import existing countries",
+    importCountriesTitle: es ? "Importacion CSV de paises" : "Countries CSV import",
+    importCountriesDescription: es
+      ? "Pega o sube el CSV exportado desde Google Sheets para crear o actualizar paises en bloque. Solo super admin."
+      : "Paste or upload the CSV exported from Google Sheets to create or update countries in bulk. Super admin only.",
+    importCountriesButton: es ? "Importar paises" : "Import countries",
+    importCountriesHelper: es
+      ? "Columnas recomendadas: country_code, country_name, status, is_public, responsible_person, representative_entity, responsible_email, description_es."
+      : "Recommended columns: country_code, country_name, status, is_public, responsible_person, representative_entity, responsible_email, description_es.",
     loadingCountries: es ? "Cargando paises..." : "Loading countries...",
     noCountries: es
       ? "Aun no hay paises en Supabase. Importa los existentes para empezar a editarlos."
@@ -1691,12 +1911,18 @@ function locationsAdminCopy(locale: Locale) {
     selectCountryToEdit: es ? "Selecciona tu pais en la lista para editarlo." : "Select your country in the list to edit it.",
     language: es ? "Idioma" : "Language",
     status: es ? "Estado" : "Status",
+    countryCode: es ? "Codigo pais" : "Country code",
     draft: es ? "Borrador" : "Draft",
     published: es ? "Publicado" : "Published",
     archived: es ? "Archivado" : "Archived",
+    slug: "Slug",
+    visibleOnPublicSite: es ? "Visible en la web publica" : "Visible on the public website",
     name: es ? "Nombre" : "Name",
     countryInfo: es ? "Informacion del pais" : "Country information",
     responsible: es ? "Responsable" : "Responsible person",
+    representativeEntity: es
+      ? "Entidad representante del pais"
+      : "Country representative entity",
     responsibleEmail: es ? "Email responsable" : "Responsible email",
     countryFlag: es ? "Bandera del pais" : "Country flag",
     countryFlagHelp: es
@@ -1704,12 +1930,27 @@ function locationsAdminCopy(locale: Locale) {
       : "Usually you do not need to upload anything: the website sets the flag automatically from the country code. Use this upload only if you need to replace it manually.",
     editDojo: es ? "Editar dojo" : "Edit dojo",
     newDojo: es ? "Nuevo dojo" : "New dojo",
+    importDojosTitle: es ? "Importacion CSV de dojos" : "Dojos CSV import",
+    importDojosDescription: es
+      ? "Pega o sube el CSV exportado desde Google Sheets para crear o actualizar dojos del pais correspondiente."
+      : "Paste or upload the CSV exported from Google Sheets to create or update dojos for the corresponding country.",
+    importDojosButton: es ? "Importar dojos" : "Import dojos",
+    importDojosHelper: es
+      ? "Columnas recomendadas: country_code, dojo_name, city, address, responsible_instructor, email, phone, website, status, is_public, description_es."
+      : "Recommended columns: country_code, dojo_name, city, address, responsible_instructor, email, phone, website, status, is_public, description_es.",
+    dojos: "Dojos",
     country: es ? "Pais" : "Country",
+    city: es ? "Ciudad" : "City",
     dojoName: es ? "Nombre dojo" : "Dojo name",
     dojoInfo: es ? "Informacion, horarios y notas" : "Information, schedule and notes",
     address: es ? "Direccion" : "Address",
     responsibleInstructor: es ? "Instructor responsable" : "Responsible instructor",
+    instructorPhoto: es ? "Foto del responsable tecnico" : "Technical lead photo",
+    instructorPhotoHelp: es
+      ? "Foto del sensei o responsable tecnico que se mostrara en la ficha publica del dojo."
+      : "Photo of the sensei or technical lead shown on the public dojo card.",
     phone: es ? "Telefono" : "Phone",
+    email: "Email",
     website: es ? "Pagina web" : "Website",
     dojoLogo: es ? "Logo de kempo del dojo" : "Dojo kempo logo",
     dojoLogoHelp: es
@@ -1718,6 +1959,7 @@ function locationsAdminCopy(locale: Locale) {
     save: es ? "Guardar" : "Save",
     new: es ? "Nuevo" : "New",
     noImage: es ? "Sin imagen" : "No image",
+    preview: es ? "Vista previa" : "Preview",
     changeImage: es ? "Cambiar imagen" : "Change image",
     uploadImage: es ? "Subir imagen" : "Upload image",
     removeImage: es ? "Quitar imagen" : "Remove image",

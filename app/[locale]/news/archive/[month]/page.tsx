@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Archive } from "lucide-react";
-import { isLocale, locales } from "@/lib/i18n/config";
+import Image from "next/image";
+import { defaultLocale, isLocale, locales } from "@/lib/i18n/config";
 import {
-  archiveMonths,
+  getArchiveMonths,
   getArchiveMonthLabel,
   getArchiveNewsByMonth,
-  isArchiveMonth,
 } from "@/lib/content/news-archive";
 import { archiveLabels } from "@/lib/i18n/news-archive";
 import { ArchiveSidebar } from "@/components/news/archive-sidebar";
@@ -16,10 +16,9 @@ type ArchiveMonthPageProps = {
   params: Promise<{ locale: string; month: string }>;
 };
 
-export function generateStaticParams() {
-  return locales.flatMap((locale) =>
-    archiveMonths.map((month) => ({ locale, month })),
-  );
+export async function generateStaticParams() {
+  const months = await getArchiveMonths();
+  return locales.flatMap((locale) => months.map((month) => ({ locale, month })));
 }
 
 export default async function ArchiveMonthPage({
@@ -27,13 +26,15 @@ export default async function ArchiveMonthPage({
 }: ArchiveMonthPageProps) {
   const { locale, month } = await params;
 
-  if (!isLocale(locale) || !isArchiveMonth(month)) {
+  const availableMonths = await getArchiveMonths();
+
+  if (!isLocale(locale) || !availableMonths.includes(month)) {
     notFound();
   }
 
-  const labels = archiveLabels[locale];
+  const labels = archiveLabels[locale] ?? archiveLabels[defaultLocale]!;
   const dictionary = getDictionary(locale);
-  const items = getArchiveNewsByMonth(locale, month);
+  const items = await getArchiveNewsByMonth(locale, month);
   const monthLabel = getArchiveMonthLabel(month, locale);
 
   return (
@@ -61,14 +62,20 @@ export default async function ArchiveMonthPage({
               <article
                 key={item.slug}
                 id={item.slug}
-                className="grid overflow-hidden border border-[var(--line)] bg-white lg:grid-cols-[0.36fr_0.64fr]"
+                className="grid overflow-hidden border border-[var(--line)] bg-white lg:grid-cols-[0.42fr_0.58fr]"
               >
                 {item.image ? (
-                  <div
-                    className="min-h-[230px] bg-cover bg-center"
-                    style={{ backgroundImage: `url(${item.image})` }}
-                    aria-hidden="true"
-                  />
+                  <div className="bg-[var(--paper)] p-4 sm:p-5">
+                    <div className="relative min-h-[260px] overflow-hidden border border-[var(--line)] bg-white sm:min-h-[320px]">
+                      <Image
+                        src={item.image}
+                        alt={item.title}
+                        fill
+                        sizes="(max-width: 1024px) 100vw, 40vw"
+                        className="object-contain"
+                      />
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex min-h-[230px] items-center justify-center bg-[var(--ink-blue)] text-white">
                     <div className="text-center">
@@ -79,12 +86,12 @@ export default async function ArchiveMonthPage({
                     </div>
                   </div>
                 )}
-                <div className="flex flex-col justify-between p-6">
+                <div className="flex flex-col justify-between p-6 sm:p-8">
                   <div>
                     <p className="text-sm font-semibold text-[var(--accent)]">
                       {item.date}
                     </p>
-                    <h2 className="mt-3 text-2xl font-semibold leading-tight">
+                    <h2 className="mt-3 text-2xl font-semibold leading-tight sm:text-[2rem]">
                       {item.title}
                     </h2>
                     <p className="mt-4 text-base leading-7 text-[var(--muted)]">
@@ -103,10 +110,7 @@ export default async function ArchiveMonthPage({
           </div>
         </div>
 
-        <ArchiveSidebar
-          locale={locale}
-          activeMonth={month}
-        />
+        <ArchiveSidebar locale={locale} activeMonth={month} />
       </div>
     </section>
   );

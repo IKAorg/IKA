@@ -1,4 +1,4 @@
-import { isLocale } from "@/lib/i18n/config";
+import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { PublicContentBlocks } from "@/components/public/public-content-blocks";
 import Link from "next/link";
@@ -9,7 +9,18 @@ type JoinPageProps = {
 
 export const revalidate = 60;
 
-const joinGuidance = {
+const joinGuidance: Partial<
+  Record<
+    Locale,
+    {
+      title: string;
+      existing: string;
+      newCountry: string;
+      countries: string;
+      contact: string;
+    }
+  >
+> = {
   en: {
     title: "Before contacting IKA",
     existing:
@@ -73,7 +84,52 @@ const joinGuidance = {
     countries: "Zobrazit zeme",
     contact: "Kontaktovat IKA",
   },
-} as const;
+  id: {
+    title: "Sebelum menghubungi IKA",
+    existing:
+      "Jika IKA sudah ada di negara Anda, langkah pertama adalah menghubungi perwakilan nasional. Email dan data publiknya tersedia di halaman negara.",
+    newCountry:
+      "Jika negara Anda belum terdaftar di IKA, hubungi langsung pimpinan IKA dan perkenalkan organisasi, latar belakang, dan negara Anda.",
+    countries: "Lihat negara",
+    contact: "Hubungi IKA",
+  },
+  ms: {
+    title: "Sebelum menghubungi IKA",
+    existing:
+      "Jika IKA sudah wujud di negara anda, langkah pertama ialah menghubungi wakil negara. E-mel dan maklumat awam mereka ada di halaman negara.",
+    newCountry:
+      "Jika negara anda belum tersenarai dalam IKA, hubungi terus pihak pengurusan IKA dan perkenalkan organisasi, latar belakang dan negara anda.",
+    countries: "Lihat negara",
+    contact: "Hubungi IKA",
+  },
+  eu: {
+    title: "IKArekin harremanetan jarri aurretik",
+    existing:
+      "IKA zure herrialdean badago, lehen urratsa herrialdeko ordezkariarekin harremanetan jartzea da. Haren e-posta eta datu publikoak herrialdeen orrian daude.",
+    newCountry:
+      "Zure herrialdea IKAren barruan agertzen ez bada, jarri zuzenean harremanetan IKAren zuzendaritzarekin eta aurkeztu zure erakundea, ibilbidea eta herrialdea.",
+    countries: "Ikusi herrialdeak",
+    contact: "Jarri harremanetan IKArekin",
+  },
+  pt: {
+    title: "Antes de contactar a IKA",
+    existing:
+      "Se a IKA ja existe no seu pais, o primeiro passo e contactar o representante nacional. O email e os dados publicos estao na pagina de paises.",
+    newCountry:
+      "Se o seu pais nao aparece na IKA, contacte diretamente a direcao da IKA e apresente a sua organizacao, percurso e pais.",
+    countries: "Ver paises",
+    contact: "Contactar a IKA",
+  },
+  de: {
+    title: "Bevor Sie IKA kontaktieren",
+    existing:
+      "Wenn IKA bereits in Ihrem Land existiert, sollten Sie zuerst den Landesvertreter kontaktieren. Seine E-Mail und offentlichen Daten finden Sie auf der Landerseite.",
+    newCountry:
+      "Wenn Ihr Land noch nicht in IKA vertreten ist, kontaktieren Sie direkt die IKA-Leitung und stellen Sie Ihre Organisation, Ihren Hintergrund und Ihr Land vor.",
+    countries: "Lander ansehen",
+    contact: "IKA kontaktieren",
+  },
+};
 
 export default async function JoinPage({ params }: JoinPageProps) {
   const { locale } = await params;
@@ -82,35 +138,35 @@ export default async function JoinPage({ params }: JoinPageProps) {
     safeLocale,
     "join",
   );
-  const guidance = joinGuidance[safeLocale];
+  const guidance = joinGuidance[safeLocale] ?? joinGuidance[defaultLocale]!;
 
   return (
-    <section className="mx-auto max-w-7xl px-5 py-14">
+    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-5 sm:py-14">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
         {content.eyebrow}
       </p>
-      <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight md:text-5xl">
+      <h1 className="mt-4 max-w-4xl text-3xl font-semibold leading-tight sm:text-4xl md:text-5xl">
         {content.title}
       </h1>
-      <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--muted)]">
+      <p className="mt-6 max-w-3xl text-base leading-7 text-[var(--muted)] sm:text-lg sm:leading-8">
         {content.intro}
       </p>
-      <div className="mt-8 border border-[var(--line)] bg-white p-6">
+      <div className="mt-8 border border-[var(--line)] bg-white p-4 sm:p-6">
         <h2 className="text-2xl font-semibold">{guidance.title}</h2>
-        <div className="mt-4 grid gap-4 text-base leading-7 text-[var(--muted)] md:grid-cols-2">
+        <div className="mt-4 grid gap-4 text-sm leading-7 text-[var(--muted)] sm:text-base md:grid-cols-2">
           <p>{guidance.existing}</p>
           <p>{guidance.newCountry}</p>
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href={`/${safeLocale}/countries`}
-            className="inline-flex border border-black px-5 py-3 text-sm font-semibold uppercase tracking-[0.1em] transition hover:bg-black hover:text-white"
+            className="inline-flex min-h-11 border border-black px-4 py-3 text-sm font-semibold uppercase tracking-[0.1em] transition hover:bg-black hover:text-white sm:px-5"
           >
             {guidance.countries}
           </Link>
           <Link
             href={`/${safeLocale}/contact`}
-            className="inline-flex border border-[var(--accent)] bg-[var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[var(--accent-dark)]"
+            className="inline-flex min-h-11 border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[var(--accent-dark)] sm:px-5"
           >
             {guidance.contact}
           </Link>
@@ -118,7 +174,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
       </div>
       <PublicContentBlocks blocks={content.blocks} />
       {!content.hasCmsBlocks ? (
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {content.steps?.map((step) => (
             <Step
               key={step.number}

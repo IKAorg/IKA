@@ -22,10 +22,34 @@ type PortalSupabaseClient = ReturnType<
   typeof createServiceClient<UntypedDatabase, "public", "public">
 >;
 
+type EventRegistrationRow = {
+  id: string;
+  status: string;
+  payment_status?: string | null;
+  wants_tshirt?: boolean | null;
+  tshirt_size?: string | null;
+  created_at: string;
+  events: {
+    id: string;
+    event_type?: string | null;
+    starts_at?: string | null;
+    ends_at?: string | null;
+    registration_open?: boolean | null;
+    tshirt_enabled?: boolean | null;
+    event_translations?: Array<{
+      language_code: string;
+      title: string;
+      slug: string | null;
+      location_label?: string | null;
+    }>;
+  } | null;
+};
+
 const memberSelect =
   "id,ika_number,first_name,last_name,email,phone,status,current_grade,last_exam_date,birth_date,joined_date,member_group,profile_image_url,consent_accepted,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name))";
 
 export async function GET(request: NextRequest) {
+  const includeDashboard = request.nextUrl.searchParams.get("view") !== "portal";
   const ready = await getPortalRequestContext(request);
 
   if (ready.error) {
@@ -46,6 +70,7 @@ export async function GET(request: NextRequest) {
       roles: [],
       member: null,
       gradeHistory: [],
+      achievements: [],
       dashboard: null,
     });
   }
@@ -91,21 +116,46 @@ export async function GET(request: NextRequest) {
     roles: { key: string; name?: string } | Array<{ key: string; name?: string }> | null;
   }>;
   const scope = await getPortalScope(supabase, roles);
-  const dashboard = await getPortalDashboard(supabase, scope);
+  const dashboard = includeDashboard
+    ? await getPortalDashboard(supabase, scope)
+    : null;
   const portalMemberId =
     ((memberResult.data as { id?: string } | null)?.id ?? "").trim();
   const gradeHistory =
     portalMemberId
       ? await supabase
           .from("grade_history")
-          .select("id,grade,exam_date,exam_place,examiner")
+          .select("id,grade,exam_date,exam_place,examiner,course_type,course_reference_id")
           .eq("member_id", portalMemberId)
           .order("exam_date", { ascending: false })
       : { data: [], error: null };
+  const achievements =
+    portalMemberId
+      ? await supabase
+          .from("member_achievements")
+          .select("id,course_id,title,modality,category,result,award,medal_type,podium_position,achieved_on,achieved_place,notes")
+          .eq("member_id", portalMemberId)
+          .order("achieved_on", { ascending: false })
+      : { data: [], error: null };
+  const eventRegistrations =
+    portalMemberId
+      ? await supabase
+          .from("event_registrations")
+          .select(
+            "id,status,payment_status,wants_tshirt,tshirt_size,created_at,events(id,event_type,starts_at,ends_at,registration_open,tshirt_enabled,event_translations(language_code,title,slug,location_label))",
+          )
+          .eq("member_id", portalMemberId)
+          .order("created_at", { ascending: false })
+      : { data: [], error: null };
 
-  if (gradeHistory.error) {
+  if (gradeHistory.error || achievements.error || eventRegistrations.error) {
     return NextResponse.json(
-      { error: gradeHistory.error.message },
+      {
+        error:
+          gradeHistory.error?.message ??
+          achievements.error?.message ??
+          eventRegistrations.error?.message,
+      },
       { status: 500 },
     );
   }
@@ -115,8 +165,99 @@ export async function GET(request: NextRequest) {
     roles,
     member: memberResult.data ?? null,
     gradeHistory: gradeHistory.data ?? [],
+    achievements: achievements.data ?? [],
+    eventRegistrations: (eventRegistrations.data ?? []) as EventRegistrationRow[],
     dashboard,
   });
+}
+
+export async function POST(request: NextRequest) {
+  const url = getSupabaseProjectUrl();
+  const serviceRoleKey = getServiceRoleKey();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+  if (!url || !serviceRoleKey || !anonKey) {
+    return NextResponse.json(
+      { error: "Falta configuracion de acceso al portal." },
+      { status: 500 },
+    );
+  }
+
+  const body = (await request.json().catch(() => ({}))) as {
+    action?: string;
+    email?: string;
+    locale?: string;
+  };
+  const locale = normalizePortalLocale(body.locale);
+
+  if (body.action !== "request_recovery") {
+    return NextResponse.json({ error: getPortalCopy(locale).invalidAction }, { status: 400 });
+  }
+
+  const email = normalizeEmail(body.email);
+
+  if (!email) {
+    return NextResponse.json(
+      { error: getPortalCopy(locale).emailRequired },
+      { status: 400 },
+    );
+  }
+
+  const supabase = createServiceClient<UntypedDatabase, "public", "public">(
+    url,
+    serviceRoleKey,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
+
+  const memberLookup = await supabase
+    .from("members")
+    .select("id,status,email")
+    .ilike("email", email)
+    .eq("status", "active")
+    .limit(1);
+
+  if (memberLookup.error) {
+    return NextResponse.json(
+      { error: memberLookup.error.message },
+      { status: 500 },
+    );
+  }
+
+  const activeMember = (memberLookup.data ?? [])[0] as
+    | { id: string; status: string; email: string | null }
+    | undefined;
+
+  if (!activeMember?.id) {
+    return NextResponse.json(
+      { error: getPortalCopy(locale).invalidEmail },
+      { status: 400 },
+    );
+  }
+
+  const publicAuthClient = createServiceClient<UntypedDatabase, "public", "public">(
+    url,
+    anonKey,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
+
+  const redirectBase =
+    request.nextUrl.origin || process.env.NEXT_PUBLIC_SITE_URL || url;
+  const resetResult = await publicAuthClient.auth.resetPasswordForEmail(email, {
+    redirectTo: `${redirectBase}/${locale}/portal?type=recovery`,
+  });
+
+  if (resetResult.error) {
+    return NextResponse.json(
+      { error: resetResult.error.message },
+      { status: 400 },
+    );
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -450,6 +591,14 @@ async function getPortalDashboard(
   const activeChildren = activeMembers.filter(
     (member) => member.member_group === "child",
   );
+  const visibleMemberIds = visibleMembers.map((member) => member.id).filter(Boolean);
+  const coursesResult =
+    visibleMemberIds.length > 0
+      ? await supabase
+          .from("grade_history")
+          .select("grade,exam_date,course_type,exam_place,examiner")
+          .in("member_id", visibleMemberIds)
+      : { data: [], error: null };
   const mediaById = await getMediaById(
     supabase,
     Array.from(
@@ -498,21 +647,98 @@ async function getPortalDashboard(
     ).length,
   }));
 
+  if (coursesResult.error) {
+    return {
+      error: coursesResult.error.message,
+    };
+  }
+
+  const uniqueCourses = new Set(
+    ((coursesResult.data ?? []) as Array<{
+      grade: string | null;
+      exam_date: string | null;
+      course_type?: string | null;
+      exam_place?: string | null;
+      examiner?: string | null;
+    }>).map((course) =>
+      [
+        course.grade ?? "",
+        course.exam_date ?? "",
+        course.course_type ?? "course",
+        course.exam_place ?? "",
+        course.examiner ?? "",
+      ].join("||"),
+    ),
+  );
+  const createdCoursesMap = new Map<
+    string,
+    {
+      courseKey: string;
+      title: string;
+      type: string;
+      date: string | null;
+      place: string | null;
+      instructor: string | null;
+      memberCount: number;
+    }
+  >();
+
+  for (const course of (coursesResult.data ?? []) as Array<{
+    grade: string | null;
+    exam_date: string | null;
+    course_type?: string | null;
+    exam_place?: string | null;
+    examiner?: string | null;
+  }>) {
+    const courseKey = [
+      course.grade ?? "",
+      course.exam_date ?? "",
+      course.course_type ?? "course",
+      course.exam_place ?? "",
+      course.examiner ?? "",
+    ].join("||");
+    const existing = createdCoursesMap.get(courseKey);
+
+    if (existing) {
+      existing.memberCount += 1;
+      continue;
+    }
+
+    createdCoursesMap.set(courseKey, {
+      courseKey,
+      title: course.grade ?? "IKA course",
+      type: course.course_type ?? "course",
+      date: course.exam_date ?? null,
+      place: course.exam_place ?? null,
+      instructor: course.examiner ?? null,
+      memberCount: 1,
+    });
+  }
+
+  const createdCourses = Array.from(createdCoursesMap.values()).sort((a, b) => {
+    const timeA = a.date ? Date.parse(a.date) : 0;
+    const timeB = b.date ? Date.parse(b.date) : 0;
+    return timeB - timeA;
+  });
+
   return {
     scope,
-    totals: {
-      countries: visibleCountries.length,
-      dojos: visibleDojos.length,
+  totals: {
+    countries: visibleCountries.length,
+    dojos: visibleDojos.length,
+    activeDojos: membersByDojo.filter((dojo) => dojo.activeMembers > 0).length,
       members: visibleMembers.length,
       activeMembers: activeMembers.length,
       activeAdults: activeAdults.length,
       activeChildren: activeChildren.length,
+      coursesRegistered: uniqueCourses.size,
     },
     countries: visibleCountries.slice(0, 50),
     dojos: visibleDojos.slice(0, 80),
     members: visibleMembers.slice(0, 100),
-    membersByDojo,
-    membersByCountry,
+    createdCourses: createdCourses.slice(0, 200),
+  membersByDojo,
+  membersByCountry,
   };
 }
 
@@ -563,13 +789,17 @@ async function getPortalProfile(
     .from("users_profiles")
     .select("id,email,display_name,status")
     .eq("auth_user_id", authUserId)
-    .limit(1);
-  const authProfile = ((byAuth.data ?? []) as Array<{
+    .limit(10);
+  const authProfiles = ((byAuth.data ?? []) as Array<{
     id: string;
     email: string;
     display_name: string | null;
     status: string;
-  }>)[0];
+  }>);
+  const authProfile =
+    authProfiles.find(
+      (profile) => normalizeEmail(profile.email) === normalizedEmail,
+    ) ?? authProfiles[0];
 
   if (authProfile) {
     const emailProfiles = normalizedEmail
@@ -690,6 +920,70 @@ async function getPortalMember(
 
 function normalizeEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function normalizePortalLocale(value: unknown) {
+  if (typeof value !== "string") {
+    return "en";
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return ["es", "en", "it", "fr", "ja", "zh", "cs"].includes(normalized)
+    ? normalized
+    : "en";
+}
+
+function getPortalCopy(locale: string) {
+  const copies: Record<
+    string,
+    { emailRequired: string; invalidEmail: string; invalidAction: string }
+  > = {
+    es: {
+      emailRequired: "Introduce tu email para recuperar la contrasena.",
+      invalidEmail:
+        "El email introducido no es correcto o no tiene acceso activo. Consulta con tu sensei.",
+      invalidAction: "Accion no valida.",
+    },
+    en: {
+      emailRequired: "Enter your email to recover your password.",
+      invalidEmail:
+        "The email entered is not valid or does not have active access. Please contact your sensei.",
+      invalidAction: "Invalid action.",
+    },
+    it: {
+      emailRequired: "Inserisci la tua email per recuperare la password.",
+      invalidEmail:
+        "L'email inserita non e valida o non ha un accesso attivo. Contatta il tuo sensei.",
+      invalidAction: "Azione non valida.",
+    },
+    fr: {
+      emailRequired: "Saisissez votre email pour recuperer votre mot de passe.",
+      invalidEmail:
+        "L'email saisi n'est pas valide ou n'a pas d'acces actif. Contactez votre sensei.",
+      invalidAction: "Action non valide.",
+    },
+    ja: {
+      emailRequired:
+        "パスワードを回復するメールアドレスを入力してください。",
+      invalidEmail:
+        "入力したメールアドレスは無効か、有効なアクセスがありません。指導者に相談してください。",
+      invalidAction: "無効な操作です。",
+    },
+    zh: {
+      emailRequired: "请输入邮箱以恢复密码。",
+      invalidEmail:
+        "输入的邮箱无效或没有有效访问权限。请联系你的 sensei。",
+      invalidAction: "无效操作。",
+    },
+    cs: {
+      emailRequired: "Zadejte email pro obnovu hesla.",
+      invalidEmail:
+        "Zadany email neni platny nebo nema aktivni pristup. Kontaktujte sveho senseie.",
+      invalidAction: "Neplatna akce.",
+    },
+  };
+
+  return copies[locale] ?? copies.en;
 }
 
 function normalizeOptionalText(value: unknown) {

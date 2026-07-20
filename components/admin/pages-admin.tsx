@@ -13,8 +13,9 @@ import {
   X,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
+import { optimizeImageForUpload } from "@/lib/media/optimize-image";
 import { createClient } from "@/lib/supabase/browser";
-import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { defaultLocale, localeLabels, type Locale } from "@/lib/i18n/config";
 import {
   getAboutSections,
   getPublicPageContent,
@@ -68,15 +69,9 @@ const editablePages: Array<{ key: PublicPageKey; label: string }> = [
   { key: "portal", label: "Portal" },
 ];
 
-const editableLocales: Array<{ key: Locale; label: string }> = [
-  { key: "en", label: "English" },
-  { key: "es", label: "Español" },
-  { key: "it", label: "Italiano" },
-  { key: "fr", label: "Français" },
-  { key: "ja", label: "日本語" },
-  { key: "zh", label: "中文" },
-  { key: "cs", label: "Čeština" },
-];
+const editableLocales: Array<{ key: Locale; label: string }> = (
+  Object.entries(localeLabels) as Array<[Locale, string]>
+).map(([key, label]) => ({ key, label }));
 
 type PageForm = {
   pageId?: string;
@@ -356,22 +351,30 @@ export function PagesAdmin({
 
     setUploadingBlockImageId(block.id);
     setMessage("");
+    const optimizedFile = await optimizeImageForUpload(file, {
+      maxWidth: 1800,
+      maxHeight: 1800,
+      quality: 0.8,
+      maxBytes: 520 * 1024,
+      outputType: "image/webp",
+      fileNameBase: `${form.pageKey}-${file.name}`,
+    });
 
-    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const extension = optimizedFile.name.split(".").pop()?.toLowerCase() || "webp";
     const safePage = slugify(form.pageKey) || "page";
     const uniqueId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : String(file.lastModified);
     const safeName =
-      slugify(file.name.replace(/\.[^.]+$/, "")) || `imagen-${uniqueId}`;
+      slugify(optimizedFile.name.replace(/\.[^.]+$/, "")) || `imagen-${uniqueId}`;
     const storagePath = `pages/${safePage}/${uniqueId}-${safeName}.${extension}`;
 
     const { error } = await supabase.storage
       .from("public-media")
-      .upload(storagePath, file, {
+      .upload(storagePath, optimizedFile, {
         cacheControl: "31536000",
-        contentType: file.type,
+        contentType: optimizedFile.type,
         upsert: true,
       });
 
@@ -436,7 +439,7 @@ export function PagesAdmin({
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{copy.publicPages}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              Entra primero en el admin para editar páginas.
+              {copy.loginFirst}
             </p>
           </div>
         </div>
@@ -461,9 +464,7 @@ export function PagesAdmin({
           </p>
           <h2 className="mt-2 text-2xl font-semibold">{copy.publicPages}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-            Edita el título, entradilla y SEO de cada sección pública. Las
-            páginas publicadas se leen desde Supabase y se actualizan sin
-            redeploy.
+            {copy.intro}
           </p>
         </div>
       </div>
@@ -491,7 +492,7 @@ export function PagesAdmin({
           >
             {editablePages.map((page) => (
               <option key={page.key} value={page.key}>
-                {page.label}
+                {copy.pageLabels[page.key]}
               </option>
             ))}
           </select>
@@ -543,7 +544,7 @@ export function PagesAdmin({
         </label>
 
         <TextInput
-          label="Slug"
+          label={copy.slug}
           value={form.slug}
           onChange={(value) =>
             setForm((current) => ({ ...current, slug: slugify(value) }))
@@ -575,7 +576,7 @@ export function PagesAdmin({
         </div>
 
         <TextInput
-          label="SEO title"
+          label={copy.seoTitle}
           value={form.seoTitle}
           onChange={(value) =>
             setForm((current) => ({ ...current, seoTitle: value }))
@@ -583,7 +584,7 @@ export function PagesAdmin({
         />
 
         <TextInput
-          label="SEO description"
+          label={copy.seoDescription}
           value={form.seoDescription}
           onChange={(value) =>
             setForm((current) => ({ ...current, seoDescription: value }))
@@ -780,7 +781,7 @@ function BlockEditor({
             className="border border-[var(--line)] px-3 py-2 font-normal"
           >
             <option value="yes">{copy.yes}</option>
-            <option value="no">No</option>
+            <option value="no">{copy.no}</option>
           </select>
         </label>
       </div>
@@ -1123,6 +1124,10 @@ function pagesAdminCopy(locale: Locale) {
   const es = locale === "es";
 
   return {
+    loginFirst: es ? "Entra primero en el admin para editar paginas." : "Sign in to admin first to edit pages.",
+    intro: es
+      ? "Edita el titulo, entradilla y SEO de cada seccion publica. Las paginas publicadas se leen desde Supabase y se actualizan sin redeploy."
+      : "Edit the title, intro, and SEO for each public section. Published pages are read from Supabase and updated without a redeploy.",
     savePageError: es ? "No se pudo guardar la pagina." : "The page could not be saved.",
     pageSaved: es ? "Pagina guardada." : "Page saved.",
     savePageBeforeAdd: es ? "Guarda la pagina antes de anadir secciones." : "Save the page before adding sections.",
@@ -1140,13 +1145,26 @@ function pagesAdminCopy(locale: Locale) {
     translationConnectionError: es ? "No se pudo conectar con el servicio de traduccion." : "Could not connect to the translation service.",
     publicPages: es ? "Paginas publicas" : "Public pages",
     page: es ? "Pagina" : "Page",
+    pageLabels: {
+      about: es ? "Sobre IKA" : "About IKA",
+      countries: es ? "Paises" : "Countries",
+      dojos: "Dojos",
+      news: es ? "Noticias" : "News",
+      events: es ? "Eventos" : "Events",
+      join: es ? "Unirse a IKA" : "Join IKA",
+      contact: es ? "Contacto" : "Contact",
+      portal: es ? "Portal" : "Portal",
+    } as Record<PublicPageKey, string>,
     language: es ? "Idioma" : "Language",
     status: es ? "Estado" : "Status",
     draft: es ? "Borrador" : "Draft",
     published: es ? "Publicado" : "Published",
     archived: es ? "Archivado" : "Archived",
+    slug: "Slug",
     publicTitle: es ? "Titulo publico" : "Public title",
     visibleSummary: es ? "Entradilla / resumen visible" : "Visible intro / summary",
+    seoTitle: "SEO title",
+    seoDescription: "SEO description",
     savePage: es ? "Guardar pagina" : "Save page",
     translateAll: es ? "Traducir a todos los idiomas" : "Translate to all languages",
     pageSections: es ? "Secciones de la pagina" : "Page sections",
@@ -1162,6 +1180,7 @@ function pagesAdminCopy(locale: Locale) {
     order: es ? "Orden" : "Order",
     visible: es ? "Visible" : "Visible",
     yes: es ? "Si" : "Yes",
+    no: es ? "No" : "No",
     image: es ? "Imagen" : "Image",
     sectionImageAlt: es ? "Imagen de seccion" : "Section image",
     imageAltText: es ? "Texto alternativo de la imagen" : "Image alt text",

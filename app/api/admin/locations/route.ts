@@ -1,26 +1,9 @@
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient as createSessionClient } from "@/lib/supabase/server";
-import { getSupabaseProjectUrl } from "@/lib/supabase/url";
-
-type UntypedTable = {
-  Row: Record<string, unknown>;
-  Insert: Record<string, unknown>;
-  Update: Record<string, unknown>;
-  Relationships: [];
-};
-
-type UntypedDatabase = {
-  public: {
-    Tables: Record<string, UntypedTable>;
-    Views: Record<string, UntypedTable>;
-    Functions: Record<string, never>;
-  };
-};
-
-type SupabaseAdminClient = ReturnType<
-  typeof createServiceClient<UntypedDatabase, "public", "public">
->;
+import {
+  requireScopedAdmin,
+  type AdminScope as RequestFormsAdminScope,
+  type SupabaseAdminClient,
+} from "@/lib/admin/request-forms";
 
 type LocationScope = {
   isGlobal: boolean;
@@ -30,9 +13,16 @@ type LocationScope = {
 };
 
 type LocationBody = {
-  action?: "save_country" | "save_dojo" | "delete_country" | "delete_dojo";
+  action?:
+    | "save_country"
+    | "save_dojo"
+    | "delete_country"
+    | "delete_dojo"
+    | "import_countries_csv"
+    | "import_dojos_csv";
   countryId?: string;
   dojoId?: string;
+  csv?: string;
   country?: {
     id?: string;
     locale?: string;
@@ -43,8 +33,10 @@ type LocationBody = {
     slug?: string;
     description?: string;
     responsiblePerson?: string;
+    representativeEntity?: string;
     responsibleEmail?: string;
     flagMediaId?: string | null;
+    flagMediaUrl?: string | null;
   };
   dojo?: {
     id?: string;
@@ -58,14 +50,15 @@ type LocationBody = {
     city?: string;
     address?: string;
     responsibleInstructor?: string;
+    responsibleInstructorMediaId?: string | null;
+    responsibleInstructorMediaUrl?: string | null;
     email?: string;
     phone?: string;
     website?: string;
     mainImageMediaId?: string | null;
+    mainImageMediaUrl?: string | null;
   };
 };
-
-const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
 
 export async function GET(request: NextRequest) {
   const guard = await requireLocationsAdmin(request);
@@ -78,13 +71,13 @@ export async function GET(request: NextRequest) {
     guard.admin
       .from("countries")
       .select(
-        "id,code,ika_country_id,status,is_public,responsible_person,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
+        "id,code,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
       )
       .order("code", { ascending: true }),
     guard.admin
       .from("dojos")
       .select(
-        "id,country_id,ika_dojo_id,city,address,responsible_instructor,email,phone,website,status,is_public,main_image_media_id,dojo_translations(language_code,name,slug,description)",
+        "id,country_id,ika_dojo_id,city,address,responsible_instructor,responsible_instructor_media_id,email,phone,website,status,is_public,main_image_media_id,dojo_translations(language_code,name,slug,description)",
       )
       .order("city", { ascending: true }),
   ]);
@@ -99,6 +92,7 @@ export async function GET(request: NextRequest) {
     id: string;
     country_id: string;
     main_image_media_id: string | null;
+    responsible_instructor_media_id: string | null;
   }>;
   const dojos = scopeDojos(allDojos, guard.scope);
   const countries = scopeCountries(
@@ -106,6 +100,7 @@ export async function GET(request: NextRequest) {
       id: string;
       flag_media_id: string | null;
       main_image_media_id: string | null;
+      representative_entity: string | null;
     }>,
     guard.scope,
     dojos,
@@ -117,7 +112,10 @@ export async function GET(request: NextRequest) {
           country.flag_media_id,
           country.main_image_media_id,
         ]),
-        ...dojos.map((dojo) => dojo.main_image_media_id),
+        ...dojos.flatMap((dojo) => [
+          dojo.main_image_media_id,
+          dojo.responsible_instructor_media_id,
+        ]),
       ].filter(Boolean) as string[],
     ),
   );
@@ -165,7 +163,312 @@ export async function POST(request: NextRequest) {
     return deleteDojo(guard.admin, guard.scope, body.dojoId ?? "");
   }
 
+  if (body?.action === "import_countries_csv") {
+    return importCountriesCsv(guard.admin, guard.scope, body.csv ?? "");
+  }
+
+  if (body?.action === "import_dojos_csv") {
+    return importDojosCsv(guard.admin, guard.scope, body.csv ?? "");
+  }
+
   return NextResponse.json({ error: "Accion no valida." }, { status: 400 });
+}
+
+async function importCountriesCsv(
+  admin: SupabaseAdminClient,
+  scope: LocationScope,
+  csv: string,
+) {
+  if (!hasSuperAdminRole(scope)) {
+    return NextResponse.json(
+      { error: "Solo super admin puede importar paises." },
+      { status: 403 },
+    );
+  }
+
+  const rows = parseLocationCsv(csv);
+
+  if (rows.length === 0) {
+    return NextResponse.json(
+      { error: "El CSV de paises no contiene filas validas." },
+      { status: 400 },
+    );
+  }
+
+  let imported = 0;
+  let updated = 0;
+  let skipped = 0;
+  const errors: Array<{ row: number; error: string }> = [];
+
+  for (const row of rows) {
+    const code = getRowValue(row.record, ["country_code", "code"]).toUpperCase();
+    const name = getRowValue(row.record, ["country_name", "name", "pais", "country"]);
+    const status = normalizeStatus(
+      getRowValue(row.record, ["status", "estado"]) || "published",
+    );
+    const isPublic = normalizeYesNo(
+      getRowValue(row.record, ["is_public", "publico", "public"]),
+      true,
+    );
+    const responsiblePerson = getRowValue(row.record, [
+      "responsible_person",
+      "responsable",
+      "representative",
+    ]);
+    const representativeEntity = getRowValue(row.record, [
+      "representative_entity",
+      "entidad_representante",
+      "entity",
+    ]);
+    const responsibleEmail = getRowValue(row.record, [
+      "responsible_email",
+      "email_responsable",
+      "email",
+    ]);
+    const description = getRowValue(row.record, [
+      "description_es",
+      "description",
+      "descripcion",
+    ]);
+
+    if (!code || !name) {
+      skipped += 1;
+      errors.push({
+        row: row.rowNumber,
+        error: "Codigo y nombre de pais son obligatorios.",
+      });
+      continue;
+    }
+
+    const existing = await admin
+      .from("countries")
+      .select("id")
+      .eq("code", code)
+      .maybeSingle<{ id: string }>();
+
+    if (existing.error) {
+      skipped += 1;
+      errors.push({ row: row.rowNumber, error: existing.error.message });
+      continue;
+    }
+
+    const payload = {
+      code,
+      status,
+      is_public: isPublic,
+      responsible_person: responsiblePerson || null,
+      representative_entity: representativeEntity || null,
+      responsible_email: responsibleEmail || null,
+    };
+
+    const country = existing.data
+      ? await admin
+          .from("countries")
+          .update(payload)
+          .eq("id", existing.data.id)
+          .select("id")
+          .single<{ id: string }>()
+      : await admin
+          .from("countries")
+          .insert(payload)
+          .select("id")
+          .single<{ id: string }>();
+
+    if (country.error || !country.data) {
+      skipped += 1;
+      errors.push({
+        row: row.rowNumber,
+        error: country.error?.message ?? "No se pudo guardar el pais.",
+      });
+      continue;
+    }
+
+    const translation = await admin.from("country_translations").upsert(
+      {
+        country_id: country.data.id,
+        language_code: "es",
+        name,
+        slug: slugify(name),
+        description: description || null,
+      },
+      { onConflict: "country_id,language_code" },
+    );
+
+    if (translation.error) {
+      skipped += 1;
+      errors.push({ row: row.rowNumber, error: translation.error.message });
+      continue;
+    }
+
+    if (existing.data) {
+      updated += 1;
+    } else {
+      imported += 1;
+    }
+  }
+
+  return NextResponse.json({ imported, updated, skipped, errors });
+}
+
+async function importDojosCsv(
+  admin: SupabaseAdminClient,
+  scope: LocationScope,
+  csv: string,
+) {
+  const rows = parseLocationCsv(csv);
+
+  if (rows.length === 0) {
+    return NextResponse.json(
+      { error: "El CSV de dojos no contiene filas validas." },
+      { status: 400 },
+    );
+  }
+
+  let imported = 0;
+  let updated = 0;
+  let skipped = 0;
+  const errors: Array<{ row: number; error: string }> = [];
+
+  for (const row of rows) {
+    const countryCode = getRowValue(row.record, [
+      "country_code",
+      "codigo_pais",
+      "code",
+    ]).toUpperCase();
+    const name = getRowValue(row.record, [
+      "dojo_name",
+      "name",
+      "dojo",
+      "club",
+    ]);
+    const city = getRowValue(row.record, ["city", "ciudad"]);
+    const address = getRowValue(row.record, ["address", "direccion"]);
+    const responsibleInstructor = getRowValue(row.record, [
+      "responsible_instructor",
+      "instructor",
+      "sensei",
+    ]);
+    const email = getRowValue(row.record, ["email"]);
+    const phone = getRowValue(row.record, ["phone", "telefono"]);
+    const website = getRowValue(row.record, ["website", "web"]);
+    const status = normalizeStatus(
+      getRowValue(row.record, ["status", "estado"]) || "published",
+    );
+    const isPublic = normalizeYesNo(
+      getRowValue(row.record, ["is_public", "publico", "public"]),
+      true,
+    );
+    const description = getRowValue(row.record, [
+      "description_es",
+      "description",
+      "descripcion",
+    ]);
+
+    if (!countryCode || !name || !city) {
+      skipped += 1;
+      errors.push({
+        row: row.rowNumber,
+        error: "Pais, nombre de dojo y ciudad son obligatorios.",
+      });
+      continue;
+    }
+
+    const country = await admin
+      .from("countries")
+      .select("id")
+      .eq("code", countryCode)
+      .maybeSingle<{ id: string }>();
+
+    if (country.error || !country.data) {
+      skipped += 1;
+      errors.push({
+        row: row.rowNumber,
+        error: `No existe el pais ${countryCode} en IKA.`,
+      });
+      continue;
+    }
+
+    if (!canManageCountry(scope, country.data.id)) {
+      skipped += 1;
+      errors.push({
+        row: row.rowNumber,
+        error: "No tienes permisos para ese pais.",
+      });
+      continue;
+    }
+
+    const existing = await admin
+      .from("dojos")
+      .select("id")
+      .eq("country_id", country.data.id)
+      .ilike("city", city)
+      .maybeSingle<{ id: string }>();
+
+    if (existing.error) {
+      skipped += 1;
+      errors.push({ row: row.rowNumber, error: existing.error.message });
+      continue;
+    }
+
+    const payload = {
+      country_id: country.data.id,
+      city,
+      address: address || null,
+      responsible_instructor: responsibleInstructor || null,
+      email: email || null,
+      phone: phone || null,
+      website: website || null,
+      status,
+      is_public: isPublic,
+    };
+
+    const dojo = existing.data
+      ? await admin
+          .from("dojos")
+          .update(payload)
+          .eq("id", existing.data.id)
+          .select("id")
+          .single<{ id: string }>()
+      : await admin
+          .from("dojos")
+          .insert(payload)
+          .select("id")
+          .single<{ id: string }>();
+
+    if (dojo.error || !dojo.data) {
+      skipped += 1;
+      errors.push({
+        row: row.rowNumber,
+        error: dojo.error?.message ?? "No se pudo guardar el dojo.",
+      });
+      continue;
+    }
+
+    const translation = await admin.from("dojo_translations").upsert(
+      {
+        dojo_id: dojo.data.id,
+        language_code: "es",
+        name,
+        slug: slugify(name),
+        description: description || null,
+      },
+      { onConflict: "dojo_id,language_code" },
+    );
+
+    if (translation.error) {
+      skipped += 1;
+      errors.push({ row: row.rowNumber, error: translation.error.message });
+      continue;
+    }
+
+    if (existing.data) {
+      updated += 1;
+    } else {
+      imported += 1;
+    }
+  }
+
+  return NextResponse.json({ imported, updated, skipped, errors });
 }
 
 async function saveCountry(
@@ -173,14 +476,14 @@ async function saveCountry(
   scope: LocationScope,
   input: NonNullable<LocationBody["country"]>,
 ) {
-  const countryId = normalizeText(input.id);
-
-  if (!scope.isGlobal && (!countryId || !canManageCountry(scope, countryId))) {
+  if (!hasSuperAdminRole(scope)) {
     return NextResponse.json(
-      { error: "Solo puedes modificar tu propio pais." },
+      { error: "Solo super admin puede crear o editar paises." },
       { status: 403 },
     );
   }
+
+  const countryId = normalizeText(input.id);
 
   const code = normalizeText(input.code).toUpperCase();
   const name = normalizeText(input.name);
@@ -198,8 +501,14 @@ async function saveCountry(
     status: normalizeStatus(input.status),
     is_public: input.isPublic !== false,
     responsible_person: normalizeText(input.responsiblePerson) || null,
+    representative_entity: normalizeText(input.representativeEntity) || null,
     responsible_email: normalizeText(input.responsibleEmail) || null,
-    flag_media_id: input.flagMediaId ?? null,
+    flag_media_id: await resolveMediaId(
+      admin,
+      input.flagMediaId ?? null,
+      input.flagMediaUrl ?? null,
+      `${name} flag`,
+    ),
     main_image_media_id: null,
   };
   const country = countryId
@@ -282,12 +591,23 @@ async function saveDojo(
     city,
     address: normalizeText(input.address) || null,
     responsible_instructor: normalizeText(input.responsibleInstructor) || null,
+    responsible_instructor_media_id: await resolveMediaId(
+      admin,
+      input.responsibleInstructorMediaId ?? null,
+      input.responsibleInstructorMediaUrl ?? null,
+      `${normalizeText(input.responsibleInstructor) || name} instructor`,
+    ),
     email: normalizeText(input.email) || null,
     phone: normalizeText(input.phone) || null,
     website: normalizeText(input.website) || null,
     status: normalizeStatus(input.status),
     is_public: input.isPublic !== false,
-    main_image_media_id: input.mainImageMediaId ?? null,
+    main_image_media_id: await resolveMediaId(
+      admin,
+      input.mainImageMediaId ?? null,
+      input.mainImageMediaUrl ?? null,
+      name,
+    ),
   };
   const dojo = input.id
     ? await admin
@@ -332,7 +652,7 @@ async function deleteCountry(
   scope: LocationScope,
   countryId: string,
 ) {
-  if (!scope.isGlobal) {
+  if (!hasSuperAdminRole(scope)) {
     return NextResponse.json(
       { error: "Solo super admin puede borrar paises." },
       { status: 403 },
@@ -387,276 +707,23 @@ async function deleteDojo(
 }
 
 async function requireLocationsAdmin(request: NextRequest) {
-  const url = getSupabaseProjectUrl();
-  const serviceRoleKey = getServiceRoleKey();
-
-  if (!url || !serviceRoleKey) {
+  const guard = await requireScopedAdmin(request);
+  if ("error" in guard) {
+    const message =
+      guard.status === 403 &&
+      guard.error === "No se encontro un perfil administrador para esta sesion."
+        ? "No se encontro el perfil del administrador."
+        : guard.error;
     return {
-      error: NextResponse.json(
-        { error: "Falta configuracion de Supabase para ubicaciones." },
-        { status: 500 },
-      ),
+      error: NextResponse.json({ error: message }, { status: guard.status }),
     } as const;
   }
-
-  const admin = createServiceClient(url, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const user = await getAuthenticatedUser(admin, request);
-
-  if (!user) {
-    return {
-      error: NextResponse.json({ error: "No autenticado." }, { status: 401 }),
-    } as const;
-  }
-
-  const profile = await getAdminProfile(admin, user.id, getAuthUserEmail(user));
-
-  if (!profile) {
-    return {
-      error: NextResponse.json(
-        { error: "No se encontro el perfil del administrador." },
-        { status: 403 },
-      ),
-    } as const;
-  }
-
-  const roles = profile.user_roles ?? [];
-  const roleKeys = roles.map((role) => getRoleKey(role.roles)).filter(Boolean) as string[];
-  const isAllowed = roleKeys.some((role) =>
-    ["super_admin", "global_admin", "country_admin", "dojo_admin"].includes(role),
-  );
-
-  if (!isAllowed) {
-    return {
-      error: NextResponse.json(
-        { error: "No tienes permisos para gestionar ubicaciones." },
-        { status: 403 },
-      ),
-    } as const;
-  }
-
-  const scope = {
-    roleKeys,
-    isGlobal: roleKeys.includes("super_admin") || roleKeys.includes("global_admin"),
-    countryIds: Array.from(
-      new Set(
-        roles
-          .filter((role) => getRoleKey(role.roles) === "country_admin")
-          .map((role) => role.country_id)
-          .filter(Boolean) as string[],
-      ),
-    ),
-    dojoIds: Array.from(
-      new Set(
-        roles
-          .filter((role) => getRoleKey(role.roles) === "dojo_admin")
-          .map((role) => role.dojo_id)
-          .filter(Boolean) as string[],
-      ),
-    ),
-  };
-
-  return { admin, profileId: profile.id, scope } as const;
-}
-
-async function getAuthenticatedUser(
-  admin: SupabaseAdminClient,
-  request: NextRequest,
-) {
-  const token = getBearerToken(request);
-
-  if (token) {
-    const tokenUser = await admin.auth.getUser(token);
-
-    if (tokenUser.data.user) {
-      return tokenUser.data.user;
-    }
-  }
-
-  const sessionClient = await createSessionClient();
-  const {
-    data: { user },
-  } = await sessionClient.auth.getUser();
-
-  return user;
-}
-
-async function getAdminProfile(
-  admin: SupabaseAdminClient,
-  authUserId: string,
-  email: string,
-) {
-  const normalizedEmail = normalizeEmail(email);
-  const byAuth = await admin
-    .from("users_profiles")
-    .select("id")
-    .eq("auth_user_id", authUserId)
-    .limit(1);
-  const authProfile = ((byAuth.data ?? []) as Array<{
-    id: string;
-  }>)[0];
-
-  if (authProfile) {
-    const emailProfiles = normalizedEmail
-      ? await admin
-          .from("users_profiles")
-          .select("id")
-          .ilike("email", normalizedEmail)
-          .limit(5)
-      : { data: [], error: null };
-    const profileIds = Array.from(
-      new Set([
-        authProfile.id,
-        ...(((emailProfiles.data ?? []) as Array<{ id: string }>).map(
-          (profile) => profile.id,
-        )),
-      ]),
-    );
-
-    return withProfileRoles(admin, profileIds);
-  }
-
-  if (!normalizedEmail) {
-    return null;
-  }
-
-  const byEmail = await admin
-    .from("users_profiles")
-    .select("id")
-    .ilike("email", normalizedEmail)
-    .order("auth_user_id", { ascending: false, nullsFirst: false })
-    .limit(1);
-  const emailProfile = ((byEmail.data ?? []) as Array<{
-    id: string;
-  }>)[0];
-
-  if (!emailProfile) {
-    return normalizedEmail === officialSuperAdminEmail
-      ? ensureOfficialSuperAdmin(admin, authUserId, normalizedEmail)
-      : null;
-  }
-
-  const linked = await admin
-    .from("users_profiles")
-    .update({ auth_user_id: authUserId, status: "active" })
-    .eq("id", emailProfile.id)
-    .select("id")
-    .maybeSingle<{ id: string }>();
-
-  return withProfileRoles(admin, linked.data?.id ?? emailProfile.id);
-}
-
-async function withProfileRoles(
-  admin: SupabaseAdminClient,
-  profileIdOrIds: string | string[],
-) {
-  const profileIds = Array.isArray(profileIdOrIds)
-    ? profileIdOrIds
-    : [profileIdOrIds];
-  const primaryProfileId = profileIds[0] ?? "";
-
-  if (!primaryProfileId) {
-    return null;
-  }
-
-  const assignments = await admin
-    .from("user_roles")
-    .select("country_id,dojo_id,role_id")
-    .in("profile_id", profileIds);
-
-  if (assignments.error) {
-    return null;
-  }
-
-  const rows = (assignments.data ?? []) as Array<{
-    country_id: string | null;
-    dojo_id: string | null;
-    role_id: string | null;
-  }>;
-  const roleIds = rows
-    .map((assignment) => assignment.role_id)
-    .filter(Boolean) as string[];
-  const roles =
-    roleIds.length > 0
-      ? await admin.from("roles").select("id,key").in("id", roleIds)
-      : { data: [], error: null };
-
-  if (roles.error) {
-    return null;
-  }
-
-  const roleKeyById = new Map(
-    ((roles.data ?? []) as Array<{ id: string; key: string }>).map((role) => [
-      role.id,
-      role.key,
-    ]),
-  );
 
   return {
-    id: primaryProfileId,
-    user_roles: rows.map((assignment) => ({
-      country_id: assignment.country_id,
-      dojo_id: assignment.dojo_id,
-      roles: assignment.role_id
-        ? { key: roleKeyById.get(assignment.role_id) ?? "" }
-        : null,
-    })),
-  };
-}
-
-async function ensureOfficialSuperAdmin(
-  admin: SupabaseAdminClient,
-  authUserId: string,
-  email: string,
-) {
-  const role = await admin
-    .from("roles")
-    .select("id")
-    .eq("key", "super_admin")
-    .maybeSingle<{ id: string }>();
-
-  if (role.error || !role.data) {
-    return null;
-  }
-
-  const profile = await admin
-    .from("users_profiles")
-    .upsert(
-      {
-        auth_user_id: authUserId,
-        email,
-        display_name: "IKA org",
-        status: "active",
-      },
-      { onConflict: "email" },
-    )
-    .select("id")
-    .limit(1);
-  const profileId = (profile.data?.[0]?.id as string | undefined) ?? "";
-
-  if (profile.error || !profileId) {
-    return null;
-  }
-
-  await admin.from("user_roles").upsert(
-    {
-      profile_id: profileId,
-      role_id: role.data.id,
-      country_id: null,
-      dojo_id: null,
-      created_by: profileId,
-    },
-    {
-      onConflict: "profile_id,role_id,country_id,dojo_id",
-      ignoreDuplicates: true,
-    },
-  );
-
-  return {
-    id: profileId,
-    user_roles: [{ country_id: null, dojo_id: null, roles: { key: "super_admin" } }],
-  };
+    admin: guard.admin,
+    profileId: guard.scope.profileId,
+    scope: mapScope(guard.scope),
+  } as const;
 }
 
 function scopeCountries<T extends { id: string }, D extends { country_id: string }>(
@@ -695,49 +762,12 @@ function canManageCountry(scope: LocationScope, countryId: string) {
   return scope.isGlobal || scope.countryIds.includes(countryId);
 }
 
-function getRoleKey(role: { key: string } | Array<{ key: string }> | null) {
-  return Array.isArray(role) ? role[0]?.key : role?.key;
-}
-
-function getServiceRoleKey() {
-  return (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE ||
-    ""
-  ).trim();
-}
-
-function getBearerToken(request: NextRequest) {
-  const authorization = request.headers.get("authorization") ?? "";
-  const [scheme, token] = authorization.split(" ");
-
-  return scheme.toLowerCase() === "bearer" && token ? token.trim() : "";
+function hasSuperAdminRole(scope: LocationScope) {
+  return scope.roleKeys.includes("super_admin");
 }
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeEmail(value: unknown) {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
-
-function getAuthUserEmail(user: {
-  email?: string | null;
-  user_metadata?: Record<string, unknown> | null;
-  identities?: Array<{ identity_data?: Record<string, unknown> | null }> | null;
-}) {
-  return (
-    normalizeEmail(user.email) ||
-    normalizeEmail(user.user_metadata?.email) ||
-    normalizeEmail(user.user_metadata?.email_address) ||
-    normalizeEmail(
-      user.identities?.find((identity) =>
-        normalizeEmail(identity.identity_data?.email),
-      )?.identity_data?.email,
-    )
-  );
 }
 
 function normalizeStatus(value: unknown) {
@@ -745,6 +775,42 @@ function normalizeStatus(value: unknown) {
   return ["draft", "published", "archived"].includes(status)
     ? status
     : "published";
+}
+
+async function resolveMediaId(
+  admin: SupabaseAdminClient,
+  mediaId: string | null | undefined,
+  mediaUrl: string | null | undefined,
+  title: string,
+) {
+  const normalizedId = normalizeText(mediaId);
+
+  if (normalizedId) {
+    return normalizedId;
+  }
+
+  const url = normalizeText(mediaUrl);
+
+  if (!url) {
+    return null;
+  }
+
+  const media = await admin
+    .from("media_library")
+    .upsert(
+      {
+        storage_bucket: "public-media",
+        storage_path: url,
+        title,
+        alt_text: title,
+        visibility: "public",
+      },
+      { onConflict: "storage_bucket,storage_path" },
+    )
+    .select("id")
+    .single<{ id: string }>();
+
+  return media.data?.id ?? null;
 }
 
 function slugify(value: string) {
@@ -755,4 +821,127 @@ function slugify(value: string) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function normalizeHeader(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function detectCsvDelimiter(headerLine: string) {
+  const candidates = [",", ";", "\t"];
+  let best = ",";
+  let bestCount = -1;
+
+  for (const candidate of candidates) {
+    const count = headerLine.split(candidate).length;
+    if (count > bestCount) {
+      best = candidate;
+      bestCount = count;
+    }
+  }
+
+  return best;
+}
+
+function splitCsvLine(line: string, delimiter: string) {
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      values.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+function parseLocationCsv(csv: string) {
+  const lines = csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    return [] as Array<{
+      rowNumber: number;
+      record: Map<string, string>;
+    }>;
+  }
+
+  const delimiter = detectCsvDelimiter(lines[0]);
+  const headers = splitCsvLine(lines[0], delimiter).map((header) =>
+    normalizeHeader(header),
+  );
+
+  return lines.slice(1).map((line, index) => {
+    const values = splitCsvLine(line, delimiter);
+    return {
+      rowNumber: index + 2,
+      record: new Map(headers.map((header, valueIndex) => [header, values[valueIndex] ?? ""])),
+    };
+  });
+}
+
+function getRowValue(record: Map<string, string>, headers: string[]) {
+  for (const header of headers) {
+    const value = record.get(header);
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function normalizeYesNo(value: string, fallback = true) {
+  const normalized = normalizeText(value).toLowerCase();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (["yes", "si", "true", "1", "public", "published"].includes(normalized)) {
+    return true;
+  }
+
+  if (["no", "false", "0", "hidden", "private"].includes(normalized)) {
+    return false;
+  }
+
+  return fallback;
+}
+
+function mapScope(scope: RequestFormsAdminScope): LocationScope {
+  return {
+    isGlobal: scope.isSuperAdmin || scope.isGlobalAdmin,
+    countryIds: scope.countryIds,
+    dojoIds: scope.dojoIds,
+    roleKeys: scope.roleKeys,
+  };
 }

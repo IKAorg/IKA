@@ -70,6 +70,36 @@ type CourseImportRow = {
   coursePlace?: string;
   instructor?: string;
   notes?: string;
+  courseType?: string;
+};
+
+type BulkCourseAchievementRow = {
+  memberId?: string;
+  title?: string;
+  category?: string;
+  result?: string;
+  medalType?: string;
+  podiumPosition?: string | number;
+  notes?: string;
+};
+
+type TaikaiConfigInput = {
+  categories?: string[] | string;
+  results?: string[] | string;
+  medals?: string[] | string;
+  awards?: string[] | string;
+};
+
+type BulkCourseCreateBody = {
+  title?: string;
+  date?: string;
+  place?: string;
+  instructor?: string;
+  notes?: string;
+  type?: string;
+  taikaiConfig?: TaikaiConfigInput;
+  selectedMemberIds?: string[];
+  achievements?: BulkCourseAchievementRow[];
 };
 
 type CourseHistoryRow = {
@@ -80,12 +110,31 @@ type CourseHistoryRow = {
   exam_place: string | null;
   examiner: string | null;
   notes: string | null;
+  course_type?: string | null;
+  taikai_config?: TaikaiConfigInput | null;
+};
+
+type AchievementRow = {
+  id: string;
+  member_id: string;
+  course_id: string | null;
+  title: string;
+  category: string | null;
+  result: string | null;
+  medal_type?: string | null;
+  podium_position?: number | null;
+  achieved_on: string;
+  achieved_place: string | null;
+  notes: string | null;
 };
 
 type MemberPatchBody = {
   action?: string;
   memberId?: string;
   courseId?: string;
+  courseIds?: string[];
+  selectedMemberIds?: string[];
+  achievements?: BulkCourseAchievementRow[];
   profileImageUpload?: {
     name?: string;
     type?: string;
@@ -97,6 +146,20 @@ type MemberPatchBody = {
     place?: string;
     instructor?: string;
     notes?: string;
+    type?: string;
+    taikaiConfig?: TaikaiConfigInput;
+  };
+  achievementId?: string;
+  achievement?: {
+    title?: string;
+    category?: string;
+    result?: string;
+    medalType?: string;
+    podiumPosition?: string | number;
+    achievedOn?: string;
+    achievedPlace?: string;
+    notes?: string;
+    courseId?: string;
   };
   member?: {
     firstName?: string;
@@ -123,7 +186,7 @@ export async function GET(request: NextRequest) {
     return guard.error;
   }
 
-  const [countriesResult, dojosResult, membersResult, courseHistoryResult] =
+  const [countriesResult, dojosResult, membersResult, courseHistoryResult, achievementsResult] =
     await Promise.all([
     guard.admin
       .from("countries")
@@ -140,8 +203,13 @@ export async function GET(request: NextRequest) {
       .limit(1000),
     guard.admin
       .from("grade_history")
-      .select("id,member_id,grade,exam_date,exam_place,examiner,notes")
+      .select("id,member_id,grade,exam_date,exam_place,examiner,notes,course_type,taikai_config")
       .order("exam_date", { ascending: false })
+      .limit(5000),
+    guard.admin
+      .from("member_achievements")
+      .select("id,member_id,course_id,title,category,result,medal_type,podium_position,achieved_on,achieved_place,notes")
+      .order("achieved_on", { ascending: false })
       .limit(5000),
   ]);
 
@@ -149,7 +217,8 @@ export async function GET(request: NextRequest) {
     countriesResult.error ??
     dojosResult.error ??
     membersResult.error ??
-    courseHistoryResult.error;
+    courseHistoryResult.error ??
+    achievementsResult.error;
 
   if (firstError) {
     return NextResponse.json({ error: firstError.message }, { status: 500 });
@@ -184,12 +253,16 @@ export async function GET(request: NextRequest) {
   const courseHistory = ((courseHistoryResult.data ?? []) as CourseHistoryRow[]).filter(
     (entry) => memberIds.has(entry.member_id),
   );
+  const achievements = ((achievementsResult.data ?? []) as AchievementRow[]).filter(
+    (entry) => memberIds.has(entry.member_id),
+  );
 
   return NextResponse.json({
     countries,
     dojos,
     members,
     courseHistory,
+    achievements,
     scope: guard.scope,
   });
 }
@@ -246,6 +319,18 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  if (
+    ["add_course", "update_course", "delete_course", "add_achievement", "update_achievement", "delete_achievement", "update_bulk_courses"].includes(
+      normalizeText(body.action),
+    ) &&
+    !hasSuperAdminRole(guard.scope)
+  ) {
+    return NextResponse.json(
+      { error: "Solo super admin puede gestionar cursos, taikai y logros." },
+      { status: 403 },
+    );
+  }
+
   if (body.action === "delete_member") {
     const deleted = await guard.admin
       .from("members")
@@ -296,6 +381,7 @@ export async function PATCH(request: NextRequest) {
     const input = body.course ?? {};
     const courseTitle = normalizeText(input.title);
     const courseDate = normalizeDate(normalizeText(input.date));
+    const taikaiConfig = normalizeTaikaiConfig(input.taikaiConfig);
 
     if (!courseTitle || !courseDate) {
       return NextResponse.json(
@@ -309,6 +395,8 @@ export async function PATCH(request: NextRequest) {
       .insert({
         member_id: member.data.id,
         grade: courseTitle,
+        course_type: normalizeCourseType(input.type),
+        taikai_config: taikaiConfig,
         exam_date: courseDate,
         exam_place: normalizeText(input.place) || null,
         examiner: normalizeText(input.instructor) || null,
@@ -316,10 +404,16 @@ export async function PATCH(request: NextRequest) {
         created_by: guard.profileId,
         updated_by: guard.profileId,
       })
-      .select("id,member_id,grade,exam_date,exam_place,examiner,notes")
+      .select("id,member_id,grade,exam_date,exam_place,examiner,notes,course_type,taikai_config")
       .single<CourseHistoryRow>();
 
     if (created.error || !created.data) {
+      if (isDuplicateCourseError(created.error?.message)) {
+        return NextResponse.json(
+          { error: getDuplicateCourseErrorMessage() },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         { error: created.error?.message ?? "No se pudo crear el curso." },
         { status: 500 },
@@ -334,6 +428,7 @@ export async function PATCH(request: NextRequest) {
     const input = body.course ?? {};
     const courseTitle = normalizeText(input.title);
     const courseDate = normalizeDate(normalizeText(input.date));
+    const taikaiConfig = normalizeTaikaiConfig(input.taikaiConfig);
 
     if (!courseId || !courseTitle || !courseDate) {
       return NextResponse.json(
@@ -346,6 +441,8 @@ export async function PATCH(request: NextRequest) {
       .from("grade_history")
       .update({
         grade: courseTitle,
+        course_type: normalizeCourseType(input.type),
+        taikai_config: taikaiConfig,
         exam_date: courseDate,
         exam_place: normalizeText(input.place) || null,
         examiner: normalizeText(input.instructor) || null,
@@ -354,10 +451,16 @@ export async function PATCH(request: NextRequest) {
       })
       .eq("id", courseId)
       .eq("member_id", member.data.id)
-      .select("id,member_id,grade,exam_date,exam_place,examiner,notes")
+      .select("id,member_id,grade,exam_date,exam_place,examiner,notes,course_type,taikai_config")
       .single<CourseHistoryRow>();
 
     if (updatedCourse.error || !updatedCourse.data) {
+      if (isDuplicateCourseError(updatedCourse.error?.message)) {
+        return NextResponse.json(
+          { error: getDuplicateCourseErrorMessage() },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         {
           error:
@@ -391,6 +494,409 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, courseId });
+  }
+
+  if (body.action === "update_bulk_courses") {
+    const courseIds = Array.isArray(body.courseIds)
+      ? body.courseIds.map((value) => normalizeText(value)).filter(Boolean)
+      : [];
+    const selectedMemberIds = Array.isArray(body.selectedMemberIds)
+      ? body.selectedMemberIds.map((value) => normalizeText(value)).filter(Boolean)
+      : [];
+    const achievementRows = Array.isArray(body.achievements)
+      ? (body.achievements as BulkCourseAchievementRow[])
+      : [];
+    const input = body.course ?? {};
+    const title = normalizeText(input.title);
+    const courseDate = normalizeDate(normalizeText(input.date));
+    const taikaiConfig = normalizeTaikaiConfig(input.taikaiConfig);
+
+    if (courseIds.length === 0 || !title || !courseDate || selectedMemberIds.length === 0) {
+      return NextResponse.json(
+        { error: "Curso no valido para actualizacion global." },
+        { status: 400 },
+      );
+    }
+
+    const scopedCourses = await guard.admin
+      .from("grade_history")
+      .select("id,member_id,grade,exam_date,exam_place,examiner,notes,course_type,taikai_config")
+      .in("id", courseIds);
+
+    if (scopedCourses.error) {
+      return NextResponse.json({ error: scopedCourses.error.message }, { status: 500 });
+    }
+
+    const courseRows = (scopedCourses.data ?? []) as Array<{
+      id: string;
+      member_id: string;
+      grade: string;
+      exam_date: string;
+      exam_place: string | null;
+      examiner: string | null;
+      notes: string | null;
+      course_type: string | null;
+      taikai_config?: TaikaiConfigInput | null;
+    }>;
+
+    if (courseRows.length !== courseIds.length) {
+      return NextResponse.json(
+        { error: "Alguno de los cursos ya no esta disponible." },
+        { status: 400 },
+      );
+    }
+
+    const currentMemberIds = Array.from(new Set(courseRows.map((course) => course.member_id)));
+    const courseMembers = await guard.admin
+      .from("members")
+      .select("id,country_id,dojo_id")
+      .in("id", currentMemberIds);
+
+    if (courseMembers.error) {
+      return NextResponse.json({ error: courseMembers.error.message }, { status: 500 });
+    }
+
+    for (const memberRow of (courseMembers.data ?? []) as Array<{
+      id: string;
+      country_id: string | null;
+      dojo_id: string | null;
+    }>) {
+      if (
+        !memberRow.country_id ||
+        !memberRow.dojo_id ||
+        !canManageTarget(guard.scope, memberRow.country_id, memberRow.dojo_id)
+      ) {
+        return NextResponse.json(
+          { error: "No tienes permisos para actualizar alguno de esos cursos." },
+          { status: 403 },
+        );
+      }
+    }
+
+    const selectedMembers = await guard.admin
+      .from("members")
+      .select("id,country_id,dojo_id")
+      .in("id", selectedMemberIds);
+
+    if (selectedMembers.error) {
+      return NextResponse.json({ error: selectedMembers.error.message }, { status: 500 });
+    }
+
+    const selectedMemberRows = (selectedMembers.data ?? []) as Array<{
+      id: string;
+      country_id: string | null;
+      dojo_id: string | null;
+    }>;
+
+    if (selectedMemberRows.length !== selectedMemberIds.length) {
+      return NextResponse.json(
+        { error: "Alguno de los Kenshis seleccionados ya no esta disponible." },
+        { status: 400 },
+      );
+    }
+
+    for (const memberRow of selectedMemberRows) {
+      if (
+        !memberRow.country_id ||
+        !memberRow.dojo_id ||
+        !canManageTarget(guard.scope, memberRow.country_id, memberRow.dojo_id)
+      ) {
+        return NextResponse.json(
+          { error: "No tienes permisos para alguno de los Kenshis seleccionados." },
+          { status: 403 },
+        );
+      }
+    }
+
+    const currentMemberIdSet = new Set(currentMemberIds);
+    const selectedMemberIdSet = new Set(selectedMemberIds);
+    const templateCourse = courseRows[0];
+    const courseIdsToDelete = courseRows
+      .filter((course) => !selectedMemberIdSet.has(course.member_id))
+      .map((course) => course.id);
+    const memberIdsToAdd = selectedMemberIds.filter((memberId) => !currentMemberIdSet.has(memberId));
+
+    if (courseIdsToDelete.length > 0) {
+      const deletedAchievements = await guard.admin
+        .from("member_achievements")
+        .delete()
+        .in("course_id", courseIdsToDelete);
+
+      if (deletedAchievements.error) {
+        return NextResponse.json({ error: deletedAchievements.error.message }, { status: 500 });
+      }
+
+      const deletedCourses = await guard.admin
+        .from("grade_history")
+        .delete()
+        .in("id", courseIdsToDelete);
+
+      if (deletedCourses.error) {
+        return NextResponse.json({ error: deletedCourses.error.message }, { status: 500 });
+      }
+    }
+
+    const keptCourseIds = courseRows
+      .filter((course) => selectedMemberIdSet.has(course.member_id))
+      .map((course) => course.id);
+    let insertedCourseRows: Array<{ id: string; member_id: string }> = [];
+
+    if (memberIdsToAdd.length > 0) {
+      const createdCourses = await guard.admin
+        .from("grade_history")
+        .insert(
+          memberIdsToAdd.map((memberId) => ({
+            member_id: memberId,
+            grade: title,
+            course_type: normalizeCourseType(input.type),
+            taikai_config: taikaiConfig,
+            exam_date: courseDate,
+            exam_place: normalizeText(input.place) || templateCourse.exam_place || null,
+            examiner: normalizeText(input.instructor) || templateCourse.examiner || null,
+            notes: normalizeText(input.notes) || templateCourse.notes || null,
+            created_by: guard.profileId,
+            updated_by: guard.profileId,
+          })),
+        );
+
+      if (createdCourses.error) {
+        if (isDuplicateCourseError(createdCourses.error.message)) {
+          return NextResponse.json(
+            { error: getDuplicateCourseErrorMessage() },
+            { status: 409 },
+          );
+        }
+        return NextResponse.json({ error: createdCourses.error.message }, { status: 500 });
+      }
+
+      const insertedRowsResult = await guard.admin
+        .from("grade_history")
+        .select("id,member_id")
+        .in("member_id", memberIdsToAdd)
+        .eq("grade", title)
+        .eq("exam_date", courseDate);
+
+      if (insertedRowsResult.error) {
+        return NextResponse.json({ error: insertedRowsResult.error.message }, { status: 500 });
+      }
+
+      insertedCourseRows = (insertedRowsResult.data ?? []) as Array<{ id: string; member_id: string }>;
+    }
+
+    const finalCourseIds = [
+      ...keptCourseIds,
+      ...insertedCourseRows.map((course) => course.id),
+    ];
+
+    const updated = await guard.admin
+      .from("grade_history")
+      .update({
+        grade: title,
+        course_type: normalizeCourseType(input.type),
+        taikai_config: taikaiConfig,
+        exam_date: courseDate,
+        exam_place: normalizeText(input.place) || null,
+        examiner: normalizeText(input.instructor) || null,
+        notes: normalizeText(input.notes) || null,
+        updated_by: guard.profileId,
+      })
+      .in("id", finalCourseIds);
+
+    if (updated.error) {
+      if (isDuplicateCourseError(updated.error.message)) {
+        return NextResponse.json(
+          { error: getDuplicateCourseErrorMessage() },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ error: updated.error.message }, { status: 500 });
+    }
+
+    const syncedCourseRows = [
+      ...courseRows
+        .filter((course) => selectedMemberIdSet.has(course.member_id))
+        .map((course) => ({ id: course.id, member_id: course.member_id })),
+      ...insertedCourseRows,
+    ];
+    const courseIdByMemberId = new Map(
+      syncedCourseRows.map((course) => [course.member_id, course.id]),
+    );
+
+    const deletedAllAchievements = await guard.admin
+      .from("member_achievements")
+      .delete()
+      .in("course_id", finalCourseIds);
+
+    if (deletedAllAchievements.error) {
+      return NextResponse.json({ error: deletedAllAchievements.error.message }, { status: 500 });
+    }
+
+    const normalizedAchievements = achievementRows
+      .map((achievement) => {
+        const memberId = normalizeText(achievement.memberId);
+        const titleValue = normalizeText(achievement.title);
+        const linkedCourseId = memberId ? courseIdByMemberId.get(memberId) ?? null : null;
+
+        if (!memberId || !titleValue || !linkedCourseId) {
+          return null;
+        }
+
+        return {
+          member_id: memberId,
+          course_id: linkedCourseId,
+          title: titleValue,
+          category: normalizeText(achievement.category) || null,
+          result: normalizeText(achievement.result) || null,
+          medal_type: normalizeMedalType(achievement.medalType),
+          podium_position: normalizePodiumPosition(achievement.podiumPosition),
+          achieved_on: courseDate,
+          achieved_place: normalizeText(input.place) || null,
+          notes: normalizeText(achievement.notes) || null,
+          created_by: guard.profileId,
+          updated_by: guard.profileId,
+        };
+      })
+      .filter(
+        (
+          achievement,
+        ): achievement is {
+          member_id: string;
+          course_id: string;
+          title: string;
+          category: string | null;
+          result: string | null;
+          medal_type: string | null;
+          podium_position: number | null;
+          achieved_on: string;
+          achieved_place: string | null;
+          notes: string | null;
+          created_by: string;
+          updated_by: string;
+        } => Boolean(achievement),
+      );
+
+    if (normalizedAchievements.length > 0) {
+      const createdAchievements = await guard.admin
+        .from("member_achievements")
+        .insert(normalizedAchievements);
+
+      if (createdAchievements.error) {
+        return NextResponse.json({ error: createdAchievements.error.message }, { status: 500 });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      updated: 1,
+      attendees: selectedMemberIds.length,
+      achievements: normalizedAchievements.length,
+    });
+  }
+
+  if (body.action === "add_achievement") {
+    const input = body.achievement ?? {};
+    const title = normalizeText(input.title);
+    const achievedOn = normalizeDate(normalizeText(input.achievedOn));
+
+    if (!title || !achievedOn) {
+      return NextResponse.json(
+        { error: "El logro necesita titulo y fecha." },
+        { status: 400 },
+      );
+    }
+
+    const created = await guard.admin
+      .from("member_achievements")
+      .insert({
+        member_id: member.data.id,
+        course_id: normalizeText(input.courseId) || null,
+        title,
+        category: normalizeText(input.category) || null,
+        result: normalizeText(input.result) || null,
+        medal_type: normalizeMedalType(input.medalType),
+        podium_position: normalizePodiumPosition(input.podiumPosition),
+        achieved_on: achievedOn,
+        achieved_place: normalizeText(input.achievedPlace) || null,
+        notes: normalizeText(input.notes) || null,
+        created_by: guard.profileId,
+        updated_by: guard.profileId,
+      })
+      .select("id,member_id,course_id,title,category,result,medal_type,podium_position,achieved_on,achieved_place,notes")
+      .single<AchievementRow>();
+
+    if (created.error || !created.data) {
+      return NextResponse.json(
+        { error: created.error?.message ?? "No se pudo crear el logro." },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ ok: true, achievement: created.data });
+  }
+
+  if (body.action === "update_achievement") {
+    const achievementId = normalizeText(body.achievementId);
+    const input = body.achievement ?? {};
+    const title = normalizeText(input.title);
+    const achievedOn = normalizeDate(normalizeText(input.achievedOn));
+
+    if (!achievementId || !title || !achievedOn) {
+      return NextResponse.json(
+        { error: "Logro, titulo y fecha son obligatorios." },
+        { status: 400 },
+      );
+    }
+
+    const updatedAchievement = await guard.admin
+      .from("member_achievements")
+      .update({
+        course_id: normalizeText(input.courseId) || null,
+        title,
+        category: normalizeText(input.category) || null,
+        result: normalizeText(input.result) || null,
+        medal_type: normalizeMedalType(input.medalType),
+        podium_position: normalizePodiumPosition(input.podiumPosition),
+        achieved_on: achievedOn,
+        achieved_place: normalizeText(input.achievedPlace) || null,
+        notes: normalizeText(input.notes) || null,
+        updated_by: guard.profileId,
+      })
+      .eq("id", achievementId)
+      .eq("member_id", member.data.id)
+      .select("id,member_id,course_id,title,category,result,medal_type,podium_position,achieved_on,achieved_place,notes")
+      .single<AchievementRow>();
+
+    if (updatedAchievement.error || !updatedAchievement.data) {
+      return NextResponse.json(
+        { error: updatedAchievement.error?.message ?? "No se pudo actualizar el logro." },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ ok: true, achievement: updatedAchievement.data });
+  }
+
+  if (body.action === "delete_achievement") {
+    const achievementId = normalizeText(body.achievementId);
+
+    if (!achievementId) {
+      return NextResponse.json(
+        { error: "Logro no valido." },
+        { status: 400 },
+      );
+    }
+
+    const deleted = await guard.admin
+      .from("member_achievements")
+      .delete()
+      .eq("id", achievementId)
+      .eq("member_id", member.data.id);
+
+    if (deleted.error) {
+      return NextResponse.json({ error: deleted.error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, achievementId });
   }
 
   if (body.action === "update_member") {
@@ -605,7 +1111,22 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   if (body?.action === "import_courses") {
+    if (!hasSuperAdminRole(guard.scope)) {
+      return NextResponse.json(
+        { error: "Solo super admin puede importar cursos y taikai." },
+        { status: 403 },
+      );
+    }
     return importCourseRows(guard, body?.rows);
+  }
+  if (body?.action === "bulk_create_course") {
+    if (!hasSuperAdminRole(guard.scope)) {
+      return NextResponse.json(
+        { error: "Solo super admin puede crear cursos y taikai." },
+        { status: 403 },
+      );
+    }
+    return createBulkCourse(guard, body?.course);
   }
 
   const rows = Array.isArray(body?.rows) ? (body.rows as ImportRow[]) : [];
@@ -771,6 +1292,14 @@ export async function POST(request: NextRequest) {
         .eq("id", existingMember.id);
 
       if (updated.error) {
+        if (isDuplicateCourseError(updated.error.message)) {
+          result.skipped += 1;
+          result.errors.push({
+            row: rowNumber,
+            error: getDuplicateCourseErrorMessage(),
+          });
+          continue;
+        }
         result.skipped += 1;
         result.errors.push({ row: rowNumber, error: updated.error.message });
         continue;
@@ -891,6 +1420,8 @@ async function importCourseRows(
     const row = normalizeCourseImportRow(rawRow);
     const courseTitle = normalizeText(row.courseTitle);
     const courseDate = normalizeDate(normalizeText(row.courseDate));
+    const courseType = normalizeCourseType(row.courseType);
+    const taikaiConfig = normalizeTaikaiConfig(null);
 
     if (!courseTitle || !courseDate) {
       result.skipped += 1;
@@ -945,6 +1476,8 @@ async function importCourseRows(
       const updated = await guard.admin
         .from("grade_history")
         .update({
+          course_type: courseType,
+          taikai_config: taikaiConfig,
           exam_place: normalizeText(row.coursePlace) || null,
           examiner: normalizeText(row.instructor) || null,
           notes: normalizeText(row.notes) || null,
@@ -965,6 +1498,8 @@ async function importCourseRows(
     const created = await guard.admin.from("grade_history").insert({
       member_id: member.id,
       grade: courseTitle,
+      course_type: courseType,
+      taikai_config: normalizeTaikaiConfig(null),
       exam_date: courseDate,
       exam_place: normalizeText(row.coursePlace) || null,
       examiner: normalizeText(row.instructor) || null,
@@ -974,6 +1509,14 @@ async function importCourseRows(
     });
 
     if (created.error) {
+      if (isDuplicateCourseError(created.error.message)) {
+        result.skipped += 1;
+        result.errors.push({
+          row: rowNumber,
+          error: getDuplicateCourseErrorMessage(),
+        });
+        continue;
+      }
       result.skipped += 1;
       result.errors.push({ row: rowNumber, error: created.error.message });
       continue;
@@ -983,6 +1526,224 @@ async function importCourseRows(
   }
 
   return NextResponse.json(result);
+}
+
+async function createBulkCourse(
+  guard: {
+    admin: SupabaseAdminClient;
+    profileId: string;
+    scope: { isGlobal: boolean; roleKeys: Array<string | undefined>; countryIds: string[]; dojoIds: string[] };
+  },
+  rawCourse: unknown,
+) {
+  const input = (rawCourse ?? {}) as BulkCourseCreateBody;
+  const title = normalizeText(input.title);
+  const courseDate = normalizeDate(normalizeText(input.date));
+  const courseType = normalizeCourseType(input.type);
+  const taikaiConfig = normalizeTaikaiConfig(input.taikaiConfig);
+  const selectedMemberIds = Array.isArray(input.selectedMemberIds)
+    ? input.selectedMemberIds.map((value) => normalizeText(value)).filter(Boolean)
+    : [];
+  const achievements = Array.isArray(input.achievements)
+    ? input.achievements
+    : [];
+
+  if (!title || !courseDate) {
+    return NextResponse.json(
+      { error: "Curso, Taikai o evento necesita titulo y fecha." },
+      { status: 400 },
+    );
+  }
+
+  if (selectedMemberIds.length === 0) {
+    return NextResponse.json(
+      { error: "Selecciona al menos un Kenshi." },
+      { status: 400 },
+    );
+  }
+
+  const membersResult = await guard.admin
+    .from("members")
+    .select("id,country_id,dojo_id")
+    .in("id", selectedMemberIds);
+
+  if (membersResult.error) {
+    return NextResponse.json({ error: membersResult.error.message }, { status: 500 });
+  }
+
+  const members = (membersResult.data ?? []) as Array<{
+    id: string;
+    country_id: string | null;
+    dojo_id: string | null;
+  }>;
+
+  if (members.length !== selectedMemberIds.length) {
+    return NextResponse.json(
+      { error: "Alguno de los Kenshis seleccionados ya no esta disponible." },
+      { status: 400 },
+    );
+  }
+
+  for (const member of members) {
+    if (
+      !member.country_id ||
+      !member.dojo_id ||
+      !canManageTarget(guard.scope, member.country_id, member.dojo_id)
+    ) {
+      return NextResponse.json(
+        { error: "Hay Kenshis fuera de tu ambito de gestion." },
+        { status: 403 },
+      );
+    }
+  }
+
+  const createdCourseIds = new Map<string, string>();
+  let createdAchievements = 0;
+
+  for (const member of members) {
+    const existing = await guard.admin
+      .from("grade_history")
+      .select("id")
+      .eq("member_id", member.id)
+      .eq("grade", title)
+      .eq("exam_date", courseDate)
+      .maybeSingle<{ id: string }>();
+
+    if (existing.error) {
+      return NextResponse.json({ error: existing.error.message }, { status: 500 });
+    }
+
+    if (existing.data) {
+      const updated = await guard.admin
+        .from("grade_history")
+        .update({
+          course_type: courseType,
+          taikai_config: taikaiConfig,
+          exam_place: normalizeText(input.place) || null,
+          examiner: normalizeText(input.instructor) || null,
+          notes: normalizeText(input.notes) || null,
+          updated_by: guard.profileId,
+        })
+        .eq("id", existing.data.id);
+
+      if (updated.error) {
+        if (isDuplicateCourseError(updated.error.message)) {
+          return NextResponse.json(
+            { error: getDuplicateCourseErrorMessage() },
+            { status: 409 },
+          );
+        }
+        return NextResponse.json({ error: updated.error.message }, { status: 500 });
+      }
+
+      createdCourseIds.set(member.id, existing.data.id);
+      continue;
+    }
+
+    const inserted = await guard.admin
+      .from("grade_history")
+      .insert({
+        member_id: member.id,
+        grade: title,
+        course_type: courseType,
+        taikai_config: taikaiConfig,
+        exam_date: courseDate,
+        exam_place: normalizeText(input.place) || null,
+        examiner: normalizeText(input.instructor) || null,
+        notes: normalizeText(input.notes) || null,
+        created_by: guard.profileId,
+        updated_by: guard.profileId,
+      })
+      .select("id")
+      .single<{ id: string }>();
+
+    if (inserted.error || !inserted.data) {
+      if (isDuplicateCourseError(inserted.error?.message)) {
+        return NextResponse.json(
+          { error: getDuplicateCourseErrorMessage() },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json(
+        { error: inserted.error?.message ?? "No se pudo crear el curso." },
+        { status: 500 },
+      );
+    }
+
+    createdCourseIds.set(member.id, inserted.data.id);
+  }
+
+  for (const rawAchievement of achievements) {
+    const memberId = normalizeText(rawAchievement.memberId);
+    const achievementTitle = normalizeText(rawAchievement.title) || title;
+    const courseId = memberId ? createdCourseIds.get(memberId) ?? null : null;
+
+    if (!memberId || !courseId || !selectedMemberIds.includes(memberId)) {
+      continue;
+    }
+
+    const achievedOn = courseDate;
+    const existingAchievement = await guard.admin
+      .from("member_achievements")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("course_id", courseId)
+      .eq("title", achievementTitle)
+      .maybeSingle<{ id: string }>();
+
+    if (existingAchievement.error) {
+      return NextResponse.json(
+        { error: existingAchievement.error.message },
+        { status: 500 },
+      );
+    }
+
+    const achievementPayload = {
+      member_id: memberId,
+      course_id: courseId,
+      title: achievementTitle,
+      category: normalizeText(rawAchievement.category) || null,
+      result: normalizeText(rawAchievement.result) || null,
+      medal_type: normalizeMedalType(rawAchievement.medalType),
+      podium_position: normalizePodiumPosition(rawAchievement.podiumPosition),
+      achieved_on: achievedOn,
+      achieved_place: normalizeText(input.place) || null,
+      notes: normalizeText(rawAchievement.notes) || null,
+      updated_by: guard.profileId,
+    };
+
+    if (existingAchievement.data) {
+      const updated = await guard.admin
+        .from("member_achievements")
+        .update(achievementPayload)
+        .eq("id", existingAchievement.data.id);
+
+      if (updated.error) {
+        return NextResponse.json({ error: updated.error.message }, { status: 500 });
+      }
+
+      createdAchievements += 1;
+      continue;
+    }
+
+    const inserted = await guard.admin.from("member_achievements").insert({
+      ...achievementPayload,
+      created_by: guard.profileId,
+    });
+
+    if (inserted.error) {
+      return NextResponse.json({ error: inserted.error.message }, { status: 500 });
+    }
+
+    createdAchievements += 1;
+  }
+
+  return NextResponse.json({
+    ok: true,
+    createdCourses: 1,
+    createdAttendances: createdCourseIds.size,
+    createdAchievements,
+  });
 }
 
 async function requireMembersAdmin(request: NextRequest) {
@@ -1406,6 +2167,7 @@ function normalizeCourseImportRow(row: CourseImportRow) {
     coursePlace: normalizeText(row.coursePlace),
     instructor: normalizeText(row.instructor),
     notes: normalizeText(row.notes),
+    courseType: normalizeText(row.courseType),
   };
 }
 
@@ -1572,6 +2334,10 @@ function canManageTarget(
   );
 }
 
+function hasSuperAdminRole(scope: { roleKeys?: Array<string | undefined> }) {
+  return (scope.roleKeys ?? []).includes("super_admin");
+}
+
 async function getAdminReadiness(supabase: SupabaseAdminClient) {
   const assignments = await supabase
     .from("user_roles")
@@ -1699,6 +2465,19 @@ function isLocalOrigin(origin: string) {
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function isDuplicateCourseError(message: string | null | undefined) {
+  const normalized = normalizeText(message).toLowerCase();
+
+  return (
+    normalized.includes("grade_history_member_course_fingerprint_idx") ||
+    normalized.includes("duplicate key value violates unique constraint")
+  );
+}
+
+function getDuplicateCourseErrorMessage() {
+  return "Este Kenshi ya tiene ese curso asignado. No se puede duplicar.";
 }
 
 async function uploadMemberProfileImage(
@@ -1885,4 +2664,95 @@ function normalizeMemberStatus(value: unknown) {
   }
 
   return "";
+}
+
+function normalizeCourseType(value: unknown) {
+  const comparable = normalizeComparable(normalizeText(value));
+
+  if (["seminar", "seminario", "seminaire", "seminario_ika"].includes(comparable)) {
+    return "seminar";
+  }
+
+  if (["taikai", "competition", "competicion", "competicion_ika"].includes(comparable)) {
+    return "taikai";
+  }
+
+  if (["encounter", "encuentro", "meeting", "reunion"].includes(comparable)) {
+    return "encounter";
+  }
+
+  if (["busen"].includes(comparable)) {
+    return "busen";
+  }
+
+  return "course";
+}
+
+function normalizeTaikaiConfig(value: unknown) {
+  const input = (value ?? {}) as TaikaiConfigInput;
+
+  return {
+    categories: normalizeStringList(input.categories),
+    results: normalizeStringList(input.results),
+    medals: normalizeStringList(input.medals),
+    awards: normalizeStringList(input.awards),
+  };
+}
+
+function normalizeStringList(value: unknown) {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/\r?\n|,/)
+      : [];
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const entry of source) {
+    const normalized = normalizeText(entry);
+    const comparable = normalizeComparable(normalized);
+
+    if (!normalized || seen.has(comparable)) {
+      continue;
+    }
+
+    seen.add(comparable);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function normalizeMedalType(value: unknown) {
+  const comparable = normalizeComparable(normalizeText(value));
+
+  if (["gold", "oro"].includes(comparable)) {
+    return "gold";
+  }
+  if (["silver", "plata"].includes(comparable)) {
+    return "silver";
+  }
+  if (["bronze", "bronce"].includes(comparable)) {
+    return "bronze";
+  }
+  if (["finalist", "finalista"].includes(comparable)) {
+    return "finalist";
+  }
+  if (["participant", "participante"].includes(comparable)) {
+    return "participant";
+  }
+
+  return null;
+}
+
+function normalizePodiumPosition(value: unknown) {
+  const raw = typeof value === "number" ? String(value) : normalizeText(value);
+  const numeric = Number.parseInt(raw, 10);
+
+  if (!Number.isFinite(numeric) || numeric < 1) {
+    return null;
+  }
+
+  return numeric;
 }

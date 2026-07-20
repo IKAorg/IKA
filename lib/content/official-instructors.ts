@@ -1,12 +1,20 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { createPublicSupabaseClient } from "@/lib/supabase/public-client";
+import { extendedOfficialInstructorsPageCopy } from "@/lib/i18n/extended-public-locales";
+
+type ChiefNoteTranslation = {
+  note: string;
+};
 
 export type OfficialInstructor = {
   id: string;
   name: string;
-  grade?: string;
-  photo?: string;
-  photoAlt?: string;
-  countryByLocale: Partial<Record<Locale, string>>;
+  grade: string;
+  photo: string;
+  photoAlt: string;
+  country: string;
+  chiefNote: string;
+  isChiefInstructor: boolean;
 };
 
 export type OfficialInstructorsPageCopy = {
@@ -16,127 +24,153 @@ export type OfficialInstructorsPageCopy = {
   gradeLabel: string;
   countryLabel: string;
   noGrade: string;
+  empty: string;
+  chiefBadge: string;
 };
 
-const instructors: OfficialInstructor[] = [
-  {
-    id: "mizuno",
-    name: "T. Mizuno",
-    countryByLocale: {
-      en: "Japan",
-      es: "Japón",
-      it: "Giappone",
-      fr: "Japon",
-      ja: "日本",
-      zh: "日本",
-      cs: "Japonsko",
-    },
-  },
-  {
-    id: "bazz-smith",
-    name: "Bazz Smith",
-    countryByLocale: {
-      en: "United Kingdom",
-      es: "Reino Unido",
-      it: "Regno Unito",
-      fr: "Royaume-Uni",
-      ja: "英国",
-      zh: "英国",
-      cs: "Spojene kralovstvi",
-    },
-  },
-  {
-    id: "alvaro-calvo-pineira",
-    name: "Alvaro Calvo Pineira",
-    grade: "4 Dan",
-    countryByLocale: {
-      en: "Spain",
-      es: "España",
-      it: "Spagna",
-      fr: "Espagne",
-      ja: "スペイン",
-      zh: "西班牙",
-      cs: "Spanelsko",
-    },
-  },
-];
+type OfficialInstructorRow = {
+  id: string;
+  full_name: string;
+  grade: string | null;
+  country_name: string;
+  chief_note: string | null;
+  chief_note_translations?: Partial<Record<Locale, ChiefNoteTranslation>> | null;
+  photo_url: string | null;
+  photo_alt: string | null;
+  sort_order: number;
+  is_visible: boolean;
+  is_chief_instructor: boolean;
+};
 
-const pageCopyByLocale: Record<Locale, OfficialInstructorsPageCopy> = {
+const pageCopyByLocale: Partial<Record<Locale, OfficialInstructorsPageCopy>> = {
   en: {
     eyebrow: "Official instructors",
     title: "Official IKA instructors",
     intro:
-      "Meet the official IKA instructors. This public directory shows their names, current grade, and country of origin.",
+      
+      "Meet the official IKA instructors.",
     gradeLabel: "Grade",
     countryLabel: "Country of origin",
     noGrade: "Confirmed instructor",
+    empty: "There are no official instructors published yet.",
+    chiefBadge: "IKA Chief Instructor",
   },
   es: {
     eyebrow: "Instructores oficiales",
     title: "Instructores oficiales de IKA",
     intro:
-      "Conoce a los instructores oficiales de IKA. Este directorio publico muestra su nombre, grado actual y pais de origen.",
+      
+      "Conoce a los instructores oficiales de IKA.",
     gradeLabel: "Grado",
     countryLabel: "Pais de origen",
     noGrade: "Instructor confirmado",
+    empty: "Todavia no hay instructores oficiales publicados.",
+    chiefBadge: "IKA Chief Instructor",
   },
   it: {
     eyebrow: "Istruttori ufficiali",
     title: "Istruttori ufficiali IKA",
     intro:
-      "Conosci gli istruttori ufficiali IKA. Questa directory pubblica mostra nome, grado attuale e paese di origine.",
+      
+      "Conosci gli istruttori ufficiali IKA.",
     gradeLabel: "Grado",
     countryLabel: "Paese di origine",
     noGrade: "Istruttore confermato",
+    empty: "Non ci sono ancora istruttori ufficiali pubblicati.",
+    chiefBadge: "IKA Chief Instructor",
   },
   fr: {
     eyebrow: "Instructeurs officiels",
     title: "Instructeurs officiels de l'IKA",
     intro:
-      "Decouvrez les instructeurs officiels de l'IKA. Cet annuaire public affiche leur nom, leur grade actuel et leur pays d'origine.",
+      
+      "Decouvrez les instructeurs officiels de l'IKA.",
     gradeLabel: "Grade",
     countryLabel: "Pays d'origine",
     noGrade: "Instructeur confirme",
+    empty: "Aucun instructeur officiel n'est encore publie.",
+    chiefBadge: "IKA Chief Instructor",
   },
   ja: {
     eyebrow: "公認指導者",
     title: "IKA 公認指導者",
-    intro:
-      "IKA の公認指導者を紹介します。氏名、現在の段位、出身国を公開ディレクトリとして表示します。",
+    intro: "\u0049\u004b\u0041 \u306e\u516c\u5f0f\u6307\u5c0e\u8005\u3092\u3054\u7d39\u4ecb\u3057\u307e\u3059\u3002",
     gradeLabel: "段位",
     countryLabel: "出身国",
     noGrade: "公認指導者",
+    empty: "公開中の公認指導者はまだいません。",
+    chiefBadge: "IKA Chief Instructor",
   },
   zh: {
     eyebrow: "IKA 正式教练",
     title: "IKA 正式教练",
-    intro:
-      "查看 IKA 正式教练名单。本公开目录展示姓名、当前段位和所属原籍国家。",
+    intro: "\u8ba4\u8bc6 IKA \u5b98\u65b9\u6559\u7ec3\u3002",
     gradeLabel: "段位",
     countryLabel: "原籍国家",
     noGrade: "已确认教练",
+    empty: "目前还没有已发布的正式教练。",
+    chiefBadge: "IKA Chief Instructor",
   },
   cs: {
     eyebrow: "Oficialni instruktori",
     title: "Oficialni instruktori IKA",
     intro:
-      "Seznamte se s oficialnimi instruktory IKA. Tento verejny adresar zobrazuje jmeno, aktualni stupen a zemi puvodu.",
+      
+      "Seznamte se s oficialnimi instruktory IKA.",
     gradeLabel: "Stupen",
     countryLabel: "Zeme puvodu",
     noGrade: "Potvrzeny instruktor",
+    empty: "Zatim nejsou zverejneni zadni oficialni instruktori.",
+    chiefBadge: "IKA Chief Instructor",
   },
 };
 
-export function getOfficialInstructors(locale: Locale) {
-  return instructors.map((instructor) => ({
-    ...instructor,
-    country:
-      instructor.countryByLocale[locale] ??
-      instructor.countryByLocale[defaultLocale] ??
-      "",
-  }));
+export async function getOfficialInstructors(locale: Locale = defaultLocale) {
+  const supabase = createPublicSupabaseClient();
+
+  if (!supabase) {
+    return [] as OfficialInstructor[];
+  }
+
+  const { data, error } = await supabase
+    .from("official_instructors")
+    .select("id,full_name,grade,country_name,chief_note,chief_note_translations,photo_url,photo_alt,sort_order,is_visible,is_chief_instructor")
+    .eq("is_visible", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return [] as OfficialInstructor[];
+  }
+
+  return ((data ?? []) as OfficialInstructorRow[]).map((item) => {
+    const translations = item.chief_note_translations ?? {};
+    const translatedNote =
+      translations[locale]?.note ??
+      translations.es?.note ??
+      translations.en?.note ??
+      Object.values(translations)[0]?.note ??
+      item.chief_note ??
+      "";
+
+    return {
+      id: item.id,
+      name: item.full_name,
+      grade: item.grade ?? "",
+      photo: item.photo_url ?? "",
+      photoAlt: item.photo_alt ?? item.full_name,
+      country: item.country_name,
+      chiefNote: translatedNote,
+      isChiefInstructor: item.is_chief_instructor,
+    };
+  });
 }
 
 export function getOfficialInstructorsPageCopy(locale: Locale) {
-  return pageCopyByLocale[locale] ?? pageCopyByLocale[defaultLocale];
+  return (
+    (extendedOfficialInstructorsPageCopy[locale] as OfficialInstructorsPageCopy | undefined) ??
+    pageCopyByLocale[locale] ??
+    (extendedOfficialInstructorsPageCopy[defaultLocale] as OfficialInstructorsPageCopy | undefined) ??
+    pageCopyByLocale[defaultLocale]!
+  );
 }

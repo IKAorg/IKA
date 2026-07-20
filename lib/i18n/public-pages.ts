@@ -1,4 +1,9 @@
 import { defaultLocale, type Locale } from "./config";
+import {
+  extendedAboutQuotes,
+  extendedAboutSections,
+  extendedPublicPageContent,
+} from "./extended-public-locales";
 
 export type TextBlock = {
   title: string;
@@ -46,7 +51,7 @@ export type PublicPageKey =
   | "contact"
   | "portal";
 
-const memberCountriesByLocale: Record<Locale, string[]> = {
+const memberCountriesByLocale: Partial<Record<Locale, string[]>> = {
   en: [
     "Costa Rica",
     "Czech Republic",
@@ -133,7 +138,7 @@ const memberCountriesByLocale: Record<Locale, string[]> = {
   ],
 };
 
-const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
+const content: Partial<Record<Locale, Record<PublicPageKey, PublicPageContent>>> = {
   en: {
     about: {
       eyebrow: "About IKA",
@@ -205,13 +210,18 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
         },
         {
           number: "02",
-          title: "Review alignment",
-          text: "Share technical, historical, and organisational background.",
+          title: "Let us get to know you",
+          text: "Share your technical, historical, and organisational background with us.",
         },
         {
           number: "03",
-          title: "Train together",
-          text: "Join seminars, events, and association activities.",
+          title: "Share training",
+          text: "If the previous conditions are met, we will invite you to join us at an event so we can get to know your practice and get to know one another.",
+        },
+        {
+          number: "04",
+          title: "Membership proposal and acceptance",
+          text: "Your membership proposal will be presented to the board for review and resolution.",
         },
       ],
     },
@@ -313,13 +323,18 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
         },
         {
           number: "02",
-          title: "Revisar alineación",
-          text: "Comparte información técnica, histórica y organizativa.",
+          title: "Dejanos conocerte",
+          text: "Comparte con nosotros vuestra trayectoria tecnica, historica y organizativa.",
         },
         {
           number: "03",
-          title: "Entrenar juntos",
-          text: "Participa en seminarios, eventos y actividades de la asociación.",
+          title: "Compartir entrenamiento",
+          text: "Si cumples con las condiciones anteriores te invitaremos a participar junto a nosotros en algun evento para conocer vuestra practica y que nos podamos conocer unos a otros.",
+        },
+        {
+          number: "04",
+          title: "Propuesta y aceptacion de membresia",
+          text: "La propuesta de membresia se presentara a la junta para su valoracion y resolucion.",
         },
       ],
     },
@@ -421,13 +436,18 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
         },
         {
           number: "02",
-          title: "Verifica l'allineamento",
-          text: "Condividi informazioni tecniche, storiche e organizzative.",
+          title: "Lasciaci conoscerti",
+          text: "Condividi con noi il tuo contesto tecnico, storico e organizzativo.",
         },
         {
           number: "03",
-          title: "Allenarsi insieme",
-          text: "Partecipa a seminari, eventi e attività dell'associazione.",
+          title: "Condividere l'allenamento",
+          text: "Se le condizioni precedenti sono soddisfatte, vi inviteremo a partecipare con noi a un evento per conoscere la vostra pratica e conoscerci meglio reciprocamente.",
+        },
+        {
+          number: "04",
+          title: "Proposta e accettazione della membership",
+          text: "La proposta di adesione sara presentata al consiglio per la valutazione e la decisione finale.",
         },
       ],
     },
@@ -529,13 +549,18 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
         },
         {
           number: "02",
-          title: "Vérifier l'alignement",
-          text: "Partagez les informations techniques, historiques et organisationnelles.",
+          title: "Faites-nous vous connaitre",
+          text: "Partagez avec nous votre parcours technique, historique et organisationnel.",
         },
         {
           number: "03",
-          title: "S'entraîner ensemble",
-          text: "Participez aux séminaires, événements et activités de l'association.",
+          title: "Partager l'entrainement",
+          text: "Si les conditions precedentes sont remplies, nous vous inviterons a participer avec nous a un evenement afin de connaitre votre pratique et de faire connaissance les uns avec les autres.",
+        },
+        {
+          number: "04",
+          title: "Proposition et acceptation d'adhesion",
+          text: "La proposition d'adhesion sera presentee au conseil pour evaluation et decision.",
         },
       ],
     },
@@ -636,13 +661,18 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
         },
         {
           number: "02",
-          title: "方向性の確認",
-          text: "技術、歴史、組織に関する情報を共有します。",
+          title: "\u79c1\u305f\u3061\u306b\u3042\u306a\u305f\u65b9\u3092\u77e5\u3063\u3066\u3082\u3089\u3046",
+          text: "\u6280\u8853\u7684\u3001\u6b74\u53f2\u7684\u3001\u7d44\u7e54\u7684\u80cc\u666f\u3092\u79c1\u305f\u3061\u3068\u5171\u6709\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
         },
         {
           number: "03",
-          title: "共に稽古",
-          text: "セミナー、イベント、協会活動に参加します。",
+          title: "\u7a3d\u53e4\u3092\u5206\u304b\u3061\u5408\u3046",
+          text: "\u524d\u63d0\u6761\u4ef6\u3092\u6e80\u305f\u3057\u305f\u5834\u5408\u3001\u3042\u306a\u305f\u65b9\u306e\u7a3d\u53e4\u3092\u77e5\u308a\u3001\u304a\u4e92\u3044\u3092\u3088\u308a\u7406\u89e3\u3059\u308b\u305f\u3081\u306b\u3001\u79c1\u305f\u3061\u3068\u4e00\u7dd2\u306b\u30a4\u30d9\u30f3\u30c8\u306b\u53c2\u52a0\u3057\u3066\u3044\u305f\u3060\u304f\u3088\u3046\u304a\u8a98\u3044\u3057\u307e\u3059\u3002",
+        },
+        {
+          number: "04",
+          title: "\u52a0\u76df\u63d0\u6848\u3068\u627f\u8a8d",
+          text: "\u52a0\u76df\u306e\u63d0\u6848\u306f\u7406\u4e8b\u4f1a\u306b\u63d0\u51fa\u3055\u308c\u3001\u691c\u8a0e\u3068\u6c7a\u5b9a\u304c\u884c\u308f\u308c\u307e\u3059\u3002",
         },
       ],
     },
@@ -743,13 +773,18 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
         },
         {
           number: "02",
-          title: "审查契合度",
-          text: "分享技术、历史和组织背景。",
+          title: "\u8ba9\u6211\u4eec\u4e86\u89e3\u4f60\u4eec",
+          text: "\u8bf7\u4e0e\u6211\u4eec\u5206\u4eab\u4f60\u4eec\u7684\u6280\u672f\u3001\u5386\u53f2\u548c\u7ec4\u7ec7\u80cc\u666f\u3002",
         },
         {
           number: "03",
-          title: "共同训练",
-          text: "参加研讨会、活动和协会项目。",
+          title: "\u5171\u4eab\u8bad\u7ec3",
+          text: "\u5982\u679c\u7b26\u5408\u4e0a\u8ff0\u6761\u4ef6\uff0c\u6211\u4eec\u5c06\u9080\u8bf7\u4f60\u4eec\u4e0e\u6211\u4eec\u4e00\u8d77\u53c2\u52a0\u6d3b\u52a8\uff0c\u4ee5\u4fbf\u4e86\u89e3\u4f60\u4eec\u7684\u8bad\u7ec3\u5b9e\u8df5\uff0c\u4e5f\u8ba9\u53cc\u65b9\u66f4\u597d\u5730\u76f8\u4e92\u4e86\u89e3\u3002",
+        },
+        {
+          number: "04",
+          title: "\u4f1a\u5458\u63d0\u6848\u4e0e\u63a5\u7eb3",
+          text: "\u4f1a\u5458\u63d0\u6848\u5c06\u63d0\u4ea4\u7406\u4e8b\u4f1a\u8fdb\u884c\u5ba1\u8bae\u548c\u51b3\u8bae\u3002",
         },
       ],
     },
@@ -850,13 +885,18 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
         },
         {
           number: "02",
-          title: "Ověřit soulad",
-          text: "Sdílejte technické, historické a organizační informace.",
+          title: "Nechte nas vas poznat",
+          text: "Sdelte nam vice o svem technickem, historickem a organizacnim zazemi.",
         },
         {
           number: "03",
-          title: "Trénovat společně",
-          text: "Účastněte se seminářů, událostí a aktivit asociace.",
+          title: "Sdilet trening",
+          text: "Pokud splnite predchozi podminky, pozveme vas na nekterou z nasich akci, abychom poznali vasi praxi a navzajem se lepe poznali.",
+        },
+        {
+          number: "04",
+          title: "Navrh a prijeti clenstvi",
+          text: "Navrh clenstvi bude predlozen rade k posouzeni a rozhodnuti.",
         },
       ],
     },
@@ -889,7 +929,7 @@ const content: Record<Locale, Record<PublicPageKey, PublicPageContent>> = {
   },
 };
 
-const aboutSections: Record<Locale, AboutSection[]> = {
+const aboutSections: Partial<Record<Locale, AboutSection[]>> = {
   en: [
     {
       title: "About the IKA",
@@ -1017,7 +1057,7 @@ const aboutSections: Record<Locale, AboutSection[]> = {
   cs: [],
 };
 
-const aboutQuote: Record<Locale, string[]> = {
+const aboutQuote: Partial<Record<Locale, string[]>> = {
   en: [
     "Avoid rather than fight,",
     "Fight rather than hurt,",
@@ -1071,10 +1111,10 @@ const aboutQuote: Record<Locale, string[]> = {
 
 function localizeAboutFromSpanish(locale: Locale): AboutSection[] {
   if (locale === "en" || locale === "es") {
-    return aboutSections[locale];
+    return aboutSections[locale] ?? aboutSections[defaultLocale] ?? [];
   }
 
-  const translations: Record<Locale, string[][]> = {
+  const translations: Partial<Record<Locale, string[][]>> = {
     en: [],
     es: [],
     it: [
@@ -1284,8 +1324,20 @@ function localizeAboutFromSpanish(locale: Locale): AboutSection[] {
     ],
   };
 
-  return translations[locale].map((section, index) => {
-    const base = aboutSections.en[index];
+  const localizedSections = translations[locale] ?? translations.es ?? translations.en;
+
+  if (!localizedSections) {
+    return aboutSections[defaultLocale] ?? [];
+  }
+
+  return localizedSections.map((section, index) => {
+    const base =
+      aboutSections.en?.[index] ??
+      aboutSections[defaultLocale]?.[index] ?? {
+        title: section[0],
+        image: "/images/about/about-1.webp",
+        body: section.slice(1),
+      };
     if (index === 0 || index === 2 || index === 3) {
       return {
         title: section[0],
@@ -1315,15 +1367,33 @@ function localizeAboutFromSpanish(locale: Locale): AboutSection[] {
 }
 
 export function getPublicPageContent(locale: Locale, page: PublicPageKey) {
-  return content[locale]?.[page] ?? content[defaultLocale][page];
+  return (
+    (extendedPublicPageContent[locale]?.[page] as PublicPageContent | undefined) ??
+    content[locale]?.[page] ??
+    (extendedPublicPageContent[defaultLocale]?.[page] as PublicPageContent | undefined) ??
+    content[defaultLocale]![page]
+  );
 }
 
 export function getAboutSections(locale: Locale) {
-  return locale === "en" || locale === "es"
-    ? aboutSections[locale]
-    : localizeAboutFromSpanish(locale);
+  const extendedSections = extendedAboutSections[locale];
+  if (extendedSections?.length) {
+    return extendedSections as AboutSection[];
+  }
+
+  if (locale === "en" || locale === "es") {
+    return aboutSections[locale] ?? aboutSections[defaultLocale] ?? [];
+  }
+
+  return localizeAboutFromSpanish(locale);
 }
 
 export function getAboutQuote(locale: Locale) {
-  return aboutQuote[locale] ?? aboutQuote[defaultLocale];
+  return (
+    extendedAboutQuotes[locale] ??
+    aboutQuote[locale] ??
+    extendedAboutQuotes[defaultLocale] ??
+    aboutQuote[defaultLocale] ??
+    []
+  );
 }
