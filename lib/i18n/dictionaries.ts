@@ -1,4 +1,5 @@
-import type { Locale } from "./config";
+import { defaultLocale, type Locale } from "./config";
+import { extendedDictionaries } from "./extended-public-locales";
 
 type Dictionary = {
   nav: {
@@ -55,7 +56,7 @@ type Dictionary = {
   };
 };
 
-const dictionaries: Record<Locale, Dictionary> = {
+const dictionaries: Partial<Record<Locale, Dictionary>> = {
   en: {
     nav: {
       home: "Home",
@@ -490,5 +491,10 @@ const dictionaries: Record<Locale, Dictionary> = {
 };
 
 export function getDictionary(locale: Locale) {
-  return dictionaries[locale];
+  return (
+    (extendedDictionaries[locale] as Dictionary | undefined) ??
+    dictionaries[locale] ??
+    (extendedDictionaries[defaultLocale] as Dictionary | undefined) ??
+    dictionaries[defaultLocale]!
+  );
 }
