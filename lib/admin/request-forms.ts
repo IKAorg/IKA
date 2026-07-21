@@ -159,68 +159,32 @@ async function getOrRepairAdminProfile(
 ) {
   const byAuth = await admin
     .from("users_profiles")
-    .select("id,email")
+    .select("id,user_roles(country_id,dojo_id,roles(key))")
     .eq("auth_user_id", authUserId)
-    .limit(10);
+    .maybeSingle<{ id: string; user_roles: ScopeAssignment[] | null }>();
 
-  const authProfiles = (byAuth.data ?? []) as Array<{
-    id: string;
-    email?: string | null;
-  }>;
+  if (byAuth.data && hasAnyAdminRole(byAuth.data.user_roles ?? [])) {
+    return byAuth.data;
+  }
+
   const normalizedEmail = normalizeEmail(email);
 
-  const byEmail = normalizedEmail
-    ? await admin
+  if (normalizedEmail) {
+    const byEmail = await admin
+      .from("users_profiles")
+      .select("id,user_roles(country_id,dojo_id,roles(key))")
+      .eq("email", normalizedEmail)
+      .maybeSingle<{ id: string; user_roles: ScopeAssignment[] | null }>();
+
+    if (byEmail.data && hasAnyAdminRole(byEmail.data.user_roles ?? [])) {
+      const linked = await admin
         .from("users_profiles")
-        .select("id,email")
-        .ilike("email", normalizedEmail)
-        .order("auth_user_id", { ascending: false, nullsFirst: false })
-        .limit(10)
-    : { data: [], error: null };
+        .update({ auth_user_id: authUserId, status: "active" })
+        .eq("id", byEmail.data.id)
+        .select("id,user_roles(country_id,dojo_id,roles(key))")
+        .single<{ id: string; user_roles: ScopeAssignment[] | null }>();
 
-  const profiles = Array.from(
-    new Map(
-      [
-        ...authProfiles,
-        ...((byEmail.data ?? []) as Array<{ id: string; email?: string | null }>),
-      ].map((profile) => [profile.id, profile]),
-    ).values(),
-  );
-  const profileIds = profiles.map((profile) => profile.id);
-
-  if (profileIds.length > 0) {
-    const rolesResult = await admin
-      .from("user_roles")
-      .select("profile_id,country_id,dojo_id,roles(key)")
-      .in("profile_id", profileIds);
-    const roleRows = (rolesResult.data ?? []) as Array<
-      ScopeAssignment & { profile_id: string }
-    >;
-    const adminAssignments = roleRows.filter((assignment) =>
-      adminRoleKeys.includes(
-        getRoleKey(assignment.roles) as (typeof adminRoleKeys)[number],
-      ),
-    );
-
-    if (adminAssignments.length > 0) {
-      const primaryProfile =
-        authProfiles.find((profile) =>
-          adminAssignments.some(
-            (assignment) => assignment.profile_id === profile.id,
-          ),
-        ) ??
-        profiles.find((profile) =>
-          adminAssignments.some(
-            (assignment) => assignment.profile_id === profile.id,
-          ),
-        );
-
-      if (primaryProfile) {
-        return {
-          ...primaryProfile,
-          user_roles: adminAssignments,
-        };
-      }
+      return linked.data ?? byEmail.data;
     }
   }
 

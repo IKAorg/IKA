@@ -381,6 +381,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
             setScope(cachedScope);
             setScopeMessage("");
             setLoadingScope(false);
+            return null;
           }
         } else {
           setScope(null);
