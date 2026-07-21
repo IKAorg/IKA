@@ -545,6 +545,16 @@ async function ensureScopedAdminUser(
   const authUserId = await ensureAuthUser(admin, email, password, displayName);
   const profileId = await upsertProfile(admin, email, displayName, authUserId);
   const roleId = await getRoleId(admin, roleKey);
+
+  if (roleKey === "country_admin" && countryId) {
+    const conflict = await findCountryAdminConflict(admin, countryId, profileId);
+    if (conflict) {
+      throw new Error(
+        "Ese pais ya tiene un administrador de pais activo. Debes transferir el rol antes de aprobar otro.",
+      );
+    }
+  }
+
   await admin.from("user_roles").upsert(
     {
       profile_id: profileId,
@@ -775,4 +785,29 @@ function sanitizeSubmissionPayload(payload: Record<string, unknown>) {
   const next = { ...payload };
   delete next.password;
   return next;
+}
+
+async function findCountryAdminConflict(
+  admin: SupabaseAdminClient,
+  countryId: string,
+  excludeProfileId: string,
+) {
+  const result = await admin
+    .from("user_roles")
+    .select("profile_id,roles(key)")
+    .eq("country_id", countryId);
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return ((result.data ?? []) as Array<{
+    profile_id: string;
+    roles: { key: string } | Array<{ key: string }> | null;
+  }>).find((assignment) => {
+    const roleKey = Array.isArray(assignment.roles)
+      ? assignment.roles[0]?.key
+      : assignment.roles?.key;
+    return roleKey === "country_admin" && assignment.profile_id !== excludeProfileId;
+  });
 }

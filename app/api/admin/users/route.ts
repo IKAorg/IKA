@@ -1,28 +1,13 @@
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient as createSessionClient } from "@/lib/supabase/server";
-import { getSupabaseProjectUrl } from "@/lib/supabase/url";
+import {
+  normalizeEmail,
+  normalizeText,
+  requireScopedAdmin,
+  type AdminScope as SharedAdminScope,
+  type SupabaseAdminClient,
+} from "@/lib/admin/request-forms";
 
 type AssignableRoleKey = "global_admin" | "country_admin" | "dojo_admin";
-
-type UntypedTable = {
-  Row: Record<string, unknown>;
-  Insert: Record<string, unknown>;
-  Update: Record<string, unknown>;
-  Relationships: [];
-};
-
-type UntypedDatabase = {
-  public: {
-    Tables: Record<string, UntypedTable>;
-    Views: Record<string, UntypedTable>;
-    Functions: Record<string, never>;
-  };
-};
-
-type SupabaseAdminClient = ReturnType<
-  typeof createServiceClient<UntypedDatabase, "public", "public">
->;
 
 type ScopeAssignment = {
   country_id: string | null;
@@ -43,6 +28,7 @@ type AdminAssignment = {
 
 type AdminScope = {
   profileId: string;
+  roleProfileIds?: string[];
   isSuperAdmin: boolean;
   isGlobalAdmin: boolean;
   countryIds: string[];
@@ -53,14 +39,6 @@ type AdminScope = {
 type GuardResult =
   | { ok: true; admin: SupabaseAdminClient; scope: AdminScope }
   | { ok: false; response: NextResponse };
-
-const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
-const adminRoleKeys = [
-  "super_admin",
-  "global_admin",
-  "country_admin",
-  "dojo_admin",
-] as const;
 
 export async function GET(request: NextRequest) {
   const guard = await requireAdmin(request);
@@ -245,6 +223,21 @@ export async function POST(request: NextRequest) {
     return jsonError(role.error?.message ?? "No se encontro el rol.", 500);
   }
 
+  if (roleKey === "country_admin" && target.countryId) {
+    const conflict = await findCountryAdminConflict(
+      guard.admin,
+      target.countryId,
+      null,
+    );
+
+    if (conflict) {
+      return jsonError(
+        "Ese pais ya tiene un administrador de pais activo. Debes transferir el rol, no duplicarlo.",
+        409,
+      );
+    }
+  }
+
   const assignment = await guard.admin.from("user_roles").upsert(
     {
       profile_id: profile.id,
@@ -310,197 +303,18 @@ export async function DELETE(request: NextRequest) {
 }
 
 async function requireAdmin(request: NextRequest): Promise<GuardResult> {
-  const url = getSupabaseProjectUrl();
-  const serviceRoleKey = getServiceRoleKey();
-
-  if (!url || !serviceRoleKey) {
+  const sharedGuard = await requireScopedAdmin(request);
+  if ("error" in sharedGuard) {
+    const failure = sharedGuard as { error: string; status: number };
     return {
       ok: false,
-      response: jsonError(
-        `Falta configuracion Supabase: ${[
-          !url ? "NEXT_PUBLIC_SUPABASE_URL" : null,
-          !serviceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
-        ]
-          .filter(Boolean)
-          .join(", ")}`,
-        500,
-      ),
+      response: jsonError(failure.error, failure.status),
     };
   }
-
-  const admin = createServiceClient(url, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const user = await getAuthenticatedUser(admin, request);
-
-  if (!user) {
-    return { ok: false, response: jsonError("No autenticado.", 401) };
-  }
-
-  const profile = await getOrRepairAdminProfile(admin, user.id, user.email ?? "");
-
-  if (!profile) {
-    return {
-      ok: false,
-      response: jsonError(
-        "No se encontro un perfil administrador para esta sesion.",
-        403,
-      ),
-    };
-  }
-
-  const assignments = profile.user_roles ?? [];
-  const roleKeys = assignments
-    .map((assignment) => getRoleKey(assignment.roles))
-    .filter(Boolean) as string[];
-  const hasAdminRole = roleKeys.some((roleKey) =>
-    adminRoleKeys.includes(roleKey as (typeof adminRoleKeys)[number]),
-  );
-
-  if (!hasAdminRole) {
-    return {
-      ok: false,
-      response: jsonError("Tu usuario no tiene permisos de administracion.", 403),
-    };
-  }
-
   return {
     ok: true,
-    admin,
-    scope: {
-      profileId: profile.id,
-      isSuperAdmin: roleKeys.includes("super_admin"),
-      isGlobalAdmin: roleKeys.includes("global_admin"),
-      roleKeys,
-      countryIds: assignments
-        .filter((assignment) => getRoleKey(assignment.roles) === "country_admin")
-        .map((assignment) => assignment.country_id)
-        .filter(Boolean) as string[],
-      dojoIds: assignments
-        .filter((assignment) => getRoleKey(assignment.roles) === "dojo_admin")
-        .map((assignment) => assignment.dojo_id)
-        .filter(Boolean) as string[],
-    },
-  };
-}
-
-async function getAuthenticatedUser(
-  admin: SupabaseAdminClient,
-  request: NextRequest,
-) {
-  const token = getBearerToken(request);
-
-  if (token) {
-    const tokenUser = await admin.auth.getUser(token);
-
-    if (tokenUser.data.user) {
-      return tokenUser.data.user;
-    }
-  }
-
-  const sessionClient = await createSessionClient();
-  const {
-    data: { user },
-  } = await sessionClient.auth.getUser();
-
-  return user;
-}
-
-async function getOrRepairAdminProfile(
-  admin: SupabaseAdminClient,
-  authUserId: string,
-  email: string,
-) {
-  const byAuth = await admin
-    .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .eq("auth_user_id", authUserId)
-    .maybeSingle<{ id: string; user_roles: ScopeAssignment[] | null }>();
-
-  if (byAuth.data) {
-    return byAuth.data;
-  }
-
-  const normalizedEmail = normalizeEmail(email);
-
-  if (!normalizedEmail) {
-    return null;
-  }
-
-  const byEmail = await admin
-    .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
-    .eq("email", normalizedEmail)
-    .maybeSingle<{ id: string; user_roles: ScopeAssignment[] | null }>();
-
-  if (byEmail.data && hasAnyAdminRole(byEmail.data.user_roles ?? [])) {
-    const linked = await admin
-      .from("users_profiles")
-      .update({ auth_user_id: authUserId, status: "active" })
-      .eq("id", byEmail.data.id)
-      .select("id,user_roles(country_id,dojo_id,roles(key))")
-      .single<{ id: string; user_roles: ScopeAssignment[] | null }>();
-
-    return linked.data ?? byEmail.data;
-  }
-
-  if (normalizedEmail === officialSuperAdminEmail) {
-    return ensureOfficialSuperAdmin(admin, authUserId, normalizedEmail);
-  }
-
-  return null;
-}
-
-async function ensureOfficialSuperAdmin(
-  admin: SupabaseAdminClient,
-  authUserId: string,
-  email: string,
-) {
-  const role = await admin
-    .from("roles")
-    .select("id")
-    .eq("key", "super_admin")
-    .single<{ id: string }>();
-
-  if (role.error || !role.data) {
-    return null;
-  }
-
-  const profile = await admin
-    .from("users_profiles")
-    .upsert(
-      {
-        auth_user_id: authUserId,
-        email,
-        display_name: "IKA org",
-        status: "active",
-      },
-      { onConflict: "email" },
-    )
-    .select("id")
-    .single<{ id: string }>();
-
-  if (profile.error || !profile.data) {
-    return null;
-  }
-
-  await admin.from("user_roles").upsert(
-    {
-      profile_id: profile.data.id,
-      role_id: role.data.id,
-      country_id: null,
-      dojo_id: null,
-      created_by: profile.data.id,
-    },
-    {
-      onConflict: "profile_id,role_id,country_id,dojo_id",
-      ignoreDuplicates: true,
-    },
-  );
-
-  return {
-    id: profile.data.id,
-    user_roles: [{ country_id: null, dojo_id: null, roles: { key: "super_admin" } }],
+    admin: sharedGuard.admin,
+    scope: mapSharedScope(sharedGuard.scope),
   };
 }
 
@@ -763,34 +577,12 @@ function normalizeAssignments(rows: unknown[]) {
   });
 }
 
-function hasAnyAdminRole(assignments: ScopeAssignment[]) {
-  return assignments.some((assignment) =>
-    adminRoleKeys.includes(getRoleKey(assignment.roles) as (typeof adminRoleKeys)[number]),
-  );
-}
-
 function firstRelation(value: unknown) {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
 function getRoleKey(role: ScopeAssignment["roles"]) {
   return Array.isArray(role) ? role[0]?.key : role?.key;
-}
-
-function getBearerToken(request: NextRequest) {
-  const authorization = request.headers.get("authorization") ?? "";
-  const [scheme, token] = authorization.split(" ");
-
-  return scheme.toLowerCase() === "bearer" && token ? token.trim() : "";
-}
-
-function getServiceRoleKey() {
-  return (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE ||
-    ""
-  ).trim();
 }
 
 function buildPublicRedirectUrl(
@@ -820,14 +612,6 @@ function isLocalOrigin(origin: string) {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
 }
 
-function normalizeEmail(value: unknown) {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
-
-function normalizeText(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
 function normalizeOptionalId(value: unknown) {
   const text = normalizeText(value);
   return text || null;
@@ -835,4 +619,47 @@ function normalizeOptionalId(value: unknown) {
 
 function jsonError(error: string, status: number) {
   return NextResponse.json({ error }, { status });
+}
+
+function mapSharedScope(scope: SharedAdminScope): AdminScope {
+  return {
+    profileId: scope.profileId,
+    roleProfileIds: scope.roleProfileIds,
+    isSuperAdmin: scope.isSuperAdmin,
+    isGlobalAdmin: scope.isGlobalAdmin,
+    countryIds: scope.countryIds,
+    dojoIds: scope.dojoIds,
+    roleKeys: scope.roleKeys,
+  };
+}
+
+async function findCountryAdminConflict(
+  admin: SupabaseAdminClient,
+  countryId: string,
+  excludeProfileId: string | null,
+) {
+  const conflict = await admin
+    .from("user_roles")
+    .select("profile_id,roles(key)")
+    .eq("country_id", countryId);
+
+  if (conflict.error) {
+    throw new Error(conflict.error.message);
+  }
+
+  return ((conflict.data ?? []) as Array<{
+    profile_id: string;
+    roles: { key: string } | Array<{ key: string }> | null;
+  }>).find((assignment) => {
+    const roleKey = Array.isArray(assignment.roles)
+      ? assignment.roles[0]?.key
+      : assignment.roles?.key;
+    if (roleKey !== "country_admin") {
+      return false;
+    }
+    if (!excludeProfileId) {
+      return true;
+    }
+    return assignment.profile_id !== excludeProfileId;
+  });
 }
