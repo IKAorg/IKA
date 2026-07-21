@@ -302,6 +302,98 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
+export async function PATCH(request: NextRequest) {
+  const guard = await requireAdmin(request);
+
+  if (!guard.ok) {
+    return guard.response;
+  }
+
+  const body = await request.json().catch(() => null);
+  const assignmentId = normalizeOptionalId(body?.assignmentId);
+  const roleKey = normalizeText(body?.roleKey) as AssignableRoleKey;
+  const countryId = normalizeOptionalId(body?.countryId);
+  const dojoId = normalizeOptionalId(body?.dojoId);
+  const assignableRoles = getAssignableRoles(guard.scope);
+
+  if (!assignmentId) {
+    return jsonError("Falta la asignacion a editar.", 400);
+  }
+
+  if (!assignableRoles.includes(roleKey)) {
+    return jsonError("No puedes asignar ese rol con tu nivel de permisos.", 403);
+  }
+
+  const currentAssignment = await guard.admin
+    .from("user_roles")
+    .select("id,profile_id,country_id,dojo_id,roles(key)")
+    .eq("id", assignmentId)
+    .maybeSingle<ScopeAssignment & { id: string; profile_id: string }>();
+
+  if (currentAssignment.error || !currentAssignment.data) {
+    return jsonError(
+      currentAssignment.error?.message ?? "No se encontro el rol.",
+      404,
+    );
+  }
+
+  if (!canManageAssignment(guard.scope, currentAssignment.data)) {
+    return jsonError("No puedes editar ese rol.", 403);
+  }
+
+  const target = await validateTarget(
+    guard.admin,
+    guard.scope,
+    roleKey,
+    countryId,
+    dojoId,
+  );
+
+  if (!target.ok) {
+    return jsonError(target.error, 400);
+  }
+
+  const role = await guard.admin
+    .from("roles")
+    .select("id")
+    .eq("key", roleKey)
+    .single<{ id: string }>();
+
+  if (role.error || !role.data) {
+    return jsonError(role.error?.message ?? "No se encontro el rol.", 500);
+  }
+
+  if (roleKey === "country_admin" && target.countryId) {
+    const conflict = await findCountryAdminConflict(
+      guard.admin,
+      target.countryId,
+      currentAssignment.data.profile_id,
+    );
+
+    if (conflict) {
+      return jsonError(
+        "Ese pais ya tiene un administrador de pais activo. Debes transferir el rol, no duplicarlo.",
+        409,
+      );
+    }
+  }
+
+  const updated = await guard.admin
+    .from("user_roles")
+    .update({
+      role_id: role.data.id,
+      country_id: roleKey === "country_admin" ? target.countryId : null,
+      dojo_id: roleKey === "dojo_admin" ? target.dojoId : null,
+    })
+    .eq("id", assignmentId);
+
+  if (updated.error) {
+    return jsonError(updated.error.message, 500);
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 async function requireAdmin(request: NextRequest): Promise<GuardResult> {
   const sharedGuard = await requireScopedAdmin(request);
   if ("error" in sharedGuard) {

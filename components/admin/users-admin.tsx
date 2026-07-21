@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Loader2,
+  Pencil,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -79,6 +80,13 @@ type FormState = {
   sendInvite: boolean;
 };
 
+type EditFormState = {
+  assignmentId: string;
+  roleKey: RoleKey;
+  countryId: string;
+  dojoId: string;
+};
+
 const emptyPayload: UsersPayload = {
   profiles: [],
   roles: [],
@@ -135,6 +143,7 @@ export function UsersAdmin({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [permissionSearch, setPermissionSearch] = useState("");
+  const [editing, setEditing] = useState<EditFormState | null>(null);
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -291,6 +300,36 @@ export function UsersAdmin({
 
     setMessage(copy.roleRemoved);
     await loadUsers();
+  }
+
+  async function saveAssignmentEdit() {
+    if (!editing) {
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify(editing),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.saveRoleError);
+      setSaving(false);
+      return;
+    }
+
+    setEditing(null);
+    setMessage(copy.roleUpdated);
+    await loadUsers();
+    setSaving(false);
   }
 
   const dojosForSelectedCountry = useMemo(
@@ -666,8 +705,17 @@ export function UsersAdmin({
                         key={assignment.id}
                         profile={row.profile}
                         assignment={assignment}
+                        editing={editing}
+                        assignableRoles={payload.assignableRoles}
+                        countries={payload.countries}
+                        dojos={payload.dojos}
                         locale={initialLocale}
                         copy={copy}
+                        onStartEdit={setEditing}
+                        onCancelEdit={() => setEditing(null)}
+                        onChangeEdit={setEditing}
+                        onSaveEdit={saveAssignmentEdit}
+                        saving={saving}
                         onDelete={deleteAssignment}
                       />
                     ))}
@@ -698,8 +746,17 @@ export function UsersAdmin({
                               key={assignment.id}
                               profile={row.profile}
                               assignment={assignment}
+                              editing={editing}
+                              assignableRoles={payload.assignableRoles}
+                              countries={payload.countries}
+                              dojos={payload.dojos}
                               locale={initialLocale}
                               copy={copy}
+                              onStartEdit={setEditing}
+                              onCancelEdit={() => setEditing(null)}
+                              onChangeEdit={setEditing}
+                              onSaveEdit={saveAssignmentEdit}
+                              saving={saving}
                               onDelete={deleteAssignment}
                             />
                           ))}
@@ -723,8 +780,17 @@ export function UsersAdmin({
                               key={assignment.id}
                               profile={row.profile}
                               assignment={assignment}
+                              editing={editing}
+                              assignableRoles={payload.assignableRoles}
+                              countries={payload.countries}
+                              dojos={payload.dojos}
                               locale={initialLocale}
                               copy={copy}
+                              onStartEdit={setEditing}
+                              onCancelEdit={() => setEditing(null)}
+                              onChangeEdit={setEditing}
+                              onSaveEdit={saveAssignmentEdit}
+                              saving={saving}
                               onDelete={deleteAssignment}
                             />
                           ))}
@@ -746,8 +812,17 @@ export function UsersAdmin({
                         key={assignment.id}
                         profile={row.profile}
                         assignment={assignment}
+                        editing={editing}
+                        assignableRoles={payload.assignableRoles}
+                        countries={payload.countries}
+                        dojos={payload.dojos}
                         locale={initialLocale}
                         copy={copy}
+                        onStartEdit={setEditing}
+                        onCancelEdit={() => setEditing(null)}
+                        onChangeEdit={setEditing}
+                        onSaveEdit={saveAssignmentEdit}
+                        saving={saving}
                         onDelete={deleteAssignment}
                       />
                     ))}
@@ -765,18 +840,45 @@ export function UsersAdmin({
 function PermissionAssignmentRow({
   profile,
   assignment,
+  editing,
+  assignableRoles,
+  countries,
+  dojos,
   locale,
   copy,
+  onStartEdit,
+  onCancelEdit,
+  onChangeEdit,
+  onSaveEdit,
+  saving,
   onDelete,
 }: {
   profile: Profile;
   assignment: Assignment;
+  editing: EditFormState | null;
+  assignableRoles: RoleKey[];
+  countries: CountryOption[];
+  dojos: DojoOption[];
   locale: Locale;
   copy: ReturnType<typeof usersAdminCopy>;
+  onStartEdit: (value: EditFormState) => void;
+  onCancelEdit: () => void;
+  onChangeEdit: (value: EditFormState | null) => void;
+  onSaveEdit: () => void;
+  saving: boolean;
   onDelete: (id: string) => void;
 }) {
   const kenshiIds = profile.kenshiIds ?? [];
   const kenshiNames = profile.kenshiNames ?? [];
+  const roleKey = (assignment.roles?.key ?? "dojo_admin") as RoleKey;
+  const isEditing = editing?.assignmentId === assignment.id;
+  const editableDojos = useMemo(
+    () =>
+      editing?.countryId
+        ? dojos.filter((dojo) => dojo.country_id === editing.countryId)
+        : dojos,
+    [dojos, editing?.countryId],
+  );
 
   return (
     <article className="border border-[var(--line)] bg-white p-3 text-sm">
@@ -792,22 +894,127 @@ function PermissionAssignmentRow({
             </p>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={() => onDelete(assignment.id)}
-          className="inline-flex items-center gap-2 text-[var(--accent)]"
-        >
-          <Trash2 size={15} />
-          {copy.remove}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() =>
+              onStartEdit({
+                assignmentId: assignment.id,
+                roleKey,
+                countryId: assignment.country_id ?? assignment.dojos?.country_id ?? "",
+                dojoId: assignment.dojo_id ?? "",
+              })
+            }
+            className="inline-flex items-center gap-2 text-[var(--ink-blue)]"
+          >
+            <Pencil size={15} />
+            {copy.edit}
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(assignment.id)}
+            className="inline-flex items-center gap-2 text-[var(--accent)]"
+          >
+            <Trash2 size={15} />
+            {copy.remove}
+          </button>
+        </div>
       </div>
-      <p className="mt-3 bg-[var(--paper)] px-3 py-2">
-        <strong>{getRoleLabel(assignment.roles, locale)}</strong>
-        {assignment.countries
-          ? ` - ${countryLabel(assignment.countries, locale)}`
-          : ""}
-        {assignment.dojos ? ` - ${dojoLabel(assignment.dojos, locale)}` : ""}
-      </p>
+      {isEditing && editing ? (
+        <div className="mt-3 grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-3">
+          <SelectInput
+            label={copy.role}
+            value={editing.roleKey}
+            options={assignableRoles.map((editableRoleKey) => ({
+              value: editableRoleKey,
+              label: copy.roleLabels[editableRoleKey],
+            }))}
+            onChange={(value) =>
+              onChangeEdit({
+                ...editing,
+                roleKey: value as RoleKey,
+                countryId:
+                  value === "country_admin" || value === "dojo_admin"
+                    ? editing.countryId
+                    : "",
+                dojoId: value === "dojo_admin" ? editing.dojoId : "",
+              })
+            }
+          />
+          {editing.roleKey === "country_admin" || editing.roleKey === "dojo_admin" ? (
+            <SelectInput
+              label={copy.country}
+              value={editing.countryId}
+              options={[
+                { value: "", label: copy.selectCountry },
+                ...countries.map((country) => ({
+                  value: country.id,
+                  label: countryLabel(country, locale),
+                })),
+              ]}
+              onChange={(value) =>
+                onChangeEdit({
+                  ...editing,
+                  countryId: value,
+                  dojoId: "",
+                })
+              }
+            />
+          ) : null}
+          {editing.roleKey === "dojo_admin" ? (
+            <SelectInput
+              label="Dojo"
+              value={editing.dojoId}
+              options={[
+                { value: "", label: copy.selectDojo },
+                ...editableDojos.map((dojo) => ({
+                  value: dojo.id,
+                  label: dojoLabel(dojo, locale),
+                })),
+              ]}
+              onChange={(value) =>
+                onChangeEdit({
+                  ...editing,
+                  dojoId: value,
+                })
+              }
+            />
+          ) : null}
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onSaveEdit}
+              disabled={
+                saving ||
+                !editing.roleKey ||
+                ((editing.roleKey === "country_admin" ||
+                  editing.roleKey === "dojo_admin") &&
+                  !editing.countryId) ||
+                (editing.roleKey === "dojo_admin" && !editing.dojoId)
+              }
+              className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : null}
+              {copy.saveChanges}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="inline-flex min-h-11 items-center justify-center border border-[var(--line)] bg-white px-4 py-2 font-semibold"
+            >
+              {copy.cancel}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-3 bg-[var(--paper)] px-3 py-2">
+          <strong>{getRoleLabel(assignment.roles, locale)}</strong>
+          {assignment.countries
+            ? ` - ${countryLabel(assignment.countries, locale)}`
+            : ""}
+          {assignment.dojos ? ` - ${dojoLabel(assignment.dojos, locale)}` : ""}
+        </p>
+      )}
     </article>
   );
 }
@@ -926,6 +1133,7 @@ function usersAdminCopy(locale: Locale) {
       ? "No se pudo quitar el rol."
       : "Could not remove the role.",
     roleRemoved: es ? "Rol eliminado." : "Role removed.",
+    roleUpdated: es ? "Rol actualizado." : "Role updated.",
     email: "Email",
     adminAccess: es ? "Acceso admin" : "Admin access",
     loginHelp: es
@@ -980,6 +1188,9 @@ function usersAdminCopy(locale: Locale) {
       : "No users match the search.",
     globalAdministration: (count: number) =>
       es ? `Administracion global - ${count} roles` : `Global administration - ${count} roles`,
+    edit: es ? "Editar" : "Edit",
     remove: es ? "Quitar" : "Remove",
+    saveChanges: es ? "Guardar cambios" : "Save changes",
+    cancel: es ? "Cancelar" : "Cancel",
   };
 }
