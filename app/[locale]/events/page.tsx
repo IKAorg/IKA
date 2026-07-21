@@ -1,4 +1,4 @@
-import { CalendarDays, MapPin } from "lucide-react";
+import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { getPublicEvents } from "@/lib/content/events-calendar";
@@ -22,6 +22,7 @@ export default async function EventsPage({ params }: EventsPageProps) {
   const pastEvents = events
     .filter((event) => isPastEvent(event.endsAt, event.startsAt))
     .sort((left, right) => right.startsAt.localeCompare(left.startsAt));
+  const recentPastEvents = pastEvents.slice(0, 3);
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-5 sm:py-14">
@@ -115,13 +116,24 @@ export default async function EventsPage({ params }: EventsPageProps) {
       {pastEvents.length > 0 ? (
         <section className="mt-10 border border-[var(--line)] bg-white">
           <div className="border-b border-[var(--line)] px-4 py-5 sm:px-5 md:px-7">
-            <h2 className="text-2xl font-semibold">{getPastEventsTitle(safeLocale)}</h2>
-            <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-              {getPastEventsText(safeLocale)}
-            </p>
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold">{getPastEventsTitle(safeLocale)}</h2>
+                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                  {getPastEventsText(safeLocale)}
+                </p>
+              </div>
+              <Link
+                href={`/${safeLocale}/events/archive`}
+                className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] px-4 py-2 text-sm font-semibold"
+              >
+                {getPastEventsAction(safeLocale, pastEvents.length)}
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
           </div>
           <div>
-            {pastEvents.map((event, index) => (
+            {recentPastEvents.map((event, index) => (
               <article
                 key={event.id}
                 className={`grid gap-5 px-4 py-5 sm:px-5 sm:py-6 md:grid-cols-[180px_1fr] md:px-7 ${
@@ -466,7 +478,36 @@ function getPastEventsText(locale: Locale) {
     case "de":
       return "Abgeschlossene Veranstaltungen werden nach ihrem Datum automatisch hierher verschoben.";
     default:
-      return "Completed events are moved here automatically once their date has passed.";
+      return "The public page keeps only a short recent preview here. Use the archive to review the full event history.";
+  }
+}
+
+function getPastEventsAction(locale: Locale, count: number) {
+  switch (locale) {
+    case "es":
+      return `Ir al historial de eventos (${count})`;
+    case "it":
+      return `Apri archivio eventi (${count})`;
+    case "fr":
+      return `Ouvrir l'archive des evenements (${count})`;
+    case "ja":
+      return `イベント履歴を開く (${count})`;
+    case "zh":
+      return `查看活动历史 (${count})`;
+    case "cs":
+      return `Otevrit archiv udalosti (${count})`;
+    case "id":
+      return `Buka arsip acara (${count})`;
+    case "ms":
+      return `Buka arkib acara (${count})`;
+    case "eu":
+      return `Joan ekitaldien historiara (${count})`;
+    case "pt":
+      return `Abrir historico de eventos (${count})`;
+    case "de":
+      return `Zum Veranstaltungsarchiv (${count})`;
+    default:
+      return `Open event archive (${count})`;
   }
 }
 

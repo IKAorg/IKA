@@ -65,3 +65,11 @@ export function hasAdminSessionBridge() {
 
   return Boolean(window.sessionStorage.getItem(adminSessionBridgeKey));
 }
+
+export function clearAdminSessionBridge() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(adminSessionBridgeKey);
+}

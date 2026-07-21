@@ -18,6 +18,7 @@ import type { Locale } from "@/lib/i18n/config";
 import { createPortalClient } from "@/lib/supabase/portal-browser";
 import {
   getAdminSessionBridgeHeaders,
+  hasAdminSessionBridge,
   saveAdminSessionBridge,
 } from "@/lib/supabase/admin-session-bridge";
 import { signOutAndRedirect } from "@/lib/supabase/sign-out";
@@ -310,6 +311,11 @@ export function AdminPanel({ locale }: AdminPanelProps) {
 
     async function loadScope(nextSession?: Session | null) {
       const currentSession = nextSession ?? sessionRef.current;
+
+      if (!currentSession?.access_token && !hasAdminSessionBridge()) {
+        return [];
+      }
+
       const token = currentSession?.access_token;
       const headers: Record<string, string> = token
         ? { Authorization: `Bearer ${token}` }
@@ -341,6 +347,11 @@ export function AdminPanel({ locale }: AdminPanelProps) {
             setScopeMessage("");
             setLoadingScope(false);
           }
+        } else {
+          setScope(null);
+          setScopeMessage("");
+          setLoadingScope(false);
+          return null;
         }
         return loadScope(data.session);
       })

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { clearAdminSessionBridge } from "@/lib/supabase/admin-session-bridge";
 
-const portalStorageKeys = ["ika-portal-cache", "ika-admin-session-bridge"];
+const portalStorageKeys = ["ika-portal-cache"];
 
 export async function signOutAndRedirect(
   supabase: SupabaseClient,
@@ -17,6 +18,8 @@ export async function signOutAndRedirect(
     window.sessionStorage.removeItem(key);
     window.localStorage.removeItem(key);
   }
+
+  clearAdminSessionBridge();
 
   window.location.replace(`/${locale}/portal?logged_out=1`);
 }
