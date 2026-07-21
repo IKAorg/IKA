@@ -1897,7 +1897,6 @@ export function PortalClient({
   const portalRef = useRef<PortalPayload | null>(portal);
   const portalLoadInFlightRef = useRef(false);
   const portalDashboardInFlightRef = useRef(false);
-  const adminRedirectInFlightRef = useRef(false);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -2007,15 +2006,6 @@ export function PortalClient({
     }
   }, [getAuthHeaders, saveCachedPortal]);
 
-  const redirectToAdmin = useCallback(() => {
-    if (adminRedirectInFlightRef.current) {
-      return;
-    }
-
-    adminRedirectInFlightRef.current = true;
-    window.location.replace(`/${locale}/admin`);
-  }, [locale]);
-
   const loadPortal = useCallback(async (options?: { silent?: boolean }) => {
     const silent = Boolean(options?.silent);
     const keepExistingPortal = silent || Boolean(portalRef.current);
@@ -2057,9 +2047,6 @@ export function PortalClient({
         portalRef.current = mergedPortal;
         saveCachedPortal(sessionRef.current, mergedPortal);
 
-        if (hasAdminPortalRole(mergedPortal.roles)) {
-          redirectToAdmin();
-        }
       }
     } catch {
       setMessage(copy.loadError);
@@ -2071,7 +2058,7 @@ export function PortalClient({
       window.clearTimeout(timeoutId);
       setLoading(false);
     }
-  }, [copy.loadError, getAuthHeaders, redirectToAdmin, saveCachedPortal]);
+  }, [copy.loadError, getAuthHeaders, saveCachedPortal]);
 
   useEffect(() => {
     let active = true;
@@ -2152,11 +2139,6 @@ export function PortalClient({
             return;
           }
 
-          if (restoredPortal && hasAdminPortalRole(restoredPortal.roles)) {
-            redirectToAdmin();
-            return;
-          }
-
           if (restoredPortal) {
             setLoading(false);
             return;
@@ -2179,24 +2161,7 @@ export function PortalClient({
         setSession(data.session);
         if (data.session) {
           saveAdminSessionBridge(data.session);
-          if (
-            !hasRecoveryHint &&
-            normalizeEmail(data.session.user.email ?? "") === officialSuperAdminEmail
-          ) {
-            redirectToAdmin();
-            return;
-          }
-
           const restoredPortal = restoreCachedPortal(data.session);
-          if (
-            data.session &&
-            !hasRecoveryHint &&
-            restoredPortal &&
-            hasAdminPortalRole(restoredPortal.roles)
-          ) {
-            redirectToAdmin();
-            return;
-          }
           if (data.session && !hasRecoveryHint && restoredPortal) {
             setLoading(false);
             return;
@@ -2261,9 +2226,7 @@ export function PortalClient({
         }
 
         if (sameUserSession && portalRef.current) {
-          if (hasAdminPortalRole(portalRef.current.roles)) {
-            redirectToAdmin();
-          }
+          setLoading(false);
           return;
         }
 
@@ -2277,7 +2240,7 @@ export function PortalClient({
       active = false;
       subscription.unsubscribe();
     };
-  }, [copy.oldPkceLink, loadPortal, recoveryMode, redirectToAdmin, supabase]);
+  }, [copy.oldPkceLink, loadPortal, recoveryMode, supabase]);
 
   async function signIn() {
     if (!email || !password) {
@@ -2608,14 +2571,6 @@ export function PortalClient({
                     <ExternalLink size={16} />
                     {copy.generalAccess}
                   </a>
-                  <button
-                    type="button"
-                    onClick={() => void loadPortalDashboard()}
-                    className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] px-4 py-3 text-sm font-semibold"
-                  >
-                    <Loader2 size={16} />
-                    {copy.loadingPortal}
-                  </button>
                 </div>
               </div>
             </div>

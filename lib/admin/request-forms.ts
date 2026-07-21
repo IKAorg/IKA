@@ -105,6 +105,19 @@ export async function requireScopedAdmin(request: NextRequest) {
     };
   }
 
+  const directCountryIds = assignments
+    .filter((assignment) => getRoleKey(assignment.roles) === "country_admin")
+    .map((assignment) => assignment.country_id)
+    .filter(Boolean) as string[];
+  const directDojoIds = assignments
+    .filter((assignment) => getRoleKey(assignment.roles) === "dojo_admin")
+    .map((assignment) => assignment.dojo_id)
+    .filter(Boolean) as string[];
+  const inferredCountryIds =
+    directDojoIds.length > 0
+      ? await getCountryIdsForDojos(admin, directDojoIds)
+      : [];
+
   return {
     admin,
     scope: {
@@ -112,14 +125,8 @@ export async function requireScopedAdmin(request: NextRequest) {
       isSuperAdmin: roleKeys.includes("super_admin"),
       isGlobalAdmin: roleKeys.includes("global_admin"),
       roleKeys,
-      countryIds: assignments
-        .filter((assignment) => getRoleKey(assignment.roles) === "country_admin")
-        .map((assignment) => assignment.country_id)
-        .filter(Boolean) as string[],
-      dojoIds: assignments
-        .filter((assignment) => getRoleKey(assignment.roles) === "dojo_admin")
-        .map((assignment) => assignment.dojo_id)
-        .filter(Boolean) as string[],
+      countryIds: Array.from(new Set([...directCountryIds, ...inferredCountryIds])),
+      dojoIds: directDojoIds,
     } satisfies AdminScope,
   };
 }
@@ -275,6 +282,32 @@ async function ensureOfficialSuperAdmin(
     id: profile.data.id,
     user_roles: [{ country_id: null, dojo_id: null, roles: { key: "super_admin" } }],
   };
+}
+
+async function getCountryIdsForDojos(
+  admin: SupabaseAdminClient,
+  dojoIds: string[],
+) {
+  if (dojoIds.length === 0) {
+    return [];
+  }
+
+  const result = await admin
+    .from("dojos")
+    .select("id,country_id")
+    .in("id", dojoIds);
+
+  if (result.error) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      ((result.data ?? []) as Array<{ country_id?: string | null }>)
+        .map((dojo) => dojo.country_id)
+        .filter(Boolean) as string[],
+    ),
+  );
 }
 
 function hasAnyAdminRole(assignments: ScopeAssignment[]) {

@@ -216,16 +216,17 @@ export function LocationsAdmin({
       return;
     }
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
+    const headers = await getAuthHeaders();
 
-    if (!token) {
-      if (!hasAdminSessionBridge()) {
-        setCountries([]);
-        setDojos([]);
-        setMediaById(new Map());
-        setScope(null);
-      }
+    if (
+      !headers.Authorization &&
+      !headers.authorization &&
+      !hasAdminSessionBridge()
+    ) {
+      setCountries([]);
+      setDojos([]);
+      setMediaById(new Map());
+      setScope(null);
       setLoading(false);
       return;
     }
@@ -238,7 +239,7 @@ export function LocationsAdmin({
 
     const response = await fetch("/api/admin/locations", {
       cache: "no-store",
-      headers: { Authorization: `Bearer ${token}` },
+      headers,
     });
     const payload = await response.json().catch(() => ({}));
 
@@ -284,7 +285,7 @@ export function LocationsAdmin({
     setLoading(false);
     inFlightRef.current = false;
     return;
-  }, [copy.loadLocationsError, supabase]);
+  }, [copy.loadLocationsError, getAuthHeaders]);
 
   useEffect(() => {
     void loadLocations();
