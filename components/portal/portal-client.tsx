@@ -25,6 +25,7 @@ import Image from "next/image";
 import type { Session } from "@supabase/supabase-js";
 import { fileToDataUrl, optimizeImageForUpload } from "@/lib/media/optimize-image";
 import { createPortalClient } from "@/lib/supabase/portal-browser";
+import { signOutAndRedirect } from "@/lib/supabase/sign-out";
 import {
   getAdminSessionBridgeHeaders,
   saveAdminSessionBridge,
@@ -2360,13 +2361,10 @@ export function PortalClient({
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem(portalCacheKey);
-    }
     setSession(null);
     setPortal(null);
     setRecoveryMode(false);
+    await signOutAndRedirect(supabase, locale);
   }
 
   async function saveRecoveryPassword() {

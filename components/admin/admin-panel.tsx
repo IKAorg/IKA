@@ -8,6 +8,7 @@ import {
   FileUp,
   Globe2,
   LayoutDashboard,
+  LogOut,
   MapPinned,
   ShieldCheck,
   UsersRound,
@@ -19,6 +20,7 @@ import {
   getAdminSessionBridgeHeaders,
   saveAdminSessionBridge,
 } from "@/lib/supabase/admin-session-bridge";
+import { signOutAndRedirect } from "@/lib/supabase/sign-out";
 
 const EventsAdmin = dynamic(
   () => import("@/components/admin/events-admin").then((mod) => mod.EventsAdmin),
@@ -170,6 +172,8 @@ type AdminPanelCopy = {
   coursesQuickText: string;
   contentQuickTitle: string;
   contentQuickText: string;
+  signOut: string;
+  signingOut: string;
 };
 
 export function AdminPanel({ locale }: AdminPanelProps) {
@@ -179,6 +183,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   const [scope, setScope] = useState<AdminScope | null>(null);
   const [loadingScope, setLoadingScope] = useState(true);
   const [scopeMessage, setScopeMessage] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
   const sessionRef = useRef<Session | null>(null);
   const scopeRef = useRef<AdminScope | null>(scope);
 
@@ -493,16 +498,30 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   return (
     <>
       <section className="border border-[var(--line)] bg-white p-4 sm:p-5">
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center bg-[var(--accent)] text-white">
-            <LayoutDashboard size={20} />
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center bg-[var(--accent)] text-white">
+              <LayoutDashboard size={20} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-semibold">{copy.homeTitle}</h2>
+              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                {copy.homeIntro}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-semibold">{copy.homeTitle}</h2>
-            <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-              {copy.homeIntro}
-            </p>
-          </div>
+          <button
+            type="button"
+            disabled={signingOut}
+            onClick={() => {
+              setSigningOut(true);
+              void signOutAndRedirect(supabase, locale);
+            }}
+            className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
+          >
+            <LogOut size={17} />
+            {signingOut ? copy.signingOut : copy.signOut}
+          </button>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -721,6 +740,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       coursesQuickText: "Historical imports, created courses, and official IKA course control.",
       contentQuickTitle: "Public content",
       contentQuickText: "Public pages, news, instructors, and global web settings from one place.",
+      signOut: "Sign out",
+      signingOut: "Signing out...",
       noAdminPermissionForAccount: "No administration permission was found for this account.",
       noAdminPermissions: "No administration permissions were found.",
       usersModule: "Users and permissions: create admins",
@@ -755,6 +776,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       coursesQuickText: "Importaciones historicas, cursos ya creados y control oficial de cursos IKA.",
       contentQuickTitle: "Contenido publico",
       contentQuickText: "Paginas publicas, noticias, instructores y ajustes globales de la web en un solo lugar.",
+      signOut: "Cerrar sesion",
+      signingOut: "Cerrando sesion...",
       noAdminPermissionForAccount: "No se encontro ningun permiso de administracion para esta cuenta.",
       noAdminPermissions: "No se encontraron permisos de administracion.",
       usersModule: "Usuarios y permisos: crear admins",
