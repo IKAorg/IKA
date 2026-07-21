@@ -7,7 +7,7 @@ import {
   type SupabaseAdminClient,
 } from "@/lib/admin/request-forms";
 
-type AssignableRoleKey = "global_admin" | "country_admin" | "dojo_admin";
+type AssignableRoleKey = "global_admin" | "country_admin" | "dojo_admin" | "kenshi";
 
 type ScopeAssignment = {
   country_id: string | null;
@@ -169,18 +169,6 @@ export async function POST(request: NextRequest) {
     return jsonError("No puedes asignar ese rol con tu nivel de permisos.", 403);
   }
 
-  const target = await validateTarget(
-    guard.admin,
-    guard.scope,
-    roleKey,
-    countryId,
-    dojoId,
-  );
-
-  if (!target.ok) {
-    return jsonError(target.error, 400);
-  }
-
   let authUserId = await findAuthUserIdByEmail(guard.admin, email);
   let invited = false;
 
@@ -213,6 +201,28 @@ export async function POST(request: NextRequest) {
     return jsonError(profile.error, 500);
   }
 
+  const target =
+    roleKey === "kenshi"
+      ? await resolveKenshiTarget(
+          guard.admin,
+          guard.scope,
+          profile.id,
+          email,
+          countryId,
+          dojoId,
+        )
+      : await validateTarget(
+          guard.admin,
+          guard.scope,
+          roleKey,
+          countryId,
+          dojoId,
+        );
+
+  if (!target.ok) {
+    return jsonError(target.error, 400);
+  }
+
   const role = await guard.admin
     .from("roles")
     .select("id")
@@ -242,8 +252,12 @@ export async function POST(request: NextRequest) {
     {
       profile_id: profile.id,
       role_id: role.data.id,
-      country_id: roleKey === "country_admin" ? target.countryId : null,
-      dojo_id: roleKey === "dojo_admin" ? target.dojoId : null,
+      country_id:
+        roleKey === "country_admin" || roleKey === "kenshi"
+          ? target.countryId
+          : null,
+      dojo_id:
+        roleKey === "dojo_admin" || roleKey === "kenshi" ? target.dojoId : null,
       created_by: guard.scope.profileId,
     },
     {
@@ -341,13 +355,23 @@ export async function PATCH(request: NextRequest) {
     return jsonError("No puedes editar ese rol.", 403);
   }
 
-  const target = await validateTarget(
-    guard.admin,
-    guard.scope,
-    roleKey,
-    countryId,
-    dojoId,
-  );
+  const target =
+    roleKey === "kenshi"
+      ? await resolveKenshiTarget(
+          guard.admin,
+          guard.scope,
+          currentAssignment.data.profile_id,
+          "",
+          countryId,
+          dojoId,
+        )
+      : await validateTarget(
+          guard.admin,
+          guard.scope,
+          roleKey,
+          countryId,
+          dojoId,
+        );
 
   if (!target.ok) {
     return jsonError(target.error, 400);
@@ -382,8 +406,12 @@ export async function PATCH(request: NextRequest) {
     .from("user_roles")
     .update({
       role_id: role.data.id,
-      country_id: roleKey === "country_admin" ? target.countryId : null,
-      dojo_id: roleKey === "dojo_admin" ? target.dojoId : null,
+      country_id:
+        roleKey === "country_admin" || roleKey === "kenshi"
+          ? target.countryId
+          : null,
+      dojo_id:
+        roleKey === "dojo_admin" || roleKey === "kenshi" ? target.dojoId : null,
     })
     .eq("id", assignmentId);
 
@@ -412,15 +440,19 @@ async function requireAdmin(request: NextRequest): Promise<GuardResult> {
 
 function getAssignableRoles(scope: AdminScope): AssignableRoleKey[] {
   if (scope.isSuperAdmin) {
-    return ["global_admin", "country_admin", "dojo_admin"];
+    return ["global_admin", "country_admin", "dojo_admin", "kenshi"];
   }
 
   if (scope.isGlobalAdmin) {
-    return ["country_admin", "dojo_admin"];
+    return ["country_admin", "dojo_admin", "kenshi"];
   }
 
   if (scope.countryIds.length > 0) {
-    return ["dojo_admin"];
+    return ["dojo_admin", "kenshi"];
+  }
+
+  if (scope.dojoIds.length > 0) {
+    return ["kenshi"];
   }
 
   return [];
@@ -452,6 +484,58 @@ async function validateTarget(
     }
 
     return { ok: true, countryId, dojoId: null };
+  }
+
+  if (roleKey === "kenshi") {
+    if (dojoId) {
+      const dojo = await admin
+        .from("dojos")
+        .select("id,country_id")
+        .eq("id", dojoId)
+        .single<{ id: string; country_id: string }>();
+
+      if (dojo.error || !dojo.data) {
+        return {
+          ok: false,
+          error: dojo.error?.message ?? "No se encontro el dojo.",
+        };
+      }
+
+      if (
+        !scope.isSuperAdmin &&
+        !scope.isGlobalAdmin &&
+        !scope.countryIds.includes(dojo.data.country_id) &&
+        !scope.dojoIds.includes(dojo.data.id)
+      ) {
+        return {
+          ok: false,
+          error: "No puedes asignar Kenshi en ese dojo.",
+        };
+      }
+
+      return {
+        ok: true,
+        countryId: dojo.data.country_id,
+        dojoId: dojo.data.id,
+      };
+    }
+
+    if (countryId) {
+      if (
+        !scope.isSuperAdmin &&
+        !scope.isGlobalAdmin &&
+        !scope.countryIds.includes(countryId)
+      ) {
+        return {
+          ok: false,
+          error: "No puedes asignar Kenshi en ese pais.",
+        };
+      }
+
+      return { ok: true, countryId, dojoId: null };
+    }
+
+    return { ok: true, countryId: null, dojoId: null };
   }
 
   if (!dojoId) {
@@ -627,6 +711,57 @@ async function upsertProfileByEmail(
   return existingId
     ? { ok: true, id: existingId }
     : { ok: false, error: "No se pudo crear o recuperar el perfil." };
+}
+
+async function resolveKenshiTarget(
+  admin: SupabaseAdminClient,
+  scope: AdminScope,
+  profileId: string,
+  email: string,
+  requestedCountryId: string | null,
+  requestedDojoId: string | null,
+): Promise<
+  | { ok: true; countryId: string | null; dojoId: string | null }
+  | { ok: false; error: string }
+> {
+  if (requestedDojoId || requestedCountryId) {
+    return validateTarget(
+      admin,
+      scope,
+      "kenshi",
+      requestedCountryId,
+      requestedDojoId,
+    );
+  }
+
+  const member = await admin
+    .from("members")
+    .select("country_id,dojo_id")
+    .or(
+      `profile_id.eq.${profileId},email.eq.${email.replace(/,/g, "\\,")}`,
+    )
+    .limit(1)
+    .maybeSingle<{ country_id: string | null; dojo_id: string | null }>();
+
+  if (member.error) {
+    return { ok: false, error: member.error.message };
+  }
+
+  if (!member.data) {
+    return {
+      ok: false,
+      error:
+        "El rol Kenshi necesita una ficha de miembro vinculada o un pais/dojo asignado.",
+    };
+  }
+
+  return validateTarget(
+    admin,
+    scope,
+    "kenshi",
+    member.data.country_id,
+    member.data.dojo_id,
+  );
 }
 
 async function deleteEmptyUnlinkedProfile(

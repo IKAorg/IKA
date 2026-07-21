@@ -14,7 +14,7 @@ import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 
-type RoleKey = "global_admin" | "country_admin" | "dojo_admin";
+type RoleKey = "global_admin" | "country_admin" | "dojo_admin" | "kenshi";
 
 type Profile = {
   id: string;
@@ -108,11 +108,13 @@ const roleLabels = {
     global_admin: "Global admin",
     country_admin: "Country admin",
     dojo_admin: "Dojo admin",
+    kenshi: "Kenshi",
   },
   es: {
     global_admin: "Admin global",
     country_admin: "Admin de pais",
     dojo_admin: "Admin de dojo",
+    kenshi: "Kenshi",
   },
 } as const;
 
