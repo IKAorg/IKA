@@ -256,7 +256,11 @@ export function LocationsAdmin({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+        return;
+      }
+
       void loadLocations();
     });
 

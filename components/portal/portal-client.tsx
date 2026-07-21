@@ -1897,6 +1897,7 @@ export function PortalClient({
   const portalRef = useRef<PortalPayload | null>(portal);
   const portalLoadInFlightRef = useRef(false);
   const portalDashboardInFlightRef = useRef(false);
+  const adminRedirectInFlightRef = useRef(false);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -1908,12 +1909,12 @@ export function PortalClient({
 
   const restoreCachedPortal = useCallback((nextSession: Session | null | undefined) => {
     if (typeof window === "undefined" || !nextSession?.user) {
-      return false;
+      return null;
     }
 
     const raw = window.sessionStorage.getItem(portalCacheKey);
     if (!raw) {
-      return false;
+      return null;
     }
 
     try {
@@ -1923,14 +1924,15 @@ export function PortalClient({
         cached.sessionEmail === normalizeEmail(nextSession.user.email);
 
       if (!sameUser || !cached.payload) {
-        return false;
+        return null;
       }
 
       setPortal(cached.payload);
-      return true;
+      portalRef.current = cached.payload;
+      return cached.payload;
     } catch {
       window.sessionStorage.removeItem(portalCacheKey);
-      return false;
+      return null;
     }
   }, []);
 
@@ -2005,54 +2007,14 @@ export function PortalClient({
     }
   }, [getAuthHeaders, saveCachedPortal]);
 
-  const loadAdminScope = useCallback(async () => {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 6000);
-
-    try {
-      const response = await fetch("/api/admin/scope", {
-        cache: "no-store",
-        headers: await getAuthHeaders(),
-        signal: controller.signal,
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        return null;
-      }
-
-      return data?.scope ?? null;
-    } catch {
-      return null;
-    } finally {
-      window.clearTimeout(timeoutId);
+  const redirectToAdmin = useCallback(() => {
+    if (adminRedirectInFlightRef.current) {
+      return;
     }
-  }, [getAuthHeaders]);
 
-  const redirectToAdminIfNeeded = useCallback(
-    async (nextSession?: Session | null) => {
-      const sessionToCheck = nextSession ?? sessionRef.current;
-      const normalizedEmail = normalizeEmail(sessionToCheck?.user.email ?? "");
-
-      if (!sessionToCheck) {
-        return false;
-      }
-
-      if (normalizedEmail === officialSuperAdminEmail) {
-        window.location.replace(`/${locale}/admin`);
-        return true;
-      }
-
-      const adminScope = await loadAdminScope();
-      if (adminScope?.roleKeys?.length) {
-        window.location.replace(`/${locale}/admin`);
-        return true;
-      }
-
-      return false;
-    },
-    [loadAdminScope, locale],
-  );
+    adminRedirectInFlightRef.current = true;
+    window.location.replace(`/${locale}/admin`);
+  }, [locale]);
 
   const loadPortal = useCallback(async (options?: { silent?: boolean }) => {
     const silent = Boolean(options?.silent);
@@ -2092,7 +2054,12 @@ export function PortalClient({
             ? { ...nextPortal, dashboard: portalRef.current.dashboard }
             : nextPortal;
         setPortal(mergedPortal);
+        portalRef.current = mergedPortal;
         saveCachedPortal(sessionRef.current, mergedPortal);
+
+        if (hasAdminPortalRole(mergedPortal.roles)) {
+          redirectToAdmin();
+        }
       }
     } catch {
       setMessage(copy.loadError);
@@ -2104,7 +2071,7 @@ export function PortalClient({
       window.clearTimeout(timeoutId);
       setLoading(false);
     }
-  }, [copy.loadError, getAuthHeaders, saveCachedPortal]);
+  }, [copy.loadError, getAuthHeaders, redirectToAdmin, saveCachedPortal]);
 
   useEffect(() => {
     let active = true;
@@ -2171,13 +2138,6 @@ export function PortalClient({
           }
 
           setSession(nextSession.data.session);
-          if (
-            !hasRecoveryHint &&
-            (await redirectToAdminIfNeeded(nextSession.data.session))
-          ) {
-            return;
-          }
-
           const restoredPortal = restoreCachedPortal(nextSession.data.session);
 
           if (typeof window !== "undefined") {
@@ -2189,6 +2149,11 @@ export function PortalClient({
             setRecoveryMode(true);
             setPortal(null);
             setLoading(false);
+            return;
+          }
+
+          if (restoredPortal && hasAdminPortalRole(restoredPortal.roles)) {
+            redirectToAdmin();
             return;
           }
 
@@ -2214,11 +2179,24 @@ export function PortalClient({
         setSession(data.session);
         if (data.session) {
           saveAdminSessionBridge(data.session);
-          if (!hasRecoveryHint && (await redirectToAdminIfNeeded(data.session))) {
+          if (
+            !hasRecoveryHint &&
+            normalizeEmail(data.session.user.email ?? "") === officialSuperAdminEmail
+          ) {
+            redirectToAdmin();
             return;
           }
 
           const restoredPortal = restoreCachedPortal(data.session);
+          if (
+            data.session &&
+            !hasRecoveryHint &&
+            restoredPortal &&
+            hasAdminPortalRole(restoredPortal.roles)
+          ) {
+            redirectToAdmin();
+            return;
+          }
           if (data.session && !hasRecoveryHint && restoredPortal) {
             setLoading(false);
             return;
@@ -2282,17 +2260,14 @@ export function PortalClient({
           return;
         }
 
-        void redirectToAdminIfNeeded(nextSession).then((redirected) => {
-          if (redirected) {
-            return;
+        if (sameUserSession && portalRef.current) {
+          if (hasAdminPortalRole(portalRef.current.roles)) {
+            redirectToAdmin();
           }
+          return;
+        }
 
-          if (sameUserSession && portalRef.current) {
-            return;
-          }
-
-          void loadPortal({ silent: true });
-        });
+        void loadPortal({ silent: true });
       } else {
         setPortal(null);
       }
@@ -2302,7 +2277,7 @@ export function PortalClient({
       active = false;
       subscription.unsubscribe();
     };
-  }, [copy.oldPkceLink, loadPortal, recoveryMode, redirectToAdminIfNeeded, supabase]);
+  }, [copy.oldPkceLink, loadPortal, recoveryMode, redirectToAdmin, supabase]);
 
   async function signIn() {
     if (!email || !password) {

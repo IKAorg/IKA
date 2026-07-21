@@ -183,10 +183,15 @@ export function RequestFormsAdmin({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (nextSession) {
         saveAdminSessionBridge(nextSession);
       }
+
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+        return;
+      }
+
       void load();
     });
 
