@@ -64,18 +64,6 @@ type Payload = {
   };
 };
 
-type LocationsFallbackPayload = {
-  countries?: Payload["countries"];
-  dojos?: Payload["dojos"];
-  scope?: {
-    roleKeys?: string[];
-    countryIds?: string[];
-    dojoIds?: string[];
-    isGlobal?: boolean;
-  };
-  error?: string;
-};
-
 export function RequestFormsAdmin({
   initialLocale = defaultLocale,
 }: {
@@ -124,41 +112,8 @@ export function RequestFormsAdmin({
         return load(1);
       }
 
-      const fallbackResponse = await fetch("/api/admin/locations", {
-        cache: "no-store",
-        headers: requestHeaders,
-      });
-      const fallbackData =
-        (await fallbackResponse.json().catch(() => ({}))) as LocationsFallbackPayload;
-
-      if (fallbackResponse.ok) {
-        const roleKeys = fallbackData.scope?.roleKeys ?? [];
-        const countryIds = fallbackData.scope?.countryIds ?? [];
-        const dojoIds = fallbackData.scope?.dojoIds ?? [];
-        const isGlobal =
-          Boolean(fallbackData.scope?.isGlobal) ||
-          roleKeys.includes("super_admin") ||
-          roleKeys.includes("global_admin");
-
-        setPayload({
-          forms: [],
-          submissions: [],
-          countries: fallbackData.countries ?? [],
-          dojos: fallbackData.dojos ?? [],
-          permissions: {
-            canCreateCountryForms: roleKeys.includes("super_admin"),
-            canCreateDojoForms: isGlobal || countryIds.length > 0,
-            canCreateKenshiForms:
-              isGlobal || countryIds.length > 0 || dojoIds.length > 0,
-          },
-        });
-        setMessage("");
-        setLoading(false);
-        return;
-      }
-
-      setPayload(null);
-      setMessage(data.error ?? fallbackData.error ?? copy.loadError);
+      setPayload((current) => current);
+      setMessage(data.error ?? copy.loadError);
       setLoading(false);
       return;
     }
@@ -188,7 +143,11 @@ export function RequestFormsAdmin({
         saveAdminSessionBridge(nextSession);
       }
 
-      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+      if (
+        event === "INITIAL_SESSION" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "USER_UPDATED"
+      ) {
         return;
       }
 

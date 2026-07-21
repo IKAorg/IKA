@@ -17,6 +17,7 @@ import { optimizeImageForUpload } from "@/lib/media/optimize-image";
 import {
   getAdminSessionBridgeHeaders,
   hasAdminSessionBridge,
+  saveAdminSessionBridge,
 } from "@/lib/supabase/admin-session-bridge";
 import { defaultLocale, localeLabels, type Locale } from "@/lib/i18n/config";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
@@ -237,11 +238,33 @@ export function LocationsAdmin({
     setLoading(true);
     setMessage("");
 
-    const response = await fetch("/api/admin/locations", {
-      cache: "no-store",
-      headers,
-    });
-    const payload = await response.json().catch(() => ({}));
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+
+    let response: Response;
+    let payload: unknown;
+
+    try {
+      response = await fetch("/api/admin/locations", {
+        cache: "no-store",
+        headers,
+        signal: controller.signal,
+      });
+      payload = await response.json().catch(() => ({}));
+    } catch (error) {
+      if (requestId === requestCounterRef.current) {
+        setMessage(
+          error instanceof DOMException && error.name === "AbortError"
+            ? copy.loadLocationsError
+            : copy.loadLocationsError,
+        );
+        setLoading(false);
+        inFlightRef.current = false;
+      }
+      window.clearTimeout(timeout);
+      return;
+    }
+    window.clearTimeout(timeout);
 
     if (requestId !== requestCounterRef.current) {
       inFlightRef.current = false;
@@ -292,12 +315,20 @@ export function LocationsAdmin({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        saveAdminSessionBridge(session);
+      }
+
       if (
         event === "INITIAL_SESSION" ||
         event === "TOKEN_REFRESHED" ||
         event === "USER_UPDATED"
       ) {
+        return;
+      }
+
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") {
         return;
       }
 
