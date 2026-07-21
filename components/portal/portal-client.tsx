@@ -2510,6 +2510,9 @@ export function PortalClient({
             {copy.privatePortal}
           </p>
           <h2 className="mt-2 text-3xl font-semibold">{displayName}</h2>
+          {session.user.email ? (
+            <p className="mt-2 text-sm text-[var(--muted)]">{session.user.email}</p>
+          ) : null}
         </div>
         <button
           onClick={signOut}
@@ -3171,31 +3174,31 @@ function MemberPanel({
   return (
     <div className="grid gap-5">
       <section className="overflow-hidden border border-[var(--line)] bg-white">
-        <div className="grid gap-5 bg-[var(--ink)] p-4 text-white sm:p-6 md:grid-cols-[auto_1fr_auto] md:items-center">
+        <div className="grid gap-5 border-b border-[var(--line)] bg-[linear-gradient(135deg,#f7f2ea_0%,#f2ece3_55%,#ece5dc_100%)] p-4 text-[var(--text)] sm:p-6 md:grid-cols-[auto_1fr_auto] md:items-center">
           <Image
             src="/images/ika-logo.webp"
             alt="IKA"
             width={72}
             height={72}
-            className="bg-white object-contain p-2"
+            className="border border-[var(--line)] bg-white object-contain p-2 shadow-sm"
           />
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
               Ficha IKA
             </p>
             <h3 className="mt-2 text-3xl font-semibold">
               {member.first_name} {member.last_name}
             </h3>
-            <p className="mt-2 text-sm text-white/70">
+            <p className="mt-2 text-sm text-[var(--muted)]">
               {member.ika_number || getPortalMemberFallback(locale, "ika")} ·{" "}
               {member.current_grade || getPortalMemberFallback(locale, "grade")} · {member.status}
             </p>
           </div>
           <div className="flex flex-col items-start gap-3 md:items-end">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-white/70">
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
               {copy.photo}
             </p>
-            <div className="flex size-32 items-center justify-center overflow-hidden border border-white/30 bg-white/10">
+            <div className="flex size-32 items-center justify-center overflow-hidden border border-[var(--line)] bg-white shadow-sm">
               {displayedProfileImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -3204,13 +3207,13 @@ function MemberPanel({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="flex flex-col items-center gap-2 px-3 text-center text-white/70">
+                <div className="flex flex-col items-center gap-2 px-3 text-center text-[var(--muted)]">
                   <UserRound size={42} />
                   <span className="text-xs">{copy.selectImage}</span>
                 </div>
               )}
             </div>
-            <label className="inline-flex cursor-pointer items-center gap-2 border border-white/30 px-3 py-2 text-sm font-semibold">
+            <label className="inline-flex cursor-pointer items-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm">
               {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
               {copy.changePhoto}
               <input

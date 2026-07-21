@@ -3,6 +3,7 @@ import Image from "next/image";
 import type { Locale } from "@/lib/i18n/config";
 import type { getDictionary } from "@/lib/i18n/dictionaries";
 import { LanguageSwitcher } from "./language-switcher";
+import { PortalSessionBadge } from "./portal-session-badge";
 
 type SiteShellProps = {
   locale: Locale;
@@ -66,6 +67,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
           </nav>
 
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+            <PortalSessionBadge locale={locale} />
             <LanguageSwitcher locale={locale} />
             <Link
               href={`/${locale}/portal`}
