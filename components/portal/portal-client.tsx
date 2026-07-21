@@ -2953,6 +2953,18 @@ function MemberPanel({
   const currentMember = member;
   const displayedProfileImageUrl =
     profileImageUrl || currentMember.profile_image_url || "";
+  const memberFullName = `${member.first_name} ${member.last_name}`.trim();
+  const memberCountry = labelCountry(member.countries, locale);
+  const memberDojo = labelDojo(member.dojos, locale);
+  const memberGroupLabel =
+    member.member_group === "child"
+      ? copy.child
+      : member.member_group === "adult"
+        ? copy.adult
+        : copy.pending;
+  const memberStatusLabel = member.status || copy.pending;
+  const memberGradeLabel =
+    member.current_grade || getPortalMemberFallback(locale, "grade");
   const myEventsTitle =
     copy.myEventsTitle ??
     (locale === "es" ? "Mis inscripciones a eventos" : "My event registrations");
@@ -3174,61 +3186,111 @@ function MemberPanel({
   return (
     <div className="grid gap-5">
       <section className="overflow-hidden border border-[var(--line)] bg-white">
-        <div className="grid gap-5 border-b border-[var(--line)] bg-[linear-gradient(135deg,#f7f2ea_0%,#f2ece3_55%,#ece5dc_100%)] p-4 text-[var(--text)] sm:p-6 md:grid-cols-[auto_1fr_auto] md:items-center">
-          <Image
-            src="/images/ika-logo.webp"
-            alt="IKA"
-            width={72}
-            height={72}
-            className="border border-[var(--line)] bg-white object-contain p-2 shadow-sm"
-          />
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-              Ficha IKA
-            </p>
-            <h3 className="mt-2 text-3xl font-semibold">
-              {member.first_name} {member.last_name}
-            </h3>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {member.ika_number || getPortalMemberFallback(locale, "ika")} ·{" "}
-              {member.current_grade || getPortalMemberFallback(locale, "grade")} · {member.status}
-            </p>
-          </div>
-          <div className="flex flex-col items-start gap-3 md:items-end">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-              {copy.photo}
-            </p>
-            <div className="flex size-32 items-center justify-center overflow-hidden border border-[var(--line)] bg-white shadow-sm">
-              {displayedProfileImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={displayedProfileImageUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
+        <div className="grid gap-5 border-b border-[var(--line)] bg-[linear-gradient(135deg,#f8f4ec_0%,#f4ede4_48%,#eee6dc_100%)] p-4 text-[var(--text)] sm:p-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          <div className="grid gap-4">
+            <div className="grid gap-4 border border-[rgba(20,18,16,0.08)] bg-[rgba(255,255,255,0.82)] p-4 shadow-sm backdrop-blur sm:grid-cols-[auto_1fr] sm:items-center">
+              <div className="flex h-20 w-20 items-center justify-center border border-[var(--line)] bg-white p-2 shadow-sm">
+                <Image
+                  src="/images/ika-logo.webp"
+                  alt="IKA"
+                  width={64}
+                  height={64}
+                  className="object-contain"
                 />
-              ) : (
-                <div className="flex flex-col items-center gap-2 px-3 text-center text-[var(--muted)]">
-                  <UserRound size={42} />
-                  <span className="text-xs">{copy.selectImage}</span>
-                </div>
-              )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+                  Ficha IKA
+                </p>
+                <h3 className="mt-2 text-3xl font-semibold sm:text-4xl">{memberFullName}</h3>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  {member.ika_number || getPortalMemberFallback(locale, "ika")}
+                </p>
+              </div>
             </div>
-            <label className="inline-flex cursor-pointer items-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm">
-              {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-              {copy.changePhoto}
-              <input
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                disabled={uploading}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    void uploadProfileImage(file);
-                  }
-                }}
-              />
-            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                  {copy.currentGrade}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberGradeLabel}</p>
+              </div>
+              <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                  {copy.status}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberStatusLabel}</p>
+              </div>
+              <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                  {copy.country}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberCountry}</p>
+              </div>
+              <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                  {copy.dojo}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberDojo}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 border border-[rgba(20,18,16,0.08)] bg-[rgba(255,255,255,0.82)] p-4 shadow-sm backdrop-blur sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div className="grid gap-2">
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
+                {copy.photo}
+              </p>
+              <p className="text-sm text-[var(--muted)]">
+                {locale === "es"
+                  ? "Tu perfil privado IKA mantiene una imagen clara y visible para tu ficha interna."
+                  : "Your private IKA profile keeps a clear visible image for your internal record."}
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                <span>{memberGroupLabel}</span>
+                <span aria-hidden="true">•</span>
+                <span>{memberStatusLabel}</span>
+              </div>
+            </div>
+
+            <div className="grid justify-items-start gap-3 sm:justify-items-end">
+              <div className="flex h-36 w-36 items-center justify-center overflow-hidden border border-[var(--line)] bg-white shadow-sm">
+                {displayedProfileImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={displayedProfileImageUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 px-3 text-center text-[var(--muted)]">
+                    <UserRound size={46} />
+                    <span className="text-xs">{copy.selectImage}</span>
+                  </div>
+                )}
+              </div>
+              <label className="inline-flex cursor-pointer items-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm transition hover:bg-[var(--paper)]">
+                {uploading ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Upload size={15} />
+                )}
+                {copy.changePhoto}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={uploading}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      void uploadProfileImage(file);
+                    }
+                  }}
+                />
+              </label>
+            </div>
           </div>
         </div>
 
@@ -3237,7 +3299,7 @@ function MemberPanel({
             <InfoRow label={copy.ikaPassport} value={member.ika_number} copy={copy} />
             <InfoRow
               label={copy.name}
-              value={`${member.first_name} ${member.last_name}`}
+              value={memberFullName}
               copy={copy}
             />
             <InfoRow label={copy.status} value={member.status} copy={copy} />
@@ -3248,12 +3310,12 @@ function MemberPanel({
             />
             <InfoRow
               label={copy.country}
-              value={labelCountry(member.countries, locale)}
+              value={memberCountry}
               copy={copy}
             />
             <InfoRow
               label={copy.dojo}
-              value={labelDojo(member.dojos, locale)}
+              value={memberDojo}
               copy={copy}
             />
             <InfoRow
@@ -3268,13 +3330,7 @@ function MemberPanel({
             />
             <InfoRow
               label={copy.group}
-              value={
-                member.member_group === "child"
-                  ? copy.child
-                  : member.member_group === "adult"
-                    ? copy.adult
-                    : ""
-              }
+              value={memberGroupLabel}
               copy={copy}
             />
             <InfoRow
@@ -3286,6 +3342,11 @@ function MemberPanel({
 
           <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
             <h4 className="text-xl font-semibold">{copy.editableData}</h4>
+            <p className="text-sm text-[var(--muted)]">
+              {locale === "es"
+                ? "Desde aqui puedes actualizar tu contacto, tu foto y tus credenciales privadas."
+                : "From here you can update your contact details, your photo, and your private credentials."}
+            </p>
             <label className="grid gap-1 text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
                 <Mail size={15} /> {copy.emailLabel}
@@ -3702,8 +3763,10 @@ function InfoRow({
   copy: PortalCopy;
 }) {
   return (
-    <div className="grid gap-1 border-b border-[var(--line)] pb-2">
-      <dt className="font-semibold">{label}</dt>
+    <div className="grid gap-1 border border-[var(--line)] bg-[var(--paper)] px-3 py-3 shadow-sm">
+      <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+        {label}
+      </dt>
       <dd className="text-[var(--muted)]">{value || copy.pending}</dd>
     </div>
   );
