@@ -67,25 +67,10 @@ export async function GET(request: NextRequest) {
     return guard.error;
   }
 
-  const [countriesResult, dojosResult] = await Promise.all([
-    guard.admin
-      .from("countries")
-      .select(
-        "id,code,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
-      )
-      .order("code", { ascending: true }),
-    guard.admin
-      .from("dojos")
-      .select(
-        "id,country_id,ika_dojo_id,city,address,responsible_instructor,responsible_instructor_media_id,email,phone,website,status,is_public,main_image_media_id,dojo_translations(language_code,name,slug,description)",
-      )
-      .order("city", { ascending: true }),
-  ]);
+  const dojosResult = await getScopedDojos(guard.admin, guard.scope);
 
-  const firstError = countriesResult.error ?? dojosResult.error;
-
-  if (firstError) {
-    return NextResponse.json({ error: firstError.message }, { status: 500 });
+  if (dojosResult.error) {
+    return NextResponse.json({ error: dojosResult.error.message }, { status: 500 });
   }
 
   const allDojos = (dojosResult.data ?? []) as Array<{
@@ -95,6 +80,15 @@ export async function GET(request: NextRequest) {
     responsible_instructor_media_id: string | null;
   }>;
   const dojos = scopeDojos(allDojos, guard.scope);
+  const countriesResult = await getScopedCountries(guard.admin, guard.scope, dojos);
+
+  if (countriesResult.error) {
+    return NextResponse.json(
+      { error: countriesResult.error.message },
+      { status: 500 },
+    );
+  }
+
   const countries = scopeCountries(
     (countriesResult.data ?? []) as Array<{
       id: string;
@@ -771,6 +765,62 @@ function canManageCountry(scope: LocationScope, countryId: string) {
 
 function hasSuperAdminRole(scope: LocationScope) {
   return scope.roleKeys.includes("super_admin");
+}
+
+function getScopedDojos(admin: SupabaseAdminClient, scope: LocationScope) {
+  const query = admin
+    .from("dojos")
+    .select(
+      "id,country_id,ika_dojo_id,city,address,responsible_instructor,responsible_instructor_media_id,email,phone,website,status,is_public,main_image_media_id,dojo_translations(language_code,name,slug,description)",
+    )
+    .order("city", { ascending: true });
+
+  if (scope.isGlobal) {
+    return query;
+  }
+
+  if (scope.countryIds.length > 0 && scope.dojoIds.length > 0) {
+    return query.or(
+      `country_id.in.(${scope.countryIds.join(",")}),id.in.(${scope.dojoIds.join(",")})`,
+    );
+  }
+
+  if (scope.countryIds.length > 0) {
+    return query.in("country_id", scope.countryIds);
+  }
+
+  if (scope.dojoIds.length > 0) {
+    return query.in("id", scope.dojoIds);
+  }
+
+  return query.limit(0);
+}
+
+function getScopedCountries(
+  admin: SupabaseAdminClient,
+  scope: LocationScope,
+  dojos: Array<{ country_id: string }>,
+) {
+  const query = admin
+    .from("countries")
+    .select(
+      "id,code,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
+    )
+    .order("code", { ascending: true });
+
+  if (scope.isGlobal) {
+    return query;
+  }
+
+  const countryIds = Array.from(
+    new Set([...scope.countryIds, ...dojos.map((dojo) => dojo.country_id)]),
+  );
+
+  if (countryIds.length === 0) {
+    return query.limit(0);
+  }
+
+  return query.in("id", countryIds);
 }
 
 function normalizeText(value: unknown) {

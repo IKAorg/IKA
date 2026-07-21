@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   Building2,
@@ -14,7 +14,10 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 import { optimizeImageForUpload } from "@/lib/media/optimize-image";
-import { getAdminSessionBridgeHeaders } from "@/lib/supabase/admin-session-bridge";
+import {
+  getAdminSessionBridgeHeaders,
+  hasAdminSessionBridge,
+} from "@/lib/supabase/admin-session-bridge";
 import { defaultLocale, localeLabels, type Locale } from "@/lib/i18n/config";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
@@ -196,6 +199,8 @@ export function LocationsAdmin({
   const [message, setMessage] = useState("");
   const [countryCsvText, setCountryCsvText] = useState("");
   const [dojoCsvText, setDojoCsvText] = useState("");
+  const requestCounterRef = useRef(0);
+  const inFlightRef = useRef(false);
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -207,31 +212,65 @@ export function LocationsAdmin({
   }, [supabase]);
 
   const loadLocations = useCallback(async () => {
+    if (inFlightRef.current) {
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    const bridgeHeaders = token ? null : getAdminSessionBridgeHeaders();
+    const hasBridge = token ? true : hasAdminSessionBridge();
+
+    if (!token && !hasBridge) {
+      setCountries([]);
+      setDojos([]);
+      setMediaById(new Map());
+      setScope(null);
+      setMessage(copy.loadLocationsError);
+      setLoading(false);
+      return;
+    }
+
+    const requestId = requestCounterRef.current + 1;
+    requestCounterRef.current = requestId;
+    inFlightRef.current = true;
     setLoading(true);
     setMessage("");
 
     const response = await fetch("/api/admin/locations", {
       cache: "no-store",
-      headers: await getAuthHeaders(),
+      headers: token
+        ? { Authorization: `Bearer ${token}` }
+        : (bridgeHeaders ?? {}),
     });
-    const data = await response.json().catch(() => ({}));
+    const payload = await response.json().catch(() => ({}));
+
+    if (requestId !== requestCounterRef.current) {
+      inFlightRef.current = false;
+      return;
+    }
 
     if (!response.ok) {
-      setMessage(data.error ?? copy.loadLocationsError);
+      setMessage(
+        typeof payload === "object" && payload && "error" in payload
+          ? String(payload.error ?? copy.loadLocationsError)
+          : copy.loadLocationsError,
+      );
       setCountries([]);
       setDojos([]);
       setMediaById(new Map());
       setScope(null);
       setLoading(false);
+      inFlightRef.current = false;
       return;
     }
 
-    const nextCountries = (data.countries ?? []) as CountryRow[];
-    const nextDojos = (data.dojos ?? []) as DojoRow[];
-    const nextScope = (data.scope ?? null) as LocationScope | null;
+    const nextCountries = ((payload as { countries?: CountryRow[] }).countries ?? []) as CountryRow[];
+    const nextDojos = ((payload as { dojos?: DojoRow[] }).dojos ?? []) as DojoRow[];
+    const nextScope = ((payload as { scope?: LocationScope | null }).scope ?? null) as LocationScope | null;
 
     const nextMediaById = new Map(
-      ((data.media ?? []) as MediaRow[]).map((media) => [media.id, media]),
+      (((payload as { media?: MediaRow[] }).media ?? []) as MediaRow[]).map((media) => [media.id, media]),
     );
 
     setCountries(nextCountries);
@@ -246,18 +285,21 @@ export function LocationsAdmin({
       );
     }
     setLoading(false);
+    inFlightRef.current = false;
     return;
-  }, [getAuthHeaders]);
+  }, [copy.loadLocationsError, supabase]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(() => {
-      void loadLocations();
-    });
+    void loadLocations();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+      if (
+        event === "INITIAL_SESSION" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "USER_UPDATED"
+      ) {
         return;
       }
 
