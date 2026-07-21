@@ -476,14 +476,21 @@ async function saveCountry(
   scope: LocationScope,
   input: NonNullable<LocationBody["country"]>,
 ) {
-  if (!hasSuperAdminRole(scope)) {
+  const countryId = normalizeText(input.id);
+
+  if (!countryId && !hasSuperAdminRole(scope)) {
     return NextResponse.json(
-      { error: "Solo super admin puede crear o editar paises." },
+      { error: "Solo super admin puede crear paises." },
       { status: 403 },
     );
   }
 
-  const countryId = normalizeText(input.id);
+  if (countryId && !hasSuperAdminRole(scope) && !canManageCountry(scope, countryId)) {
+    return NextResponse.json(
+      { error: "No puedes modificar ese pais." },
+      { status: 403 },
+    );
+  }
 
   const code = normalizeText(input.code).toUpperCase();
   const name = normalizeText(input.name);

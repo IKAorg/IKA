@@ -894,7 +894,7 @@ export function LocationsAdmin({
               onFile={async (file) => readCsvFile(file, setDojoCsvText)}
             />
           ) : null}
-          {canEditCountry ? (
+          {canEditCountry && (canCreateCountry || Boolean(countryForm.id)) ? (
             <CountryFormView
               form={countryForm}
               setForm={setCountryForm}
@@ -904,9 +904,11 @@ export function LocationsAdmin({
               uploadingField={uploadingField}
               onUploadImage={uploadPublicImage}
               onSave={saveCountry}
-              onReset={() =>
-                setCountryForm(createEmptyCountryForm(countryForm.locale))
-              }
+              onReset={() => {
+                if (canCreateCountry) {
+                  setCountryForm(createEmptyCountryForm(countryForm.locale));
+                }
+              }}
               copy={copy}
             />
           ) : null}

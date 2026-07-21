@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { createPublicSupabaseClient } from "@/lib/supabase/public-client";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
+import { getLocaleForCountryCode } from "@/lib/i18n/country-locale";
 
 type ScopeRole = {
   country_id: string | null;
@@ -285,7 +286,7 @@ export async function PATCH(request: NextRequest) {
 
   const member = await guard.admin
     .from("members")
-    .select("id,profile_id,first_name,last_name,email,country_id,dojo_id")
+    .select("id,profile_id,first_name,last_name,email,country_id,dojo_id,countries(code)")
     .eq("id", body.memberId)
     .maybeSingle<{
       id: string;
@@ -295,6 +296,7 @@ export async function PATCH(request: NextRequest) {
       email: string | null;
       country_id: string | null;
       dojo_id: string | null;
+      countries: { code: string } | Array<{ code: string }> | null;
     }>();
 
   if (member.error) {
@@ -979,7 +981,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   const memberEmail = member.data.email.trim().toLowerCase();
-  const redirectTo = buildPublicRedirectUrl(request, "es", "portal");
+  const inviteLocale = getLocaleForCountryCode(
+    getRelatedCountryCode(member.data.countries),
+  );
+  const redirectTo = buildPublicRedirectUrl(request, inviteLocale, "portal");
   let authUserId =
     (await findProfileAuthUserIdByEmail(guard.admin, memberEmail)) ??
     (await findAuthUserIdByEmail(guard.admin, memberEmail));
@@ -989,6 +994,10 @@ export async function PATCH(request: NextRequest) {
   if (!authUserId) {
     const invite = await guard.admin.auth.admin.inviteUserByEmail(memberEmail, {
       redirectTo,
+      data: {
+        locale: inviteLocale,
+        country_code: getRelatedCountryCode(member.data.countries),
+      },
     });
 
     if (invite.error) {
@@ -1052,6 +1061,19 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (shouldSendAccessEmail) {
+    if (authUserId) {
+      const existingUser = await guard.admin.auth.admin.getUserById(authUserId);
+      if (!existingUser.error && existingUser.data.user) {
+        await guard.admin.auth.admin.updateUserById(authUserId, {
+          user_metadata: {
+            ...existingUser.data.user.user_metadata,
+            locale: inviteLocale,
+            country_code: getRelatedCountryCode(member.data.countries),
+          },
+        });
+      }
+    }
+
     const publicClient = createPublicSupabaseClient();
 
     if (!publicClient) {
@@ -2465,6 +2487,18 @@ function isLocalOrigin(origin: string) {
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getRelatedCountryCode(value: unknown) {
+  if (Array.isArray(value)) {
+    return getRelatedCountryCode(value[0]);
+  }
+
+  if (value && typeof value === "object" && "code" in value) {
+    return normalizeText((value as { code?: unknown }).code).toUpperCase();
+  }
+
+  return "";
 }
 
 function isDuplicateCourseError(message: string | null | undefined) {
