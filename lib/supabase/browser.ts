@@ -1,7 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { getSupabaseProjectUrl } from "./url";
 
-export function createClient() {
+function buildBrowserClient() {
   const url =
     getSupabaseProjectUrl() ?? "https://placeholder.supabase.co";
   const key =
@@ -11,4 +11,16 @@ export function createClient() {
     url,
     key,
   );
+}
+
+type BrowserClient = ReturnType<typeof buildBrowserClient>;
+
+let sharedBrowserClient: BrowserClient | null = null;
+
+export function createClient(): BrowserClient {
+  if (!sharedBrowserClient) {
+    sharedBrowserClient = buildBrowserClient();
+  }
+
+  return sharedBrowserClient;
 }

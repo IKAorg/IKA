@@ -152,68 +152,73 @@ async function getOrRepairAdminProfile(
 ) {
   const byAuth = await admin
     .from("users_profiles")
-    .select("id,email,user_roles(country_id,dojo_id,roles(key))")
+    .select("id,email")
     .eq("auth_user_id", authUserId)
     .limit(10);
 
   const authProfiles = (byAuth.data ?? []) as Array<{
     id: string;
     email?: string | null;
-    user_roles: ScopeAssignment[] | null;
   }>;
-  const authAdminProfile = authProfiles.find((profile) =>
-    hasAnyAdminRole((profile.user_roles ?? []) as ScopeAssignment[]),
-  );
-
-  if (authAdminProfile) {
-    return authAdminProfile;
-  }
-
   const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail) {
-    return null;
-  }
 
-  const byEmail = await admin
-    .from("users_profiles")
-    .select("id,email,user_roles(country_id,dojo_id,roles(key))")
-    .ilike("email", normalizedEmail)
-    .order("auth_user_id", { ascending: false, nullsFirst: false })
-    .limit(10);
+  const byEmail = normalizedEmail
+    ? await admin
+        .from("users_profiles")
+        .select("id,email")
+        .ilike("email", normalizedEmail)
+        .order("auth_user_id", { ascending: false, nullsFirst: false })
+        .limit(10)
+    : { data: [], error: null };
 
-  const candidateProfile = (byEmail.data ?? []).find((profile) =>
-    hasAnyAdminRole(
-      ((profile as { user_roles?: ScopeAssignment[] | null }).user_roles ?? []) as ScopeAssignment[],
-    ),
-  ) as
-    | {
-        id: string;
-        email?: string | null;
-        user_roles: ScopeAssignment[] | null;
+  const profiles = Array.from(
+    new Map(
+      [
+        ...authProfiles,
+        ...((byEmail.data ?? []) as Array<{ id: string; email?: string | null }>),
+      ].map((profile) => [profile.id, profile]),
+    ).values(),
+  );
+  const profileIds = profiles.map((profile) => profile.id);
+
+  if (profileIds.length > 0) {
+    const rolesResult = await admin
+      .from("user_roles")
+      .select("profile_id,country_id,dojo_id,roles(key)")
+      .in("profile_id", profileIds);
+    const roleRows = (rolesResult.data ?? []) as Array<
+      ScopeAssignment & { profile_id: string }
+    >;
+    const adminAssignments = roleRows.filter((assignment) =>
+      adminRoleKeys.includes(
+        getRoleKey(assignment.roles) as (typeof adminRoleKeys)[number],
+      ),
+    );
+
+    if (adminAssignments.length > 0) {
+      const primaryProfile =
+        authProfiles.find((profile) =>
+          adminAssignments.some(
+            (assignment) => assignment.profile_id === profile.id,
+          ),
+        ) ??
+        profiles.find((profile) =>
+          adminAssignments.some(
+            (assignment) => assignment.profile_id === profile.id,
+          ),
+        );
+
+      if (primaryProfile) {
+        return {
+          ...primaryProfile,
+          user_roles: adminAssignments,
+        };
       }
-    | undefined;
-
-  if (candidateProfile) {
-    const linked = await admin
-      .from("users_profiles")
-      .update({ auth_user_id: authUserId, status: "active" })
-      .eq("id", candidateProfile.id)
-      .select("id,user_roles(country_id,dojo_id,roles(key))")
-      .single<{ id: string; user_roles: ScopeAssignment[] | null }>();
-
-    return linked.data ?? candidateProfile;
+    }
   }
 
   if (normalizedEmail === officialSuperAdminEmail) {
     return ensureOfficialSuperAdmin(admin, authUserId, normalizedEmail);
-  }
-
-  const sameEmailProfile = authProfiles.find(
-    (profile) => normalizeEmail(profile.email) === normalizedEmail,
-  );
-
-  if (sameEmailProfile) {
-    return sameEmailProfile;
   }
 
   return null;
