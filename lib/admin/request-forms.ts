@@ -161,10 +161,15 @@ async function getOrRepairAdminProfile(
     .from("users_profiles")
     .select("id,user_roles(country_id,dojo_id,roles(key))")
     .eq("auth_user_id", authUserId)
-    .maybeSingle<{ id: string; user_roles: ScopeAssignment[] | null }>();
+    .limit(10);
 
-  if (byAuth.data && hasAnyAdminRole(byAuth.data.user_roles ?? [])) {
-    return byAuth.data;
+  const authProfiles = ((byAuth.data ?? []) as Array<{
+    id: string;
+    user_roles: ScopeAssignment[] | null;
+  }>).filter((profile) => hasAnyAdminRole(profile.user_roles ?? []));
+
+  if (authProfiles.length > 0) {
+    return authProfiles[0];
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -173,18 +178,25 @@ async function getOrRepairAdminProfile(
     const byEmail = await admin
       .from("users_profiles")
       .select("id,user_roles(country_id,dojo_id,roles(key))")
-      .eq("email", normalizedEmail)
-      .maybeSingle<{ id: string; user_roles: ScopeAssignment[] | null }>();
+      .ilike("email", normalizedEmail)
+      .order("auth_user_id", { ascending: false, nullsFirst: false })
+      .limit(10);
 
-    if (byEmail.data && hasAnyAdminRole(byEmail.data.user_roles ?? [])) {
+    const emailProfiles = ((byEmail.data ?? []) as Array<{
+      id: string;
+      user_roles: ScopeAssignment[] | null;
+    }>).filter((profile) => hasAnyAdminRole(profile.user_roles ?? []));
+
+    if (emailProfiles.length > 0) {
+      const primaryProfile = emailProfiles[0];
       const linked = await admin
         .from("users_profiles")
         .update({ auth_user_id: authUserId, status: "active" })
-        .eq("id", byEmail.data.id)
+        .eq("id", primaryProfile.id)
         .select("id,user_roles(country_id,dojo_id,roles(key))")
         .single<{ id: string; user_roles: ScopeAssignment[] | null }>();
 
-      return linked.data ?? byEmail.data;
+      return linked.data ?? primaryProfile;
     }
   }
 
