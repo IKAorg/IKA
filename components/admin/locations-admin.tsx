@@ -218,15 +218,14 @@ export function LocationsAdmin({
 
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
-    const bridgeHeaders = token ? null : getAdminSessionBridgeHeaders();
-    const hasBridge = token ? true : hasAdminSessionBridge();
 
-    if (!token && !hasBridge) {
-      setCountries([]);
-      setDojos([]);
-      setMediaById(new Map());
-      setScope(null);
-      setMessage(copy.loadLocationsError);
+    if (!token) {
+      if (!hasAdminSessionBridge()) {
+        setCountries([]);
+        setDojos([]);
+        setMediaById(new Map());
+        setScope(null);
+      }
       setLoading(false);
       return;
     }
@@ -239,9 +238,7 @@ export function LocationsAdmin({
 
     const response = await fetch("/api/admin/locations", {
       cache: "no-store",
-      headers: token
-        ? { Authorization: `Bearer ${token}` }
-        : (bridgeHeaders ?? {}),
+      headers: { Authorization: `Bearer ${token}` },
     });
     const payload = await response.json().catch(() => ({}));
 

@@ -187,6 +187,8 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   const [signingOut, setSigningOut] = useState(false);
   const sessionRef = useRef<Session | null>(null);
   const scopeRef = useRef<AdminScope | null>(scope);
+  const scopeRequestIdRef = useRef(0);
+  const scopeInFlightRef = useRef(false);
 
   useEffect(() => {
     scopeRef.current = scope;
@@ -309,25 +311,56 @@ export function AdminPanel({ locale }: AdminPanelProps) {
       setLoadingScope(false);
     }
 
-    async function loadScope(nextSession?: Session | null) {
-      const currentSession = nextSession ?? sessionRef.current;
-
-      if (!currentSession?.access_token && !hasAdminSessionBridge()) {
-        return [];
+    async function resolveSessionWithToken(nextSession?: Session | null) {
+      if (nextSession?.access_token) {
+        return nextSession;
       }
 
+      if (sessionRef.current?.access_token) {
+        return sessionRef.current;
+      }
+
+      const { data } = await supabase.auth.getSession();
+      return data.session;
+    }
+
+    async function loadScope(nextSession?: Session | null) {
+      if (scopeInFlightRef.current) {
+        return null;
+      }
+
+      const currentSession = await resolveSessionWithToken(nextSession);
       const token = currentSession?.access_token;
-      const headers: Record<string, string> = token
-        ? { Authorization: `Bearer ${token}` }
-        : getAdminSessionBridgeHeaders();
 
-      const settled = await Promise.allSettled([
-        fetchScopePayload("/api/admin/scope", headers, 30000),
-      ]);
+      if (!token) {
+        return null;
+      }
 
-      return settled.map((item) =>
-        item.status === "fulfilled" ? item.value : {},
-      ) as AdminScopePayload[];
+      scopeInFlightRef.current = true;
+      const requestId = scopeRequestIdRef.current + 1;
+      scopeRequestIdRef.current = requestId;
+
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+      };
+
+      try {
+        const settled = await Promise.allSettled([
+          fetchScopePayload("/api/admin/scope", headers, 30000),
+        ]);
+
+        if (requestId !== scopeRequestIdRef.current) {
+          return null;
+        }
+
+        return settled.map((item) =>
+          item.status === "fulfilled" ? item.value : {},
+        ) as AdminScopePayload[];
+      } finally {
+        if (requestId === scopeRequestIdRef.current) {
+          scopeInFlightRef.current = false;
+        }
+      }
     }
 
     supabase.auth
@@ -372,9 +405,17 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+      if (
+        event === "INITIAL_SESSION" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "USER_UPDATED"
+      ) {
         return;
       }
+
+      const currentUserId = sessionRef.current?.user?.id ?? "";
+      const nextUserId = nextSession?.user?.id ?? "";
+      const sameUserSession = Boolean(nextUserId) && nextUserId === currentUserId;
 
       setSession(nextSession);
       let hasOptimisticScope = false;
@@ -393,12 +434,18 @@ export function AdminPanel({ locale }: AdminPanelProps) {
         setLoadingScope(false);
         return;
       }
+
+      if (sameUserSession && scopeRef.current) {
+        setLoadingScope(false);
+        return;
+      }
+
       if (!hasOptimisticScope) {
         setLoadingScope(true);
       }
       void loadScope(nextSession)
         .then((result) => {
-          if (!active) {
+          if (!active || !result) {
             return;
           }
 
