@@ -23,6 +23,7 @@ export type SupabaseAdminClient = ReturnType<
 >;
 
 type ScopeAssignment = {
+  profile_id?: string | null;
   country_id: string | null;
   dojo_id: string | null;
   roles: { key: string } | Array<{ key: string }> | null;
@@ -30,11 +31,18 @@ type ScopeAssignment = {
 
 export type AdminScope = {
   profileId: string;
+  roleProfileIds: string[];
   isSuperAdmin: boolean;
   isGlobalAdmin: boolean;
   countryIds: string[];
   dojoIds: string[];
   roleKeys: string[];
+};
+
+type AdminProfileRecord = {
+  id: string;
+  email?: string | null;
+  role_profile_ids?: string[];
 };
 
 const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
@@ -81,7 +89,7 @@ export async function requireScopedAdmin(request: NextRequest) {
   const profile = await getOrRepairAdminProfile(
     admin,
     user.id,
-    user.email ?? getClientAuthEmail(request),
+    getAuthUserEmail(user) || getClientAuthEmail(request),
   );
   if (!profile) {
     return {
@@ -90,7 +98,22 @@ export async function requireScopedAdmin(request: NextRequest) {
     };
   }
 
-  const assignments = profile.user_roles ?? [];
+  const roleProfileIds = profile.role_profile_ids?.length
+    ? profile.role_profile_ids
+    : [profile.id];
+  const assignmentsResult = await admin
+    .from("user_roles")
+    .select("profile_id,country_id,dojo_id,roles(key)")
+    .in("profile_id", roleProfileIds);
+
+  if (assignmentsResult.error) {
+    return {
+      error: assignmentsResult.error.message,
+      status: 500 as const,
+    };
+  }
+
+  const assignments = (assignmentsResult.data ?? []) as ScopeAssignment[];
   const roleKeys = assignments
     .map((assignment) => getRoleKey(assignment.roles))
     .filter(Boolean) as string[];
@@ -122,6 +145,7 @@ export async function requireScopedAdmin(request: NextRequest) {
     admin,
     scope: {
       profileId: profile.id,
+      roleProfileIds,
       isSuperAdmin: roleKeys.includes("super_admin"),
       isGlobalAdmin: roleKeys.includes("global_admin"),
       roleKeys,
@@ -152,51 +176,109 @@ async function getAuthenticatedUser(
   return user;
 }
 
+function getAuthUserEmail(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+  identities?: Array<{ identity_data?: Record<string, unknown> | null }> | null;
+}) {
+  return (
+    normalizeEmail(user.email) ||
+    normalizeEmail(user.user_metadata?.email) ||
+    normalizeEmail(user.user_metadata?.email_address) ||
+    normalizeEmail(
+      user.identities?.find((identity) =>
+        normalizeEmail(identity.identity_data?.email),
+      )?.identity_data?.email,
+    )
+  );
+}
+
 async function getOrRepairAdminProfile(
   admin: SupabaseAdminClient,
   authUserId: string,
   email: string,
-) {
+): Promise<AdminProfileRecord | null> {
   const byAuth = await admin
     .from("users_profiles")
-    .select("id,user_roles(country_id,dojo_id,roles(key))")
+    .select("id,email")
     .eq("auth_user_id", authUserId)
     .limit(10);
 
   const authProfiles = ((byAuth.data ?? []) as Array<{
     id: string;
-    user_roles: ScopeAssignment[] | null;
-  }>).filter((profile) => hasAnyAdminRole(profile.user_roles ?? []));
-
-  if (authProfiles.length > 0) {
-    return authProfiles[0];
-  }
+    email?: string | null;
+  }>);
 
   const normalizedEmail = normalizeEmail(email);
+  const preferredAuthProfile =
+    authProfiles.find((profile) => normalizeEmail(profile.email) === normalizedEmail) ??
+    authProfiles[0];
 
   if (normalizedEmail) {
     const byEmail = await admin
       .from("users_profiles")
-      .select("id,user_roles(country_id,dojo_id,roles(key))")
+      .select("id,email")
       .ilike("email", normalizedEmail)
       .order("auth_user_id", { ascending: false, nullsFirst: false })
       .limit(10);
 
-    const emailProfiles = ((byEmail.data ?? []) as Array<{
+    const emailProfiles = (byEmail.data ?? []) as Array<{
       id: string;
-      user_roles: ScopeAssignment[] | null;
-    }>).filter((profile) => hasAnyAdminRole(profile.user_roles ?? []));
+      email?: string | null;
+    }>;
+    const roleProfileIds = Array.from(
+      new Set(
+        [
+          ...(preferredAuthProfile ? [preferredAuthProfile.id] : []),
+          ...emailProfiles.map((profile) => profile.id),
+        ].filter(Boolean),
+      ),
+    );
+    const rolesResult =
+      roleProfileIds.length > 0
+        ? await admin
+            .from("user_roles")
+            .select("profile_id,country_id,dojo_id,roles(key)")
+            .in("profile_id", roleProfileIds)
+        : { data: [], error: null };
 
-    if (emailProfiles.length > 0) {
-      const primaryProfile = emailProfiles[0];
+    if (rolesResult.error) {
+      return null;
+    }
+
+    const adminRoleProfileIds = new Set(
+      ((rolesResult.data ?? []) as ScopeAssignment[])
+        .filter((assignment) =>
+          adminRoleKeys.includes(
+            getRoleKey(assignment.roles) as (typeof adminRoleKeys)[number],
+          ),
+        )
+        .map((assignment) => assignment.profile_id)
+        .filter(Boolean) as string[],
+    );
+
+    const candidateProfiles = emailProfiles.filter((profile) =>
+      adminRoleProfileIds.has(profile.id),
+    );
+
+    if (candidateProfiles.length > 0) {
+      const primaryProfile =
+        preferredAuthProfile && adminRoleProfileIds.has(preferredAuthProfile.id)
+          ? preferredAuthProfile
+          : candidateProfiles.find(
+              (profile) => normalizeEmail(profile.email) === normalizedEmail,
+            ) ?? candidateProfiles[0];
       const linked = await admin
         .from("users_profiles")
         .update({ auth_user_id: authUserId, status: "active" })
         .eq("id", primaryProfile.id)
-        .select("id,user_roles(country_id,dojo_id,roles(key))")
-        .single<{ id: string; user_roles: ScopeAssignment[] | null }>();
+        .select("id,email")
+        .single<{ id: string; email?: string | null }>();
 
-      return linked.data ?? primaryProfile;
+      return {
+        ...(linked.data ?? primaryProfile),
+        role_profile_ids: roleProfileIds,
+      };
     }
   }
 
@@ -211,7 +293,7 @@ async function ensureOfficialSuperAdmin(
   admin: SupabaseAdminClient,
   authUserId: string,
   email: string,
-) {
+): Promise<AdminProfileRecord | null> {
   const role = await admin
     .from("roles")
     .select("id")
@@ -256,7 +338,8 @@ async function ensureOfficialSuperAdmin(
 
   return {
     id: profile.data.id,
-    user_roles: [{ country_id: null, dojo_id: null, roles: { key: "super_admin" } }],
+    email,
+    role_profile_ids: [profile.data.id],
   };
 }
 
@@ -283,12 +366,6 @@ async function getCountryIdsForDojos(
         .map((dojo) => dojo.country_id)
         .filter(Boolean) as string[],
     ),
-  );
-}
-
-function hasAnyAdminRole(assignments: ScopeAssignment[]) {
-  return assignments.some((assignment) =>
-    adminRoleKeys.includes(getRoleKey(assignment.roles) as (typeof adminRoleKeys)[number]),
   );
 }
 
