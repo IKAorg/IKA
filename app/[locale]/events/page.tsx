@@ -18,11 +18,13 @@ export default async function EventsPage({ params }: EventsPageProps) {
   const content = await getEditablePublicPageContent(safeLocale, "events");
   const events = await getPublicEvents(safeLocale);
   const labels = eventPageLabels[safeLocale] ?? eventPageLabels[defaultLocale]!;
-  const upcomingEvents = events.filter((event) => !isPastEvent(event.endsAt, event.startsAt));
+  const upcomingEvents = events
+    .filter((event) => !isPastEvent(event.endsAt, event.startsAt))
+    .filter((event) => isWithinUpcomingWindow(event.startsAt))
+    .sort((left, right) => left.startsAt.localeCompare(right.startsAt));
   const pastEvents = events
     .filter((event) => isPastEvent(event.endsAt, event.startsAt))
     .sort((left, right) => right.startsAt.localeCompare(left.startsAt));
-  const recentPastEvents = pastEvents.slice(0, 3);
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-5 sm:py-14">
@@ -38,6 +40,23 @@ export default async function EventsPage({ params }: EventsPageProps) {
       </div>
 
       <div className="mt-10 border-y border-[var(--line)] bg-white">
+        <div className="border-b border-[var(--line)] px-4 py-5 sm:px-5 md:px-7">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">{getUpcomingEventsTitle(safeLocale)}</h2>
+              <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                {getUpcomingEventsWindowNote(safeLocale)}
+              </p>
+            </div>
+            <Link
+              href={`/${safeLocale}/events/calendar`}
+              className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] px-4 py-2 text-sm font-semibold"
+            >
+              {getFullCalendarAction(safeLocale)}
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
         {upcomingEvents.length > 0 ? (
           upcomingEvents.map((event, index) => (
             <article
@@ -132,66 +151,10 @@ export default async function EventsPage({ params }: EventsPageProps) {
               </Link>
             </div>
           </div>
-          <div>
-            {recentPastEvents.map((event, index) => (
-              <article
-                key={event.id}
-                className={`grid gap-5 px-4 py-5 sm:px-5 sm:py-6 md:grid-cols-[180px_1fr] md:px-7 ${
-                  index > 0 ? "border-t border-[var(--line)]" : ""
-                }`}
-              >
-                <time
-                  dateTime={event.startsAt}
-                  className="flex items-start gap-3 text-[var(--ink-blue)]"
-                >
-                  <CalendarDays size={22} aria-hidden="true" />
-                  <span>
-                    <span className="block text-2xl font-semibold">
-                      {formatEventDay(event.startsAt, safeLocale)}
-                    </span>
-                    <span className="mt-1 block text-sm font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                      {formatEventMonth(event.startsAt, safeLocale)}
-                    </span>
-                  </span>
-                </time>
-
-                <div>
-                  {event.image ? (
-                    <div className="mb-5 overflow-hidden border border-[var(--line)] bg-[var(--paper)] p-3">
-                      <div className="relative min-h-[220px] bg-white sm:min-h-[320px]">
-                        <Image
-                          src={event.image}
-                          alt={event.imageAlt || event.title}
-                          fill
-                          sizes="(max-width: 1024px) 100vw, 900px"
-                          className="object-contain"
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-                  <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                    <span>{labels.types[event.type] ?? labels.types.event}</span>
-                    <span>{event.organiser}</span>
-                    <span>{getPastEventBadge(safeLocale)}</span>
-                  </div>
-                  <h2 className="mt-3 text-xl font-semibold leading-tight sm:text-2xl">
-                    <Link
-                      href={`/${safeLocale}/events/${event.slug || event.id}`}
-                      className="hover:text-[var(--accent)]"
-                    >
-                      {event.title}
-                    </Link>
-                  </h2>
-                  <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-                    {event.summary}
-                  </p>
-                  <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[var(--ink-blue)]">
-                    <MapPin size={16} aria-hidden="true" />
-                    {event.locationLabel}
-                  </p>
-                </div>
-              </article>
-            ))}
+          <div className="px-4 py-5 sm:px-5 md:px-7">
+            <p className="text-sm leading-7 text-[var(--muted)]">
+              {getPastEventsArchiveOnlyNote(safeLocale)}
+            </p>
           </div>
         </section>
       ) : null}
@@ -424,6 +387,22 @@ function isPastEvent(endsAt?: string, startsAt?: string) {
   return timestamp < Date.now();
 }
 
+function isWithinUpcomingWindow(startsAt?: string, days = 60) {
+  if (!startsAt) {
+    return false;
+  }
+
+  const timestamp = Date.parse(startsAt);
+
+  if (Number.isNaN(timestamp)) {
+    return false;
+  }
+
+  const now = Date.now();
+  const maxTimestamp = now + days * 24 * 60 * 60 * 1000;
+  return timestamp >= now && timestamp <= maxTimestamp;
+}
+
 function getPastEventsTitle(locale: Locale) {
   switch (locale) {
     case "es":
@@ -508,6 +487,42 @@ function getPastEventsAction(locale: Locale, count: number) {
       return `Zum Veranstaltungsarchiv (${count})`;
     default:
       return `Open event archive (${count})`;
+  }
+}
+
+function getPastEventsArchiveOnlyNote(locale: Locale) {
+  switch (locale) {
+    case "es":
+      return "Los eventos ya celebrados se conservan en el historial para mantener esta agenda publica clara y centrada en las proximas convocatorias.";
+    default:
+      return "Past events are kept in the archive so this public calendar stays focused on upcoming activity.";
+  }
+}
+
+function getUpcomingEventsTitle(locale: Locale) {
+  switch (locale) {
+    case "es":
+      return "Proximos eventos";
+    default:
+      return "Upcoming events";
+  }
+}
+
+function getUpcomingEventsWindowNote(locale: Locale) {
+  switch (locale) {
+    case "es":
+      return "Esta portada muestra solo la agenda cercana para mantener la lectura clara. Usa el calendario completo para planificar los siguientes meses.";
+    default:
+      return "This page shows only the near-term schedule to keep the public agenda clear. Use the full calendar to plan the coming months.";
+  }
+}
+
+function getFullCalendarAction(locale: Locale) {
+  switch (locale) {
+    case "es":
+      return "Ver calendario completo";
+    default:
+      return "View full calendar";
   }
 }
 
