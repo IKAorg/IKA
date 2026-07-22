@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { Locale } from "@/lib/i18n/config";
+import { getRequestFormConsentContent } from "@/lib/legal/request-form-consent";
 
 type FormPayload = {
   id: string;
@@ -46,6 +47,10 @@ export function RequestFormPage({
   const isDojo = form.form_type === "dojo";
   const isKenshi = form.form_type === "kenshi";
   const formIntro = useMemo(() => getFormIntro(form, locale), [form, locale]);
+  const legalContent = useMemo(
+    () => getRequestFormConsentContent(locale),
+    [locale],
+  );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [ok, setOk] = useState(false);
@@ -903,8 +908,30 @@ export function RequestFormPage({
             </FormSection>
           </div>
 
-          <label className="mt-8 block border border-[var(--line)] bg-[var(--paper)] p-4 text-sm leading-7 text-[var(--muted)]">
-            <div className="flex items-start gap-3">
+          <div className="mt-8 border border-[var(--line)] bg-[var(--paper)] p-5 text-sm leading-7 text-[var(--muted)]">
+            <p className="font-semibold text-[var(--ink)]">
+              {copy.legalTitle}
+            </p>
+            <p className="mt-2">{legalContent.intro}</p>
+
+            <div className="mt-4 max-h-[320px] overflow-y-auto border border-[var(--line)] bg-white p-4">
+              <div className="space-y-5">
+                {(form.legal_text ? [{ heading: legalContent.title, body: [form.legal_text] }] : legalContent.sections).map((section) => (
+                  <div key={section.heading}>
+                    <p className="font-semibold text-[var(--ink)]">
+                      {section.heading}
+                    </p>
+                    <div className="mt-2 space-y-3">
+                      {section.body.map((paragraph, index) => (
+                        <p key={`${section.heading}-${index}`}>{paragraph}</p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <label className="mt-4 flex items-start gap-3 border border-[var(--line)] bg-white p-4">
               <input
                 type="checkbox"
                 checked={consent}
@@ -913,14 +940,12 @@ export function RequestFormPage({
               />
               <div>
                 <p className="font-semibold text-[var(--ink)]">
-                  {copy.legalTitle}
+                  {legalContent.acceptance}
                 </p>
-                <span className="mt-1 block">
-                  {form.legal_text || copy.legalFallback}
-                </span>
+                <p className="mt-2">{legalContent.accuracy}</p>
               </div>
-            </div>
-          </label>
+            </label>
+          </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <button

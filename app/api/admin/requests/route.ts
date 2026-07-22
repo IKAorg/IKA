@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase/public-client";
+import { getRequestFormConsentPlainText } from "@/lib/legal/request-form-consent";
 import {
   canManageCountry,
   canManageDojo,
@@ -775,10 +776,7 @@ function defaultTitle(formType: FormType, locale: string) {
 }
 
 function defaultLegalText(locale: string) {
-  if (locale === "es") {
-    return "Acepto el tratamiento internacional de mis datos personales por parte de IKA exclusivamente para fines organizativos, de membresia y comunicacion interna.";
-  }
-  return "I accept the international processing of my personal data by IKA solely for organisational, membership, and internal communication purposes.";
+  return getRequestFormConsentPlainText(locale);
 }
 
 function sanitizeSubmissionPayload(payload: Record<string, unknown>) {
