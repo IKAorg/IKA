@@ -300,6 +300,10 @@ type PortalCopy = {
   name: string;
   status: string;
   currentGrade: string;
+  requestGradeReview?: string;
+  gradeReviewHelp?: string;
+  gradeReviewSent?: string;
+  gradeReviewPending?: string;
   country: string;
   dojo: string;
   joinedIka: string;
@@ -675,6 +679,11 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     name: "Name",
     status: "Status",
     currentGrade: "Current grade",
+    requestGradeReview: "Request grade review",
+    gradeReviewHelp:
+      "If your latest exam is not reflected yet, send a review request to your dojo administration.",
+    gradeReviewSent: "Grade review request sent to your dojo administration.",
+    gradeReviewPending: "There is already a pending grade review request for your record.",
     country: "Country",
     dojo: "Dojo",
     joinedIka: "Seniority",
@@ -781,6 +790,11 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     name: "Nombre",
     status: "Estado",
     currentGrade: "Grado actual",
+    requestGradeReview: "Solicitar revision de grado",
+    gradeReviewHelp:
+      "Si tu ultimo examen todavia no aparece reflejado, envia una solicitud de revision a la administracion de tu dojo.",
+    gradeReviewSent: "Solicitud de revision de grado enviada a la administracion de tu dojo.",
+    gradeReviewPending: "Ya existe una solicitud pendiente de revision de grado para tu ficha.",
     country: "Pais",
     dojo: "Dojo",
     joinedIka: "Antiguedad",
@@ -2936,6 +2950,7 @@ function MemberPanel({
   const [newPassword, setNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [gradeReviewLoading, setGradeReviewLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [registrationSavingId, setRegistrationSavingId] = useState("");
   const [panelMessage, setPanelMessage] = useState("");
@@ -3136,6 +3151,41 @@ function MemberPanel({
     setSaving(false);
   }
 
+  async function requestGradeReview() {
+    setGradeReviewLoading(true);
+    setPanelMessage("");
+
+    try {
+      const response = await fetch("/api/portal/me", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({
+          action: "request_grade_review",
+          locale,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setPanelMessage(data.error ?? copy.saveFichaError ?? "Save error.");
+        return;
+      }
+
+      setPanelMessage(
+        data.alreadyPending
+          ? copy.gradeReviewPending ?? copy.fichaUpdated
+          : copy.gradeReviewSent ?? copy.fichaUpdated,
+      );
+    } catch {
+      setPanelMessage(copy.saveFichaError ?? "Save error.");
+    } finally {
+      setGradeReviewLoading(false);
+    }
+  }
+
   async function updateEventRegistration(
     registration: EventRegistrationHistory,
     action: "register" | "cancel",
@@ -3215,6 +3265,26 @@ function MemberPanel({
                   {copy.currentGrade}
                 </p>
                 <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberGradeLabel}</p>
+                <p className="mt-2 text-xs text-[var(--muted)]">
+                  {copy.gradeReviewHelp ??
+                    (locale === "es"
+                      ? "Si tu ultimo examen todavia no aparece reflejado, envia una solicitud de revision a la administracion de tu dojo."
+                      : "If your latest exam is not reflected yet, send a review request to your dojo administration.")}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void requestGradeReview()}
+                  disabled={gradeReviewLoading}
+                  className="mt-3 inline-flex items-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text)] transition hover:bg-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {gradeReviewLoading ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <ShieldCheck size={14} />
+                  )}
+                  {copy.requestGradeReview ??
+                    (locale === "es" ? "Solicitar revision de grado" : "Request grade review")}
+                </button>
               </div>
               <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
@@ -3296,7 +3366,27 @@ function MemberPanel({
 
         <div className="grid gap-6 p-4 sm:p-5 lg:grid-cols-[1.05fr_0.95fr]">
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <InfoRow label={copy.ikaPassport} value={member.ika_number} copy={copy} />
+            <div className="border border-[var(--line)] bg-[var(--paper)] p-4 sm:col-span-2">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center border border-[var(--line)] bg-white p-1 shadow-sm">
+                  <Image
+                    src="/images/ika-logo.webp"
+                    alt="IKA"
+                    width={34}
+                    height={34}
+                    className="object-contain"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                    {copy.ikaPassport}
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-[var(--text)]">
+                    {member.ika_number || getPortalMemberFallback(locale, "ika")}
+                  </p>
+                </div>
+              </div>
+            </div>
             <InfoRow
               label={copy.name}
               value={memberFullName}
@@ -3331,11 +3421,6 @@ function MemberPanel({
             <InfoRow
               label={copy.group}
               value={memberGroupLabel}
-              copy={copy}
-            />
-            <InfoRow
-              label={copy.consent}
-              value={member.consent_accepted ? copy.consentAccepted : copy.pending}
               copy={copy}
             />
           </dl>

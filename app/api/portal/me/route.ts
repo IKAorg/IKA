@@ -190,6 +190,98 @@ export async function POST(request: NextRequest) {
   };
   const locale = normalizePortalLocale(body.locale);
 
+  if (body.action === "request_grade_review") {
+    const ready = await getPortalRequestContext(request);
+
+    if (ready.error) {
+      return ready.error;
+    }
+
+    const { supabase, user } = ready;
+
+    if (!user) {
+      return NextResponse.json(
+        { error: getPortalCopy(locale).memberNotFound ?? getPortalCopy(locale).invalidEmail },
+        { status: 401 },
+      );
+    }
+
+    const profile = await getPortalProfile(
+      supabase,
+      user.id,
+      getAuthUserEmail(user),
+    );
+
+    if (!profile) {
+      return NextResponse.json(
+        { error: getPortalCopy(locale).memberNotFound ?? getPortalCopy(locale).invalidEmail },
+        { status: 404 },
+      );
+    }
+
+    const memberResult = await getPortalMember(supabase, profile.id, profile.email);
+
+    if (memberResult.error) {
+      return NextResponse.json(
+        { error: memberResult.error.message },
+        { status: 500 },
+      );
+    }
+
+    const member = memberResult.data as
+      | { id: string; current_grade?: string | null; last_exam_date?: string | null }
+      | null;
+
+    if (!member?.id) {
+      return NextResponse.json(
+        { error: getPortalCopy(locale).memberNotFound ?? getPortalCopy(locale).invalidEmail },
+        { status: 404 },
+      );
+    }
+
+    const pendingRequest = await supabase
+      .from("correction_requests")
+      .select("id")
+      .eq("member_id", member.id)
+      .eq("field_key", "current_grade")
+      .eq("status", "pending")
+      .limit(1)
+      .maybeSingle();
+
+    if (pendingRequest.error) {
+      return NextResponse.json(
+        { error: pendingRequest.error.message },
+        { status: 500 },
+      );
+    }
+
+    if (pendingRequest.data?.id) {
+      return NextResponse.json({ ok: true, alreadyPending: true });
+    }
+
+    const insertResult = await supabase.from("correction_requests").insert({
+      member_id: member.id,
+      requested_by: profile.id,
+      field_key: "current_grade",
+      current_value: {
+        grade: member.current_grade ?? null,
+        lastExamDate: member.last_exam_date ?? null,
+      },
+      requested_value: {
+        requestType: "grade_review",
+      },
+    });
+
+    if (insertResult.error) {
+      return NextResponse.json(
+        { error: insertResult.error.message },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  }
+
   if (body.action !== "request_recovery") {
     return NextResponse.json({ error: getPortalCopy(locale).invalidAction }, { status: 400 });
   }
@@ -928,7 +1020,7 @@ function normalizePortalLocale(value: unknown) {
   }
 
   const normalized = value.trim().toLowerCase();
-  return ["es", "en", "it", "fr", "ja", "zh", "cs"].includes(normalized)
+  return ["es", "en", "it", "fr", "ja", "zh", "cs", "id", "ms", "eu", "pt", "de"].includes(normalized)
     ? normalized
     : "en";
 }
@@ -936,19 +1028,26 @@ function normalizePortalLocale(value: unknown) {
 function getPortalCopy(locale: string) {
   const copies: Record<
     string,
-    { emailRequired: string; invalidEmail: string; invalidAction: string }
+    {
+      emailRequired: string;
+      invalidEmail: string;
+      invalidAction: string;
+      memberNotFound?: string;
+    }
   > = {
     es: {
       emailRequired: "Introduce tu email para recuperar la contrasena.",
       invalidEmail:
         "El email introducido no es correcto o no tiene acceso activo. Consulta con tu sensei.",
       invalidAction: "Accion no valida.",
+      memberNotFound: "No se encontro tu ficha Kenshi para enviar la revision de grado.",
     },
     en: {
       emailRequired: "Enter your email to recover your password.",
       invalidEmail:
         "The email entered is not valid or does not have active access. Please contact your sensei.",
       invalidAction: "Invalid action.",
+      memberNotFound: "Your Kenshi record could not be found to send the grade review request.",
     },
     it: {
       emailRequired: "Inserisci la tua email per recuperare la password.",
