@@ -112,6 +112,14 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
                             {country.responsibleEmail}
                           </a>
                         ) : null}
+                        <div className="mt-2 rounded-sm border border-[var(--line)] bg-white px-4 py-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
+                            {labels.dojoCount}
+                          </p>
+                          <p className="mt-2 text-3xl font-semibold leading-none text-black">
+                            {countryDojos.length}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -241,6 +249,7 @@ const countryPageLabels: Partial<
       countryContact: string;
       countryContactEyebrow: string;
       countryDojos: string;
+      dojoCount: string;
       openCountry: string;
       closeCountry: string;
       backToCountries: string;
@@ -260,6 +269,7 @@ const countryPageLabels: Partial<
     countryContact: "Official IKA representative",
     countryContactEyebrow: "IKA representation",
     countryDojos: "Dojos in this country",
+    dojoCount: "Registered dojos",
     openCountry: "Open",
     closeCountry: "Close",
     backToCountries: "Back to countries",
@@ -277,6 +287,7 @@ const countryPageLabels: Partial<
     countryContact: "Representante oficial IKA",
     countryContactEyebrow: "Representacion IKA",
     countryDojos: "Dojos de este pais",
+    dojoCount: "Dojos registrados",
     openCountry: "Abrir",
     closeCountry: "Cerrar",
     backToCountries: "Volver a paises",
@@ -294,6 +305,7 @@ const countryPageLabels: Partial<
     countryContact: "Rappresentante ufficiale IKA",
     countryContactEyebrow: "Rappresentanza IKA",
     countryDojos: "Dojo in questo paese",
+    dojoCount: "Dojo registrati",
     openCountry: "Apri",
     closeCountry: "Chiudi",
     backToCountries: "Torna ai paesi",
@@ -311,6 +323,7 @@ const countryPageLabels: Partial<
     countryContact: "Representant officiel IKA",
     countryContactEyebrow: "Representation IKA",
     countryDojos: "Dojos dans ce pays",
+    dojoCount: "Dojos enregistres",
     openCountry: "Ouvrir",
     closeCountry: "Fermer",
     backToCountries: "Retour aux pays",
@@ -328,6 +341,7 @@ const countryPageLabels: Partial<
     countryContact: "\u516c\u5f0f IKA \u4ee3\u8868",
     countryContactEyebrow: "IKA \u4ee3\u8868",
     countryDojos: "\u3053\u306e\u56fd\u306e\u9053\u5834",
+    dojoCount: "\u767b\u9332\u6e08\u307f\u9053\u5834",
     openCountry: "\u958b\u304f",
     closeCountry: "\u9589\u3058\u308b",
     backToCountries: "\u56fd\u4e00\u89a7\u3078\u623b\u308b",
@@ -345,6 +359,7 @@ const countryPageLabels: Partial<
     countryContact: "IKA \u5b98\u65b9\u4ee3\u8868",
     countryContactEyebrow: "IKA \u4ee3\u8868",
     countryDojos: "\u8be5\u56fd\u9053\u573a",
+    dojoCount: "\u5df2\u767b\u8bb0\u9053\u573a",
     openCountry: "\u6253\u5f00",
     closeCountry: "\u5173\u95ed",
     backToCountries: "\u8fd4\u56de\u56fd\u5bb6\u5217\u8868",
@@ -362,6 +377,7 @@ const countryPageLabels: Partial<
     countryContact: "Oficialni zastupce IKA",
     countryContactEyebrow: "Zastoupeni IKA",
     countryDojos: "Dojo v teto zemi",
+    dojoCount: "Registrovana dojo",
     openCountry: "Otevrit",
     closeCountry: "Zavrit",
     backToCountries: "Zpet na zeme",
@@ -379,6 +395,7 @@ const countryPageLabels: Partial<
     countryContact: "Perwakilan resmi IKA",
     countryContactEyebrow: "Perwakilan IKA",
     countryDojos: "Dojo di negara ini",
+    dojoCount: "Dojo terdaftar",
     openCountry: "Buka",
     closeCountry: "Tutup",
     backToCountries: "Kembali ke negara",
@@ -396,6 +413,7 @@ const countryPageLabels: Partial<
     countryContact: "Wakil rasmi IKA",
     countryContactEyebrow: "Perwakilan IKA",
     countryDojos: "Dojo di negara ini",
+    dojoCount: "Dojo berdaftar",
     openCountry: "Buka",
     closeCountry: "Tutup",
     backToCountries: "Kembali ke negara",
@@ -413,6 +431,7 @@ const countryPageLabels: Partial<
     countryContact: "IKA ordezkari ofiziala",
     countryContactEyebrow: "IKA ordezkaritza",
     countryDojos: "Herrialde honetako dojoak",
+    dojoCount: "Erregistratutako dojoak",
     openCountry: "Ireki",
     closeCountry: "Itxi",
     backToCountries: "Itzuli herrialdeetara",
@@ -430,6 +449,7 @@ const countryPageLabels: Partial<
     countryContact: "Representante oficial da IKA",
     countryContactEyebrow: "Representacao IKA",
     countryDojos: "Dojos neste pais",
+    dojoCount: "Dojos registados",
     openCountry: "Abrir",
     closeCountry: "Fechar",
     backToCountries: "Voltar aos paises",
@@ -447,6 +467,7 @@ const countryPageLabels: Partial<
     countryContact: "Offizieller IKA-Vertreter",
     countryContactEyebrow: "IKA-Vertretung",
     countryDojos: "Dojos in diesem Land",
+    dojoCount: "Registrierte Dojos",
     openCountry: "Offnen",
     closeCountry: "Schliessen",
     backToCountries: "Zuruck zu den Landern",
