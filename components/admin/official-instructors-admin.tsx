@@ -33,6 +33,7 @@ type InstructorRow = {
   sort_order: number;
   is_visible: boolean;
   is_chief_instructor: boolean;
+  role_category: "instructor" | "examiner" | "judge" | null;
 };
 
 type InstructorForm = {
@@ -46,6 +47,7 @@ type InstructorForm = {
   sortOrder: string;
   isVisible: boolean;
   isChiefInstructor: boolean;
+  roleCategory: "instructor" | "examiner" | "judge";
 };
 
 function createEmptyForm(): InstructorForm {
@@ -59,6 +61,7 @@ function createEmptyForm(): InstructorForm {
     sortOrder: "100",
     isVisible: true,
     isChiefInstructor: false,
+    roleCategory: "instructor",
   };
 }
 
@@ -82,12 +85,27 @@ export function OfficialInstructorsAdmin({
   const [translating, setTranslating] = useState(false);
   const [chiefNoteLocale, setChiefNoteLocale] = useState<Locale>(initialLocale);
   const [message, setMessage] = useState("");
+  const groupedItems = useMemo(
+    () => ({
+      instructors: items.filter(
+        (item) => (item.role_category ?? "instructor") === "instructor",
+      ),
+      examiners: items.filter(
+        (item) => (item.role_category ?? "instructor") === "examiner",
+      ),
+      judges: items.filter(
+        (item) => (item.role_category ?? "instructor") === "judge",
+      ),
+    }),
+    [items],
+  );
 
   const loadItems = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("official_instructors")
-      .select("id,full_name,grade,country_name,chief_note,chief_note_translations,photo_url,photo_alt,sort_order,is_visible,is_chief_instructor")
+      .select("id,full_name,grade,country_name,chief_note,chief_note_translations,photo_url,photo_alt,sort_order,is_visible,is_chief_instructor,role_category")
+      .order("role_category", { ascending: true })
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
@@ -157,10 +175,12 @@ export function OfficialInstructorsAdmin({
       photo_alt: form.photoAlt.trim() || null,
       sort_order: Number.parseInt(form.sortOrder, 10) || 100,
       is_visible: form.isVisible,
-      is_chief_instructor: form.isChiefInstructor,
+      is_chief_instructor:
+        form.roleCategory === "instructor" ? form.isChiefInstructor : false,
+      role_category: form.roleCategory,
     };
 
-    if (form.isChiefInstructor) {
+    if (form.isChiefInstructor && form.roleCategory === "instructor") {
       const resetChief = await supabase
         .from("official_instructors")
         .update({ is_chief_instructor: false })
@@ -343,6 +363,61 @@ export function OfficialInstructorsAdmin({
         </div>
       </div>
 
+      <div className="mt-6 border border-[var(--line)] bg-[var(--paper)] p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+          CMS
+        </p>
+        <h3 className="mt-2 text-xl font-semibold">{copy.categoriesTitle}</h3>
+        <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">
+          {copy.categoriesIntro}
+        </p>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          {[
+            {
+              title: copy.categoryInstructors,
+              status: copy.categoryLive,
+              note: copy.intro,
+              statusClass:
+                "border-[var(--accent)] bg-white text-[var(--accent)]",
+            },
+            {
+              title: copy.categoryExaminers,
+              status: copy.categoryLive,
+              note: copy.categoryFutureNote,
+              statusClass:
+                "border-[var(--accent)] bg-white text-[var(--accent)]",
+            },
+            {
+              title: copy.categoryJudges,
+              status: copy.categoryLive,
+              note: copy.categoryFutureNote,
+              statusClass:
+                "border-[var(--accent)] bg-white text-[var(--accent)]",
+            },
+          ].map((card) => (
+            <article
+              key={card.title}
+              className="border border-[var(--line)] bg-white p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-base font-semibold text-[var(--foreground)]">
+                  {card.title}
+                </h4>
+                <span
+                  className={`border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${card.statusClass}`}
+                >
+                  {card.status}
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                {card.note}
+              </p>
+            </article>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="grid gap-4">
           <label className="grid gap-2 text-sm font-semibold">
@@ -384,6 +459,30 @@ export function OfficialInstructorsAdmin({
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2 text-sm font-semibold">
+              {copy.categoryField}
+              <select
+                value={form.roleCategory}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    roleCategory: event.target.value as
+                      | "instructor"
+                      | "examiner"
+                      | "judge",
+                    isChiefInstructor:
+                      event.target.value === "instructor"
+                        ? current.isChiefInstructor
+                        : false,
+                  }))
+                }
+                className="border border-[var(--line)] px-3 py-2 font-normal"
+              >
+                <option value="instructor">{copy.categoryInstructor}</option>
+                <option value="examiner">{copy.categoryExaminer}</option>
+                <option value="judge">{copy.categoryJudge}</option>
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm font-semibold">
               {copy.order}
               <input
                 value={form.sortOrder}
@@ -416,17 +515,23 @@ export function OfficialInstructorsAdmin({
               {chiefCopy.label}
               <select
                 value={form.isChiefInstructor ? "yes" : "no"}
+                disabled={form.roleCategory !== "instructor"}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
                     isChiefInstructor: event.target.value === "yes",
                   }))
                 }
-                className="border border-[var(--line)] px-3 py-2 font-normal"
+                className="border border-[var(--line)] px-3 py-2 font-normal disabled:bg-[var(--paper)] disabled:text-[var(--muted)]"
               >
                 <option value="no">{copy.no}</option>
                 <option value="yes">{copy.yes}</option>
               </select>
+              {form.roleCategory !== "instructor" ? (
+                <span className="text-xs font-normal leading-5 text-[var(--muted)]">
+                  {copy.chiefOnlyForInstructors}
+                </span>
+              ) : null}
             </label>
           </div>
 
@@ -649,9 +754,9 @@ export function OfficialInstructorsAdmin({
                   <button
                     type="button"
                     onClick={() =>
-                      setForm({
-                        id: item.id,
-                        fullName: item.full_name,
+                    setForm({
+                      id: item.id,
+                      fullName: item.full_name,
                         grade: item.grade ?? "",
                         countryName: item.country_name,
                         chiefNoteTranslations:
@@ -661,12 +766,13 @@ export function OfficialInstructorsAdmin({
                               ? { es: { note: item.chief_note } }
                               : {},
                         photoUrl: item.photo_url ?? "",
-                        photoAlt: item.photo_alt ?? "",
-                        sortOrder: String(item.sort_order),
-                        isVisible: item.is_visible,
-                        isChiefInstructor: item.is_chief_instructor,
-                      })
-                    }
+                      photoAlt: item.photo_alt ?? "",
+                      sortOrder: String(item.sort_order),
+                      isVisible: item.is_visible,
+                      isChiefInstructor: item.is_chief_instructor,
+                      roleCategory: item.role_category ?? "instructor",
+                    })
+                  }
                     className="border border-[var(--line)] px-3 py-2 text-sm font-semibold"
                   >
                     {copy.edit}

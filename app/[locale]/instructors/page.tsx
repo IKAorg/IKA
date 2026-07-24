@@ -17,7 +17,10 @@ export default async function InstructorsPage({
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "en";
   const copy = getOfficialInstructorsPageCopy(safeLocale);
-  const instructors = await getOfficialInstructors(safeLocale);
+  const people = await getOfficialInstructors(safeLocale);
+  const instructors = people.filter((person) => person.roleCategory === "instructor");
+  const examiners = people.filter((person) => person.roleCategory === "examiner");
+  const judges = people.filter((person) => person.roleCategory === "judge");
   const chiefInstructor =
     instructors.find((instructor) => instructor.isChiefInstructor) ?? null;
   const regularInstructors = chiefInstructor
@@ -36,12 +39,12 @@ export default async function InstructorsPage({
         {copy.intro}
       </p>
 
-      {instructors.length === 0 ? (
+      {people.length === 0 ? (
         <div className="mt-10 border border-[var(--line)] bg-white p-6 text-[var(--muted)]">
           {copy.empty}
         </div>
       ) : (
-          <div className="mt-10 space-y-8 sm:space-y-10">
+        <div className="mt-10 space-y-10 sm:space-y-12">
           {chiefInstructor ? (
             <article className="overflow-hidden border border-[var(--accent)] bg-[linear-gradient(135deg,rgba(160,29,48,0.06),rgba(255,255,255,0.98)_32%,rgba(20,30,48,0.04))] shadow-[0_18px_45px_rgba(20,30,48,0.08)]">
               <div className="h-1.5 w-full bg-[var(--accent)]" />
@@ -84,7 +87,19 @@ export default async function InstructorsPage({
                       <dt className="font-semibold text-[var(--foreground)]">
                         {copy.countryLabel}
                       </dt>
-                      <dd>{chiefInstructor.country}</dd>
+                      <dd className="flex items-center gap-2">
+                        {chiefInstructor.flagUrls.map((flagUrl) => (
+                          <Image
+                            key={flagUrl}
+                            src={flagUrl}
+                            alt={`${chiefInstructor.country} flag`}
+                            width={20}
+                            height={14}
+                            className="h-3.5 w-5 object-contain"
+                          />
+                        ))}
+                        <span>{chiefInstructor.country}</span>
+                      </dd>
                     </div>
                     <div className="grid gap-1">
                       <dt className="font-semibold text-[var(--foreground)]">
@@ -100,59 +115,124 @@ export default async function InstructorsPage({
           ) : null}
 
           {regularInstructors.length > 0 ? (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {regularInstructors.map((instructor) => (
-                <article
-                  key={instructor.id}
-                  className="flex h-full flex-col border border-[var(--line)] bg-white p-4 sm:p-6 lg:p-7"
-                >
-                  <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-4 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-5">
-                    {instructor.photo ? (
-                      <div className="overflow-hidden border border-[var(--line)] bg-[var(--paper)]">
-                        <Image
-                          src={instructor.photo}
-                          alt={instructor.photoAlt ?? instructor.name}
-                          width={112}
-                          height={112}
-                          className="size-24 object-cover sm:size-28"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex size-24 items-center justify-center border border-[var(--line)] bg-[var(--paper)] text-3xl font-semibold text-[var(--ink-blue)] sm:size-28">
-                        {getInitials(instructor.name)}
-                      </div>
-                    )}
+            <RoleSection
+              title={copy.instructorsSection}
+              people={regularInstructors}
+              badgeLabel={copy.officialBadge}
+              copy={copy}
+            />
+          ) : null}
 
-                    <div className="min-w-0">
-                      <h2 className="text-xl font-semibold leading-tight sm:text-2xl">
-                        {instructor.name}
-                      </h2>
-                      <p className="mt-4 text-base font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-                        {instructor.grade || copy.noGrade}
-                      </p>
-                    </div>
-                  </div>
+          {examiners.length > 0 ? (
+            <RoleSection
+              title={copy.examinersSection}
+              people={examiners}
+              badgeLabel={copy.officialExaminerBadge}
+              copy={copy}
+            />
+          ) : null}
 
-                  <dl className="mt-6 grid flex-1 gap-4 border-t border-[var(--line)] pt-5 text-sm leading-6 text-[var(--muted)]">
-                    <div className="grid gap-1">
-                      <dt className="font-semibold text-[var(--foreground)]">
-                        {copy.countryLabel}
-                      </dt>
-                      <dd>{instructor.country}</dd>
-                    </div>
-                    <div className="grid gap-1">
-                      <dt className="font-semibold text-[var(--foreground)]">
-                        {copy.gradeLabel}
-                      </dt>
-                      <dd>{instructor.grade || copy.noGrade}</dd>
-                    </div>
-                  </dl>
-                </article>
-              ))}
-            </div>
+          {judges.length > 0 ? (
+            <RoleSection
+              title={copy.judgesSection}
+              people={judges}
+              badgeLabel={copy.officialJudgeBadge}
+              copy={copy}
+            />
           ) : null}
         </div>
       )}
+    </section>
+  );
+}
+
+function RoleSection({
+  title,
+  people,
+  badgeLabel,
+  copy,
+}: {
+  title: string;
+  people: Awaited<ReturnType<typeof getOfficialInstructors>>;
+  badgeLabel: string;
+  copy: ReturnType<typeof getOfficialInstructorsPageCopy>;
+}) {
+  return (
+    <section className="space-y-5">
+      <div className="border-b border-[var(--line)] pb-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+            IKA
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold">{title}</h2>
+        </div>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {people.map((person) => (
+          <article
+            key={person.id}
+            className="flex h-full flex-col border border-[var(--line)] bg-white p-4 sm:p-6 lg:p-7"
+          >
+            <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-4 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-5">
+              {person.photo ? (
+                <div className="overflow-hidden border border-[var(--line)] bg-[var(--paper)]">
+                  <Image
+                    src={person.photo}
+                    alt={person.photoAlt ?? person.name}
+                    width={112}
+                    height={112}
+                    className="size-24 object-cover sm:size-28"
+                  />
+                </div>
+              ) : (
+                <div className="flex size-24 items-center justify-center border border-[var(--line)] bg-[var(--paper)] text-3xl font-semibold text-[var(--ink-blue)] sm:size-28">
+                  {getInitials(person.name)}
+                </div>
+              )}
+
+              <div className="min-w-0">
+                <h3 className="text-xl font-semibold leading-tight sm:text-2xl">
+                  {person.name}
+                </h3>
+                <p className="mt-3 inline-flex items-center border border-[var(--line)] bg-[var(--paper)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+                  {badgeLabel}
+                </p>
+                <p className="mt-4 text-base font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+                  {person.grade || copy.noGrade}
+                </p>
+              </div>
+            </div>
+
+            <dl className="mt-6 grid flex-1 gap-4 border-t border-[var(--line)] pt-5 text-sm leading-6 text-[var(--muted)]">
+              <div className="grid gap-1">
+                <dt className="font-semibold text-[var(--foreground)]">
+                  {copy.countryLabel}
+                </dt>
+                <dd className="flex items-center gap-2">
+                  {person.flagUrls.map((flagUrl) => (
+                    <Image
+                      key={flagUrl}
+                      src={flagUrl}
+                      alt={`${person.country} flag`}
+                      width={20}
+                      height={14}
+                      className="h-3.5 w-5 object-contain"
+                    />
+                  ))}
+                  <span>{person.country}</span>
+                </dd>
+              </div>
+              <div className="grid gap-1">
+                <dt className="font-semibold text-[var(--foreground)]">
+                  {copy.gradeLabel}
+                </dt>
+                <dd>{person.grade || copy.noGrade}</dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
