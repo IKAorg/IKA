@@ -513,10 +513,11 @@ function getFlagFallback(code: string) {
     ES: "\u{1F1EA}\u{1F1F8}",
     GB: "\u{1F1EC}\u{1F1E7}",
     HK: "\u{1F1ED}\u{1F1F0}",
+    ID: "\u{1F1EE}\u{1F1E9}",
     IE: "\u{1F1EE}\u{1F1EA}",
     IT: "\u{1F1EE}\u{1F1F9}",
     JP: "\u{1F1EF}\u{1F1F5}",
-    "ID-MY": "\u{1F1EE}\u{1F1E9} \u{1F1F2}\u{1F1FE}",
+    MY: "\u{1F1F2}\u{1F1FE}",
   };
 
   return fallbackByCode[code] ?? code.slice(0, 2).toUpperCase();

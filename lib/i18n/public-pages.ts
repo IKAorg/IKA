@@ -55,7 +55,8 @@ const memberCountriesByLocale: Partial<Record<Locale, string[]>> = {
   en: [
     "Costa Rica",
     "Czech Republic",
-    "Indonesia and Malaysia",
+    "Indonesia",
+    "Malaysia",
     "Ireland",
     "Italy",
     "Hong Kong",
@@ -67,7 +68,8 @@ const memberCountriesByLocale: Partial<Record<Locale, string[]>> = {
   es: [
     "Costa Rica",
     "República Checa",
-    "Indonesia y Malasia",
+    "Indonesia",
+    "Malasia",
     "Irlanda",
     "Italia",
     "Hong Kong",
@@ -79,7 +81,8 @@ const memberCountriesByLocale: Partial<Record<Locale, string[]>> = {
   it: [
     "Costa Rica",
     "Repubblica Ceca",
-    "Indonesia e Malesia",
+    "Indonesia",
+    "Malesia",
     "Irlanda",
     "Italia",
     "Hong Kong",
@@ -91,7 +94,8 @@ const memberCountriesByLocale: Partial<Record<Locale, string[]>> = {
   fr: [
     "Costa Rica",
     "République tchèque",
-    "Indonésie et Malaisie",
+    "Indonésie",
+    "Malaisie",
     "Irlande",
     "Italie",
     "Hong Kong",
@@ -103,7 +107,8 @@ const memberCountriesByLocale: Partial<Record<Locale, string[]>> = {
   ja: [
     "コスタリカ",
     "チェコ共和国",
-    "インドネシアとマレーシア",
+    "インドネシア",
+    "マレーシア",
     "アイルランド",
     "イタリア",
     "香港",
@@ -115,7 +120,8 @@ const memberCountriesByLocale: Partial<Record<Locale, string[]>> = {
   zh: [
     "哥斯达黎加",
     "捷克共和国",
-    "印度尼西亚和马来西亚",
+    "印度尼西亚",
+    "马来西亚",
     "爱尔兰",
     "意大利",
     "香港",
@@ -127,7 +133,8 @@ const memberCountriesByLocale: Partial<Record<Locale, string[]>> = {
   cs: [
     "Kostarika",
     "Česká republika",
-    "Indonésie a Malajsie",
+    "Indonésie",
+    "Malajsie",
     "Irsko",
     "Itálie",
     "Hongkong",

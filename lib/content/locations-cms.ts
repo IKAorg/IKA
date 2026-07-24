@@ -188,6 +188,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
 }
 
 function getCountryFlagUrls(code: string, uploadedFlagUrl?: string) {
+  const normalizedCode = code.trim().toUpperCase();
   const flagCodeByCountryCode: Record<string, string[]> = {
     CH: ["ch"],
     CR: ["cr"],
@@ -195,13 +196,15 @@ function getCountryFlagUrls(code: string, uploadedFlagUrl?: string) {
     ES: ["es"],
     GB: ["gb"],
     HK: ["hk"],
+    ID: ["id"],
     IE: ["ie"],
     IT: ["it"],
     JP: ["jp"],
+    MY: ["my"],
     "ID-MY": ["id", "my"],
   };
 
-  const automaticFlags = flagCodeByCountryCode[code]?.map(
+  const automaticFlags = flagCodeByCountryCode[normalizedCode]?.map(
     (flagCode) => `https://flagcdn.com/w80/${flagCode}.png`,
   );
 

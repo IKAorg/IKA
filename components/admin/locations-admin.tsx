@@ -167,14 +167,15 @@ function createEmptyDojoForm(locale: Locale): DojoForm {
 const legacyCountrySeeds = [
   { code: "CR", index: 0 },
   { code: "CZ", index: 1 },
-  { code: "ID-MY", index: 2 },
-  { code: "IE", index: 3 },
-  { code: "IT", index: 4 },
-  { code: "HK", index: 5 },
-  { code: "JP", index: 6 },
-  { code: "ES", index: 7 },
-  { code: "CH", index: 8 },
-  { code: "GB", index: 9 },
+  { code: "ID", index: 2 },
+  { code: "MY", index: 3 },
+  { code: "IE", index: 4 },
+  { code: "IT", index: 5 },
+  { code: "HK", index: 6 },
+  { code: "JP", index: 7 },
+  { code: "ES", index: 8 },
+  { code: "CH", index: 9 },
+  { code: "GB", index: 10 },
 ];
 
 export function LocationsAdmin({
