@@ -87,18 +87,11 @@ export default async function InstructorsPage({
                       <dt className="font-semibold text-[var(--foreground)]">
                         {copy.countryLabel}
                       </dt>
-                      <dd className="flex items-center gap-2">
-                        {chiefInstructor.flagUrls.map((flagUrl) => (
-                          <Image
-                            key={flagUrl}
-                            src={flagUrl}
-                            alt={`${chiefInstructor.country} flag`}
-                            width={20}
-                            height={14}
-                            className="h-3.5 w-5 object-contain"
-                          />
-                        ))}
-                        <span>{chiefInstructor.country}</span>
+                      <dd>
+                        <CountryBadge
+                          country={chiefInstructor.country}
+                          flagUrls={chiefInstructor.flagUrls}
+                        />
                       </dd>
                     </div>
                     <div className="grid gap-1">
@@ -209,18 +202,11 @@ function RoleSection({
                 <dt className="font-semibold text-[var(--foreground)]">
                   {copy.countryLabel}
                 </dt>
-                <dd className="flex items-center gap-2">
-                  {person.flagUrls.map((flagUrl) => (
-                    <Image
-                      key={flagUrl}
-                      src={flagUrl}
-                      alt={`${person.country} flag`}
-                      width={20}
-                      height={14}
-                      className="h-3.5 w-5 object-contain"
-                    />
-                  ))}
-                  <span>{person.country}</span>
+                <dd>
+                  <CountryBadge
+                    country={person.country}
+                    flagUrls={person.flagUrls}
+                  />
                 </dd>
               </div>
               <div className="grid gap-1">
@@ -234,6 +220,34 @@ function RoleSection({
         ))}
       </div>
     </section>
+  );
+}
+
+function CountryBadge({
+  country,
+  flagUrls,
+}: {
+  country: string;
+  flagUrls: string[];
+}) {
+  return (
+    <div className="inline-flex min-h-10 items-center gap-3 border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-[var(--foreground)]">
+      {flagUrls.length > 0 ? (
+        <div className="flex items-center gap-1">
+          {flagUrls.map((flagUrl) => (
+            <Image
+              key={flagUrl}
+              src={flagUrl}
+              alt={`${country} flag`}
+              width={28}
+              height={20}
+              className="h-5 w-7 border border-black/10 object-cover shadow-sm"
+            />
+          ))}
+        </div>
+      ) : null}
+      <span className="font-medium">{country}</span>
+    </div>
   );
 }
 
