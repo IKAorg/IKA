@@ -25,6 +25,7 @@ type InstructorRow = {
   id: string;
   full_name: string;
   grade: string | null;
+  country_id: string | null;
   country_name: string;
   chief_note: string | null;
   chief_note_translations?: Partial<Record<Locale, { note: string }>> | null;
@@ -40,6 +41,7 @@ type InstructorForm = {
   id?: string;
   fullName: string;
   grade: string;
+  countryId: string;
   countryName: string;
   chiefNoteTranslations: Partial<Record<Locale, { note: string }>>;
   photoUrl: string;
@@ -50,10 +52,20 @@ type InstructorForm = {
   roleCategory: "instructor" | "examiner" | "judge";
 };
 
+type CountryRow = {
+  id: string;
+  code: string;
+  country_translations?: Array<{
+    language_code: Locale;
+    name: string;
+  }> | null;
+};
+
 function createEmptyForm(): InstructorForm {
   return {
     fullName: "",
     grade: "",
+    countryId: "",
     countryName: "",
     chiefNoteTranslations: {},
     photoUrl: "",
@@ -78,6 +90,7 @@ export function OfficialInstructorsAdmin({
   const supabase = useMemo(() => createClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [items, setItems] = useState<InstructorRow[]>([]);
+  const [countries, setCountries] = useState<CountryRow[]>([]);
   const [form, setForm] = useState<InstructorForm>(createEmptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -100,20 +113,59 @@ export function OfficialInstructorsAdmin({
     [items],
   );
 
+  const countryOptions = useMemo(
+    () =>
+      countries.map((country) => ({
+        id: country.id,
+        code: country.code,
+        name:
+          country.country_translations?.find(
+            (translation) => translation.language_code === initialLocale,
+          )?.name ||
+          country.country_translations?.find(
+            (translation) => translation.language_code === "en",
+          )?.name ||
+          country.country_translations?.[0]?.name ||
+          country.code,
+      })),
+    [countries, initialLocale],
+  );
+
+  const selectedCountry = useMemo(
+    () => countryOptions.find((country) => country.id === form.countryId) ?? null,
+    [countryOptions, form.countryId],
+  );
+
   const loadItems = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("official_instructors")
-      .select("id,full_name,grade,country_name,chief_note,chief_note_translations,photo_url,photo_alt,sort_order,is_visible,is_chief_instructor,role_category")
-      .order("role_category", { ascending: true })
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const [{ data, error }, { data: countriesData, error: countriesError }] =
+      await Promise.all([
+        supabase
+          .from("official_instructors")
+          .select(
+            "id,full_name,grade,country_id,country_name,chief_note,chief_note_translations,photo_url,photo_alt,sort_order,is_visible,is_chief_instructor,role_category",
+          )
+          .order("role_category", { ascending: true })
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("countries")
+          .select("id,code,country_translations(language_code,name)")
+          .order("code", { ascending: true }),
+      ]);
 
     if (error) {
       setItems([]);
       setMessage(error.message);
     } else {
       setItems((data ?? []) as InstructorRow[]);
+    }
+
+    if (countriesError) {
+      setCountries([]);
+      setMessage((current) => current || countriesError.message);
+    } else {
+      setCountries((countriesData ?? []) as CountryRow[]);
     }
 
     setLoading(false);
@@ -150,7 +202,7 @@ export function OfficialInstructorsAdmin({
   }, [loadItems, supabase]);
 
   async function saveInstructor() {
-    if (!form.fullName.trim() || !form.countryName.trim()) {
+    if (!form.fullName.trim() || !form.countryId.trim() || !selectedCountry) {
       setMessage(copy.required);
       return;
     }
@@ -168,7 +220,8 @@ export function OfficialInstructorsAdmin({
     const payload = {
       full_name: form.fullName.trim(),
       grade: form.grade.trim() || null,
-      country_name: form.countryName.trim(),
+      country_id: form.countryId,
+      country_name: selectedCountry.name,
       chief_note: form.isChiefInstructor ? legacyChiefNote : null,
       chief_note_translations: form.isChiefInstructor ? chiefNoteTranslations : {},
       photo_url: form.photoUrl.trim() || null,
@@ -444,16 +497,26 @@ export function OfficialInstructorsAdmin({
             </label>
             <label className="grid gap-2 text-sm font-semibold">
               {copy.country}
-              <input
-                value={form.countryName}
+              <select
+                value={form.countryId}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    countryName: event.target.value,
+                    countryId: event.target.value,
+                    countryName:
+                      countryOptions.find((country) => country.id === event.target.value)
+                        ?.name ?? "",
                   }))
                 }
                 className="border border-[var(--line)] px-3 py-2 font-normal"
-              />
+              >
+                <option value="">{copy.selectPlaceholder}</option>
+                {countryOptions.map((country) => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
 
@@ -754,10 +817,11 @@ export function OfficialInstructorsAdmin({
                   <button
                     type="button"
                     onClick={() =>
-                    setForm({
-                      id: item.id,
-                      fullName: item.full_name,
+                      setForm({
+                        id: item.id,
+                        fullName: item.full_name,
                         grade: item.grade ?? "",
+                        countryId: item.country_id ?? "",
                         countryName: item.country_name,
                         chiefNoteTranslations:
                           item.chief_note_translations && typeof item.chief_note_translations === "object"

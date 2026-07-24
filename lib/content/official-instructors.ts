@@ -42,6 +42,7 @@ type OfficialInstructorRow = {
   id: string;
   full_name: string;
   grade: string | null;
+  country_id: string | null;
   country_name: string;
   chief_note: string | null;
   chief_note_translations?: Partial<Record<Locale, ChiefNoteTranslation>> | null;
@@ -51,6 +52,22 @@ type OfficialInstructorRow = {
   is_visible: boolean;
   is_chief_instructor: boolean;
   role_category: OfficialRoleCategory | null;
+  countries?:
+    | {
+        code: string;
+        country_translations?: Array<{
+          language_code: Locale;
+          name: string;
+        }> | null;
+      }
+    | {
+        code: string;
+        country_translations?: Array<{
+          language_code: Locale;
+          name: string;
+        }> | null;
+      }[]
+    | null;
 };
 
 const pageCopyByLocale: Partial<Record<Locale, OfficialInstructorsPageCopy>> = {
@@ -178,7 +195,7 @@ export async function getOfficialInstructors(locale: Locale = defaultLocale) {
   const { data, error } = await supabase
     .from("official_instructors")
     .select(
-      "id,full_name,grade,country_name,chief_note,chief_note_translations,photo_url,photo_alt,sort_order,is_visible,is_chief_instructor,role_category",
+      "id,full_name,grade,country_id,country_name,chief_note,chief_note_translations,photo_url,photo_alt,sort_order,is_visible,is_chief_instructor,role_category,countries(code,country_translations(language_code,name))",
     )
     .eq("is_visible", true)
     .order("role_category", { ascending: true })
@@ -190,6 +207,18 @@ export async function getOfficialInstructors(locale: Locale = defaultLocale) {
   }
 
   return ((data ?? []) as OfficialInstructorRow[]).map((item) => {
+    const countryRecord = Array.isArray(item.countries)
+      ? item.countries[0] ?? null
+      : item.countries ?? null;
+    const resolvedCountryName =
+      countryRecord?.country_translations?.find(
+        (translation) => translation.language_code === locale,
+      )?.name ||
+      countryRecord?.country_translations?.find(
+        (translation) => translation.language_code === "en",
+      )?.name ||
+      countryRecord?.country_translations?.[0]?.name ||
+      item.country_name;
     const translations = item.chief_note_translations ?? {};
     const translatedNote =
       translations[locale]?.note ??
@@ -205,8 +234,11 @@ export async function getOfficialInstructors(locale: Locale = defaultLocale) {
       grade: item.grade ?? "",
       photo: item.photo_url ?? "",
       photoAlt: item.photo_alt ?? item.full_name,
-      country: item.country_name,
-      flagUrls: getInstructorCountryFlagUrls(item.country_name),
+      country: resolvedCountryName,
+      flagUrls: getInstructorCountryFlagUrls(
+        resolvedCountryName,
+        countryRecord?.code ?? null,
+      ),
       chiefNote: translatedNote,
       isChiefInstructor: item.is_chief_instructor,
       roleCategory: item.role_category ?? "instructor",
@@ -223,7 +255,11 @@ export function getOfficialInstructorsPageCopy(locale: Locale) {
   );
 }
 
-function getInstructorCountryFlagUrls(countryName: string) {
+function getInstructorCountryFlagUrls(countryName: string, countryCode?: string | null) {
+  if (countryCode?.trim()) {
+    return [`https://flagcdn.com/w40/${countryCode.trim().toLowerCase()}.png`];
+  }
+
   const normalized = countryName.trim().toUpperCase();
 
   const flagCodeByCountryName: Record<string, string[]> = {
