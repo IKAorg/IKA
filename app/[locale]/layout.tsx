@@ -26,8 +26,8 @@ export async function generateMetadata({
     title: "IKA Platform",
     description: `International Kempo Association platform (${locale}).`,
     icons: {
-      icon: "/images/ika-logo.webp",
-      shortcut: "/images/ika-logo.webp",
+      icon: "/icon.svg",
+      shortcut: "/icon.svg",
       apple: "/images/ika-logo.webp",
     },
   };

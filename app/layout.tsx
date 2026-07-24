@@ -5,8 +5,8 @@ export const metadata: Metadata = {
   title: "IKA Platform",
   description: "International Kempo Association digital platform.",
   icons: {
-    icon: "/images/ika-logo.webp",
-    shortcut: "/images/ika-logo.webp",
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
     apple: "/images/ika-logo.webp",
   },
 };

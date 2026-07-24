@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="IKA">
+  <rect width="64" height="64" rx="12" fill="#ffffff" />
+  <rect x="4" y="4" width="56" height="56" rx="10" fill="#f7f3ef" />
+  <clipPath id="ikaIconCrop">
+    <rect x="8" y="7" width="48" height="48" rx="24" />
+  </clipPath>
+  <image
+    href="/images/ika-logo.webp"
+    x="8"
+    y="3"
+    width="48"
+    height="58"
+    preserveAspectRatio="xMidYMin slice"
+    clip-path="url(#ikaIconCrop)"
+  />
+</svg>
