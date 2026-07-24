@@ -20,6 +20,7 @@ import {
   saveAdminSessionBridge,
 } from "@/lib/supabase/admin-session-bridge";
 import { defaultLocale, localeLabels, type Locale } from "@/lib/i18n/config";
+import { getCountryCatalog } from "@/lib/i18n/country-catalog";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
 type ContentStatus = "draft" | "published" | "archived";
@@ -1227,6 +1228,10 @@ function CountryFormView({
   onReset: () => void;
   copy: ReturnType<typeof locationsAdminCopy>;
 }) {
+  const countryCatalog = useMemo(() => getCountryCatalog(form.locale), [form.locale]);
+  const selectedCountryName =
+    countryCatalog.find((option) => option.code === form.code)?.name ?? "";
+
   return (
     <details className="border border-[var(--line)] p-4">
       <summary className="cursor-pointer">
@@ -1251,12 +1256,30 @@ function CountryFormView({
           }))}
         />
         <div className="grid gap-3 md:grid-cols-2">
-          <TextInput
+          <AdminSelect
             label={copy.countryCode}
             value={form.code}
             onChange={(value) =>
-              setForm((current) => ({ ...current, code: value.toUpperCase() }))
+              setForm((current) => ({
+                ...current,
+                code: value.toUpperCase(),
+                name: current.name.trim() ? current.name : countryCatalog.find((option) => option.code === value.toUpperCase())?.name ?? current.name,
+                slug:
+                  current.slugTouched || current.slug.trim()
+                    ? current.slug
+                    : slugify(
+                        countryCatalog.find((option) => option.code === value.toUpperCase())?.name ??
+                          current.name,
+                      ),
+              }))
             }
+            options={[
+              { value: "", label: copy.selectOfficialCountry },
+              ...countryCatalog.map((option) => ({
+                value: option.code,
+                label: option.name,
+              })),
+            ]}
           />
           <AdminSelect
             label={copy.status}
@@ -1270,6 +1293,17 @@ function CountryFormView({
             options={statusOptions(copy)}
           />
         </div>
+        <TextInput
+          label={copy.countryCodeReadOnly}
+          value={form.code}
+          onChange={() => undefined}
+          disabled
+        />
+        {selectedCountryName ? (
+          <p className="text-xs font-normal leading-5 text-[var(--muted)]">
+            {copy.countryFlagSelectorHelp.replace("{country}", selectedCountryName)}
+          </p>
+        ) : null}
         <Checkbox
           label={copy.visibleOnPublicSite}
           checked={form.isPublic}
@@ -1671,18 +1705,21 @@ function TextInput({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="grid gap-2 text-sm font-semibold">
       {label}
       <input
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="border border-[var(--line)] px-3 py-2 font-normal"
+        className="border border-[var(--line)] px-3 py-2 font-normal disabled:bg-[var(--paper)] disabled:text-[var(--muted)]"
       />
     </label>
   );
@@ -1989,7 +2026,9 @@ function locationsAdminCopy(locale: Locale) {
     selectCountryToEdit: es ? "Selecciona tu pais en la lista para editarlo." : "Select your country in the list to edit it.",
     language: es ? "Idioma" : "Language",
     status: es ? "Estado" : "Status",
-    countryCode: es ? "Codigo pais" : "Country code",
+    countryCode: es ? "Pais oficial" : "Official country",
+    selectOfficialCountry: es ? "Selecciona un pais oficial" : "Select an official country",
+    countryCodeReadOnly: es ? "Codigo ISO" : "ISO code",
     draft: es ? "Borrador" : "Draft",
     published: es ? "Publicado" : "Published",
     archived: es ? "Archivado" : "Archived",
@@ -2003,6 +2042,9 @@ function locationsAdminCopy(locale: Locale) {
       : "Country representative entity",
     responsibleEmail: es ? "Email responsable" : "Responsible email",
     countryFlag: es ? "Bandera del pais" : "Country flag",
+    countryFlagSelectorHelp: es
+      ? 'La bandera publica se asignara automaticamente a partir de "{country}" y su codigo ISO.'
+      : 'The public flag will be assigned automatically from "{country}" and its ISO code.',
     countryFlagHelp: es
       ? "Normalmente no hace falta subir nada: la web pone la bandera automaticamente segun el codigo del pais. Usa esta subida solo si necesitas sustituirla manualmente."
       : "Usually you do not need to upload anything: the website sets the flag automatically from the country code. Use this upload only if you need to replace it manually.",
