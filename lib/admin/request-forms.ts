@@ -168,7 +168,7 @@ export async function requireScopedAdmin(request: NextRequest) {
       request.nextUrl.pathname !== "/api/admin/director-pin"
     ) {
       return {
-        error: "Valida tu PIN de director antes de realizar cambios como super admin.",
+        error: "Valida tu PIN de admin antes de realizar cambios como super admin.",
         status: 403 as const,
       };
     }

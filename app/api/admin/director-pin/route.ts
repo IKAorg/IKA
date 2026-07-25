@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!guard.scope.isSuperAdmin) {
-    return jsonError("Solo super admin puede gestionar PIN de directores.", 403);
+    return jsonError("Solo super admin puede gestionar PIN de admins.", 403);
   }
 
   const directors = await guard.admin
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!guard.scope.isSuperAdmin) {
-    return jsonError("Solo super admin puede gestionar PIN de directores.", 403);
+    return jsonError("Solo super admin puede gestionar PIN de admins.", 403);
   }
 
   if (action !== "create") {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     if ((existing.data?.length ?? 0) > 0) {
-      return jsonError("Valida tu PIN antes de gestionar directores.", 403);
+      return jsonError("Valida tu PIN antes de gestionar admins.", 403);
     }
   }
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
   const pin = normalizePin(body.pin);
 
   if (!displayName) {
-    return jsonError("Introduce el nombre del director.", 400);
+    return jsonError("Introduce el nombre del admin.", 400);
   }
 
   if (!pin) {
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     .single<DirectorRow>();
 
   if (created.error || !created.data) {
-    return jsonError(created.error?.message ?? "No se pudo crear el director.", 500);
+    return jsonError(created.error?.message ?? "No se pudo crear el admin.", 500);
   }
 
   await writeDirectorAudit(guard.admin, {
@@ -135,11 +135,11 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (!guard.scope.isSuperAdmin) {
-    return jsonError("Solo super admin puede gestionar PIN de directores.", 403);
+    return jsonError("Solo super admin puede gestionar PIN de admins.", 403);
   }
 
   if (!guard.scope.director) {
-    return jsonError("Valida tu PIN antes de gestionar directores.", 403);
+    return jsonError("Valida tu PIN antes de gestionar admins.", 403);
   }
 
   const body = (await request.json().catch(() => ({}))) as {
@@ -156,7 +156,7 @@ export async function PATCH(request: NextRequest) {
   };
 
   if (!directorId) {
-    return jsonError("Falta el director.", 400);
+    return jsonError("Falta el admin.", 400);
   }
 
   if (displayName) {
@@ -182,7 +182,7 @@ export async function PATCH(request: NextRequest) {
     .single<DirectorRow>();
 
   if (updated.error || !updated.data) {
-    return jsonError(updated.error?.message ?? "No se pudo actualizar el director.", 500);
+    return jsonError(updated.error?.message ?? "No se pudo actualizar el admin.", 500);
   }
 
   await writeDirectorAudit(guard.admin, {
@@ -225,14 +225,14 @@ async function verifyDirectorPin(
   }
 
   if (!guard.scope.isSuperAdmin) {
-    return jsonError("Solo super admin requiere PIN de director.", 403);
+    return jsonError("Solo super admin requiere PIN de admin.", 403);
   }
 
   const directorId = normalizeText(body.directorId);
   const pin = normalizePin(body.pin);
 
   if (!directorId || !pin) {
-    return jsonError("Selecciona director e introduce PIN.", 400);
+    return jsonError("Selecciona admin e introduce PIN.", 400);
   }
 
   const director = await guard.admin
@@ -242,7 +242,7 @@ async function verifyDirectorPin(
     .maybeSingle<DirectorRow>();
 
   if (director.error || !director.data?.pin_hash || !director.data.is_active) {
-    return jsonError("Director no autorizado o sin PIN configurado.", 403);
+    return jsonError("Admin no autorizado o sin PIN configurado.", 403);
   }
 
   if (!verifyPin(pin, director.data.pin_hash)) {
