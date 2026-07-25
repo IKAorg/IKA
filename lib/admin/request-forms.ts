@@ -1,6 +1,7 @@
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
+import { createHash } from "crypto";
 import type { NextRequest } from "next/server";
 
 type UntypedTable = {
@@ -37,6 +38,10 @@ export type AdminScope = {
   countryIds: string[];
   dojoIds: string[];
   roleKeys: string[];
+  director?: {
+    id: string;
+    displayName: string;
+  } | null;
 };
 
 type AdminProfileRecord = {
@@ -141,18 +146,35 @@ export async function requireScopedAdmin(request: NextRequest) {
       ? await getCountryIdsForDojos(admin, directDojoIds)
       : [];
 
-  return {
-    admin,
-    scope: {
-      profileId: profile.id,
-      roleProfileIds,
-      isSuperAdmin: roleKeys.includes("super_admin"),
-      isGlobalAdmin: roleKeys.includes("global_admin"),
-      roleKeys,
-      countryIds: Array.from(new Set([...directCountryIds, ...inferredCountryIds])),
-      dojoIds: directDojoIds,
-    } satisfies AdminScope,
+  const scope: AdminScope = {
+    profileId: profile.id,
+    roleProfileIds,
+    isSuperAdmin: roleKeys.includes("super_admin"),
+    isGlobalAdmin: roleKeys.includes("global_admin"),
+    roleKeys,
+    countryIds: Array.from(new Set([...directCountryIds, ...inferredCountryIds])),
+    dojoIds: directDojoIds,
+    director: null,
   };
+
+  if (scope.isSuperAdmin) {
+    const director = await getVerifiedDirectorForRequest(admin, request, profile.id);
+
+    if (director) {
+      scope.director = director;
+    } else if (
+      request.method !== "GET" &&
+      request.method !== "HEAD" &&
+      request.nextUrl.pathname !== "/api/admin/director-pin"
+    ) {
+      return {
+        error: "Valida tu PIN de director antes de realizar cambios como super admin.",
+        status: 403 as const,
+      };
+    }
+  }
+
+  return { admin, scope };
 }
 
 async function getAuthenticatedUser(
@@ -381,6 +403,59 @@ function getBearerToken(request: NextRequest) {
 
 function getClientAuthEmail(request: NextRequest) {
   return normalizeEmail(request.headers.get("x-client-auth-email"));
+}
+
+export async function getVerifiedDirectorForRequest(
+  admin: SupabaseAdminClient,
+  request: NextRequest,
+  superAdminProfileId: string,
+) {
+  const token = normalizeText(request.headers.get("x-ika-director-session"));
+
+  if (!token) {
+    return null;
+  }
+
+  const tokenHash = hashDirectorSessionToken(token);
+  const result = await admin
+    .from("super_admin_director_sessions")
+    .select("id,expires_at,revoked_at,super_admin_directors(id,display_name,is_active)")
+    .eq("token_hash", tokenHash)
+    .eq("super_admin_profile_id", superAdminProfileId)
+    .maybeSingle<{
+      id: string;
+      expires_at: string;
+      revoked_at: string | null;
+      super_admin_directors:
+        | { id: string; display_name: string; is_active: boolean }
+        | Array<{ id: string; display_name: string; is_active: boolean }>
+        | null;
+    }>();
+
+  if (result.error || !result.data || result.data.revoked_at) {
+    return null;
+  }
+
+  if (Date.parse(result.data.expires_at) <= Date.now()) {
+    return null;
+  }
+
+  const director = Array.isArray(result.data.super_admin_directors)
+    ? result.data.super_admin_directors[0]
+    : result.data.super_admin_directors;
+
+  if (!director?.id || !director.is_active) {
+    return null;
+  }
+
+  return {
+    id: director.id,
+    displayName: director.display_name,
+  };
+}
+
+export function hashDirectorSessionToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 export function normalizeEmail(value: unknown) {

@@ -7,10 +7,12 @@ import {
   FileText,
   FileUp,
   Globe2,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   MapPinned,
   ShieldCheck,
+  UserCog,
   UsersRound,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
@@ -115,6 +117,20 @@ type AdminScope = {
   isGlobal: boolean;
   countryIds: string[];
   dojoIds: string[];
+  director?: DirectorSession | null;
+};
+
+type DirectorSession = {
+  id: string;
+  displayName: string;
+};
+
+type DirectorProfile = {
+  id: string;
+  displayName: string;
+  isActive: boolean;
+  hasPin: boolean;
+  lastVerifiedAt: string | null;
 };
 
 type AdminScopePayload = {
@@ -175,7 +191,30 @@ type AdminPanelCopy = {
   contentQuickText: string;
   signOut: string;
   signingOut: string;
+  directorGateTitle: string;
+  directorGateIntro: string;
+  directorSelectLabel: string;
+  directorPinLabel: string;
+  directorVerify: string;
+  directorVerifying: string;
+  directorIncorrect: string;
+  directorRequired: string;
+  directorPanelTitle: string;
+  directorPanelIntro: string;
+  directorName: string;
+  directorPin: string;
+  directorCreate: string;
+  directorSave: string;
+  directorActive: string;
+  directorInactive: string;
+  directorHasPin: string;
+  directorNoPin: string;
+  directorResetPin: string;
+  directorIdentity: string;
+  directorSignOut: string;
 };
+
+const directorSessionStorageKey = "ika-super-admin-director-session";
 
 export function AdminPanel({ locale }: AdminPanelProps) {
   const copy = useMemo(() => adminPanelCopy(locale), [locale]);
@@ -185,10 +224,55 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   const [loadingScope, setLoadingScope] = useState(true);
   const [scopeMessage, setScopeMessage] = useState("");
   const [signingOut, setSigningOut] = useState(false);
+  const [directorToken, setDirectorToken] = useState(readDirectorSessionToken);
+  const [directors, setDirectors] = useState<DirectorProfile[]>([]);
+  const [loadingDirectors, setLoadingDirectors] = useState(false);
+  const [directorId, setDirectorId] = useState("");
+  const [directorPin, setDirectorPin] = useState("");
+  const [directorMessage, setDirectorMessage] = useState("");
+  const [verifyingDirector, setVerifyingDirector] = useState(false);
+  const [directorForm, setDirectorForm] = useState({
+    displayName: "",
+    pin: "",
+  });
   const sessionRef = useRef<Session | null>(null);
   const scopeRef = useRef<AdminScope | null>(scope);
   const scopeRequestIdRef = useRef(0);
   const scopeInFlightRef = useRef(false);
+  const directorLoadKey = `${scope?.roleKeys?.join("|") ?? ""}:${scope?.director?.id ?? ""}`;
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !directorToken) {
+      return;
+    }
+
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const isAdminApi =
+        url.startsWith("/api/admin/") ||
+        (typeof window !== "undefined" &&
+          url.startsWith(`${window.location.origin}/api/admin/`));
+
+      if (!isAdminApi) {
+        return originalFetch(input, init);
+      }
+
+      const headers = new Headers(init?.headers);
+      headers.set("x-ika-director-session", directorToken);
+
+      return originalFetch(input, { ...init, headers });
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [directorToken]);
 
   useEffect(() => {
     scopeRef.current = scope;
@@ -197,6 +281,19 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  useEffect(() => {
+    const roleKeys = scope?.roleKeys ?? [];
+    const isSuperAdmin = roleKeys.includes("super_admin");
+    const hasDirectorSession = Boolean(scope?.director?.id);
+
+    if (!isSuperAdmin || hasDirectorSession) {
+      return;
+    }
+
+    void loadDirectorProfiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [directorLoadKey]);
 
   useEffect(() => {
     let active = true;
@@ -293,12 +390,22 @@ export function AdminPanel({ locale }: AdminPanelProps) {
         (await supabase.auth.getSession()).data.session;
 
       if (currentSession?.access_token) {
-        return {
+        const headers: Record<string, string> = {
           Authorization: `Bearer ${currentSession.access_token}`,
         };
+        const directorSessionToken = readDirectorSessionToken();
+        if (directorSessionToken) {
+          headers["x-ika-director-session"] = directorSessionToken;
+        }
+        return headers;
       }
 
-      return getAdminSessionBridgeHeaders();
+      const bridgeHeaders = getAdminSessionBridgeHeaders();
+      const directorSessionToken = readDirectorSessionToken();
+      if (directorSessionToken) {
+        bridgeHeaders["x-ika-director-session"] = directorSessionToken;
+      }
+      return bridgeHeaders;
     }
 
     function applyScopeResult(
@@ -468,6 +575,9 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     };
   }, [copy.noAdminPermissionForAccount, supabase]);
 
+  const isOfficialSuperAdminSession =
+    normalizeEmail(session?.user.email) === "internationalkempoassociation@gmail.com";
+
   if (loadingScope) {
     return <AdminLoading />;
   }
@@ -490,7 +600,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   const isCountryAdmin = roleKeys.includes("country_admin") || countryIds.length > 0;
   const isDojoAdmin =
     (roleKeys.includes("dojo_admin") || dojoIds.length > 0) && !isCountryAdmin;
-  const isSuperAdmin = roleKeys.includes("super_admin");
+  const isSuperAdmin = roleKeys.includes("super_admin") || isOfficialSuperAdminSession;
   const canManageUsers = isGlobal;
   const canManageMembers = isGlobal || isCountryAdmin || isDojoAdmin;
   const canManageCourses = isSuperAdmin;
@@ -499,6 +609,147 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   const canManageNews = isGlobal || isCountryAdmin;
   const canManageRequests =
     isSuperAdmin || isGlobal || isCountryAdmin || isDojoAdmin;
+
+  async function loadDirectorProfiles() {
+    setLoadingDirectors(true);
+    const headers = await getClientAdminHeaders(supabase, sessionRef.current);
+    const response = await fetch("/api/admin/director-pin", {
+      cache: "no-store",
+      headers,
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      directors?: DirectorProfile[];
+      error?: string;
+    };
+    setDirectors(data.directors ?? []);
+    setDirectorMessage(response.ok ? "" : data.error ?? copy.directorIncorrect);
+    setLoadingDirectors(false);
+  }
+
+  async function verifyDirector() {
+    setVerifyingDirector(true);
+    setDirectorMessage("");
+    const headers = await getClientAdminHeaders(supabase, sessionRef.current);
+    headers["content-type"] = "application/json";
+    const response = await fetch("/api/admin/director-pin", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        action: "verify",
+        directorId,
+        pin: directorPin,
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      token?: string;
+      expiresAt?: string;
+      director?: DirectorSession;
+      error?: string;
+    };
+
+    if (!response.ok || !data.token || !data.director) {
+      setDirectorMessage(data.error ?? copy.directorIncorrect);
+      setVerifyingDirector(false);
+      return;
+    }
+
+    window.sessionStorage.setItem(
+      directorSessionStorageKey,
+      JSON.stringify({
+        token: data.token,
+        expiresAt: data.expiresAt,
+        director: data.director,
+      }),
+    );
+    setDirectorToken(data.token);
+    setScope((current) =>
+      current ? { ...current, director: data.director ?? null } : current,
+    );
+    setDirectorPin("");
+    setVerifyingDirector(false);
+  }
+
+  async function createDirector() {
+    const headers = await getClientAdminHeaders(supabase, sessionRef.current);
+    headers["content-type"] = "application/json";
+    const response = await fetch("/api/admin/director-pin", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        action: "create",
+        displayName: directorForm.displayName,
+        pin: directorForm.pin,
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+
+    if (!response.ok) {
+      setDirectorMessage(data.error ?? copy.directorIncorrect);
+      return;
+    }
+
+    setDirectorForm({ displayName: "", pin: "" });
+    await loadDirectorProfiles();
+  }
+
+  async function updateDirector(
+    nextDirector: DirectorProfile,
+    patch: { displayName?: string; pin?: string; isActive?: boolean },
+  ) {
+    const headers = await getClientAdminHeaders(supabase, sessionRef.current);
+    headers["content-type"] = "application/json";
+    const response = await fetch("/api/admin/director-pin", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        directorId: nextDirector.id,
+        ...patch,
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+
+    if (!response.ok) {
+      setDirectorMessage(data.error ?? copy.directorIncorrect);
+      return;
+    }
+
+    await loadDirectorProfiles();
+  }
+
+  async function clearDirectorIdentity() {
+    const headers = await getClientAdminHeaders(supabase, sessionRef.current);
+    await fetch("/api/admin/director-pin", {
+      method: "DELETE",
+      headers,
+    }).catch(() => null);
+    window.sessionStorage.removeItem(directorSessionStorageKey);
+    setDirectorToken("");
+    setScope((current) => (current ? { ...current, director: null } : current));
+  }
+
+  if (isSuperAdmin && !scope.director) {
+    return (
+      <DirectorPinGate
+        copy={copy}
+        directors={directors}
+        loading={loadingDirectors}
+        directorId={directorId}
+        pin={directorPin}
+        message={directorMessage}
+        verifying={verifyingDirector}
+        firstDirectorForm={directorForm}
+        onDirectorChange={setDirectorId}
+        onPinChange={setDirectorPin}
+        onVerify={verifyDirector}
+        onFirstDirectorFormChange={setDirectorForm}
+        onCreateFirstDirector={createDirector}
+      />
+    );
+  }
 
   const primaryActions = [
     canManageMembers
@@ -571,18 +822,30 @@ export function AdminPanel({ locale }: AdminPanelProps) {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            disabled={signingOut}
-            onClick={() => {
-              setSigningOut(true);
-              void signOutAndRedirect(supabase, locale);
-            }}
-            className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
-          >
-            <LogOut size={17} />
-            {signingOut ? copy.signingOut : copy.signOut}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {isSuperAdmin && scope.director ? (
+              <button
+                type="button"
+                onClick={() => void clearDirectorIdentity()}
+                className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
+              >
+                <KeyRound size={17} />
+                {copy.directorIdentity}: {scope.director.displayName}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={signingOut}
+              onClick={() => {
+                setSigningOut(true);
+                void signOutAndRedirect(supabase, locale);
+              }}
+              className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
+            >
+              <LogOut size={17} />
+              {signingOut ? copy.signingOut : copy.signOut}
+            </button>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -642,6 +905,20 @@ export function AdminPanel({ locale }: AdminPanelProps) {
             <UsersAdmin initialLocale={locale} />
           </AdminModule>
         ) : null}
+
+        {isSuperAdmin ? (
+          <AdminModule id="admin-directors" title={copy.directorPanelTitle}>
+            <DirectorPinAdmin
+              copy={copy}
+              directors={directors}
+              form={directorForm}
+              onFormChange={setDirectorForm}
+              onCreate={createDirector}
+              onUpdate={updateDirector}
+              onReload={loadDirectorProfiles}
+            />
+          </AdminModule>
+        ) : null}
       </AdminGroup>
 
       {isGlobal ? (
@@ -690,6 +967,292 @@ function mergeScopes(...scopes: Array<AdminScope | undefined>) {
     ),
     dojoIds: Array.from(new Set(validScopes.flatMap((scope) => scope.dojoIds ?? []))),
   };
+}
+
+function DirectorPinGate({
+  copy,
+  directors,
+  loading,
+  directorId,
+  pin,
+  message,
+  verifying,
+  firstDirectorForm,
+  onDirectorChange,
+  onPinChange,
+  onVerify,
+  onFirstDirectorFormChange,
+  onCreateFirstDirector,
+}: {
+  copy: AdminPanelCopy;
+  directors: DirectorProfile[];
+  loading: boolean;
+  directorId: string;
+  pin: string;
+  message: string;
+  verifying: boolean;
+  firstDirectorForm: { displayName: string; pin: string };
+  onDirectorChange: (value: string) => void;
+  onPinChange: (value: string) => void;
+  onVerify: () => void;
+  onFirstDirectorFormChange: (form: { displayName: string; pin: string }) => void;
+  onCreateFirstDirector: () => void;
+}) {
+  const activeDirectors = directors.filter((director) => director.isActive);
+  const canBootstrapFirstDirector = !loading && directors.length === 0;
+
+  return (
+    <section className="border border-[var(--line)] bg-white p-5 sm:p-6">
+      <div className="flex items-center gap-3">
+        <div className="flex size-11 items-center justify-center bg-[var(--accent)] text-white">
+          <KeyRound size={20} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-semibold">{copy.directorGateTitle}</h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+            {copy.directorGateIntro}
+          </p>
+        </div>
+      </div>
+
+      {canBootstrapFirstDirector ? (
+        <div className="mt-5 grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4 sm:max-w-lg">
+          <input
+            value={firstDirectorForm.displayName}
+            onChange={(event) =>
+              onFirstDirectorFormChange({
+                ...firstDirectorForm,
+                displayName: event.target.value,
+              })
+            }
+            placeholder={copy.directorName}
+            className="min-h-11 border border-[var(--line)] bg-white px-3 text-sm"
+          />
+          <input
+            value={firstDirectorForm.pin}
+            onChange={(event) =>
+              onFirstDirectorFormChange({
+                ...firstDirectorForm,
+                pin: event.target.value,
+              })
+            }
+            placeholder={copy.directorPin}
+            inputMode="numeric"
+            type="password"
+            className="min-h-11 border border-[var(--line)] bg-white px-3 text-sm"
+          />
+          <button
+            type="button"
+            onClick={onCreateFirstDirector}
+            className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
+          >
+            <UserCog size={17} />
+            {copy.directorCreate}
+          </button>
+        </div>
+      ) : (
+      <div className="mt-5 grid gap-4 sm:max-w-lg">
+        <label className="grid gap-2 text-sm font-semibold">
+          {copy.directorSelectLabel}
+          <select
+            value={directorId}
+            onChange={(event) => onDirectorChange(event.target.value)}
+            className="min-h-11 border border-[var(--line)] bg-white px-3 text-sm"
+          >
+            <option value="">{loading ? "Loading..." : copy.directorRequired}</option>
+            {activeDirectors.map((director) => (
+              <option key={director.id} value={director.id}>
+                {director.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-2 text-sm font-semibold">
+          {copy.directorPinLabel}
+          <input
+            value={pin}
+            onChange={(event) => onPinChange(event.target.value)}
+            inputMode="numeric"
+            type="password"
+            autoComplete="one-time-code"
+            className="min-h-11 border border-[var(--line)] bg-white px-3 text-sm"
+          />
+        </label>
+
+        {message ? (
+          <p className="text-sm font-semibold text-[var(--accent)]">{message}</p>
+        ) : null}
+
+        <button
+          type="button"
+          disabled={!directorId || !pin || verifying}
+          onClick={onVerify}
+          className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          <ShieldCheck size={17} />
+          {verifying ? copy.directorVerifying : copy.directorVerify}
+        </button>
+      </div>
+      )}
+    </section>
+  );
+}
+
+function DirectorPinAdmin({
+  copy,
+  directors,
+  form,
+  onFormChange,
+  onCreate,
+  onUpdate,
+  onReload,
+}: {
+  copy: AdminPanelCopy;
+  directors: DirectorProfile[];
+  form: { displayName: string; pin: string };
+  onFormChange: (form: { displayName: string; pin: string }) => void;
+  onCreate: () => void;
+  onUpdate: (
+    director: DirectorProfile,
+    patch: { displayName?: string; pin?: string; isActive?: boolean },
+  ) => void;
+  onReload: () => void;
+}) {
+  const [resetPins, setResetPins] = useState<Record<string, string>>({});
+
+  return (
+    <div className="grid gap-5">
+      <div className="flex items-center gap-3">
+        <UserCog size={18} className="text-[var(--accent)]" />
+        <p className="text-sm leading-6 text-[var(--muted)]">
+          {copy.directorPanelIntro}
+        </p>
+      </div>
+
+      <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4 sm:grid-cols-[1fr_180px_auto]">
+        <input
+          value={form.displayName}
+          onChange={(event) =>
+            onFormChange({ ...form, displayName: event.target.value })
+          }
+          placeholder={copy.directorName}
+          className="min-h-11 border border-[var(--line)] bg-white px-3 text-sm"
+        />
+        <input
+          value={form.pin}
+          onChange={(event) => onFormChange({ ...form, pin: event.target.value })}
+          placeholder={copy.directorPin}
+          inputMode="numeric"
+          type="password"
+          className="min-h-11 border border-[var(--line)] bg-white px-3 text-sm"
+        />
+        <button
+          type="button"
+          onClick={onCreate}
+          className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
+        >
+          <UserCog size={17} />
+          {copy.directorCreate}
+        </button>
+      </div>
+
+      <div className="grid gap-3">
+        {directors.map((director) => (
+          <div
+            key={director.id}
+            className="grid gap-3 border border-[var(--line)] bg-white p-4 lg:grid-cols-[1fr_180px_160px_auto]"
+          >
+            <input
+              defaultValue={director.displayName}
+              onBlur={(event) => {
+                const nextName = event.target.value.trim();
+                if (nextName && nextName !== director.displayName) {
+                  onUpdate(director, { displayName: nextName });
+                }
+              }}
+              className="min-h-11 border border-[var(--line)] bg-white px-3 text-sm font-semibold"
+            />
+            <div className="flex min-h-11 items-center border border-[var(--line)] px-3 text-sm">
+              {director.hasPin ? copy.directorHasPin : copy.directorNoPin}
+            </div>
+            <button
+              type="button"
+              onClick={() => onUpdate(director, { isActive: !director.isActive })}
+              className="inline-flex min-h-11 items-center justify-center border border-[var(--line)] px-3 text-sm font-semibold"
+            >
+              {director.isActive ? copy.directorActive : copy.directorInactive}
+            </button>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <input
+                value={resetPins[director.id] ?? ""}
+                onChange={(event) =>
+                  setResetPins((current) => ({
+                    ...current,
+                    [director.id]: event.target.value,
+                  }))
+                }
+                placeholder={copy.directorResetPin}
+                inputMode="numeric"
+                type="password"
+                className="min-h-11 border border-[var(--line)] bg-white px-3 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const nextPin = resetPins[director.id] ?? "";
+                  onUpdate(director, { pin: nextPin });
+                  setResetPins((current) => ({ ...current, [director.id]: "" }));
+                }}
+                className="inline-flex min-h-11 items-center justify-center border border-[var(--line)] px-3 text-sm font-semibold"
+              >
+                {copy.directorSave}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={onReload}
+        className="inline-flex min-h-11 w-fit items-center gap-2 border border-[var(--line)] px-4 py-2 text-sm font-semibold"
+      >
+        <ShieldCheck size={17} />
+        Refresh
+      </button>
+    </div>
+  );
+}
+
+function readDirectorSessionToken() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(directorSessionStorageKey);
+    return raw ? (JSON.parse(raw) as { token?: string }).token ?? "" : "";
+  } catch {
+    return "";
+  }
+}
+
+async function getClientAdminHeaders(
+  supabase: ReturnType<typeof createPortalClient>,
+  session: Session | null,
+) {
+  const currentSession = session ?? (await supabase.auth.getSession()).data.session;
+  const headers: Record<string, string> = currentSession?.access_token
+    ? { Authorization: `Bearer ${currentSession.access_token}` }
+    : getAdminSessionBridgeHeaders();
+  const directorSessionToken = readDirectorSessionToken();
+
+  if (directorSessionToken) {
+    headers["x-ika-director-session"] = directorSessionToken;
+  }
+
+  return headers;
 }
 
 function normalizeEmail(value?: string | null) {
@@ -803,6 +1366,27 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       contentQuickText: "Public pages, news, instructors, and global web settings from one place.",
       signOut: "Sign out",
       signingOut: "Signing out...",
+      directorGateTitle: "Director PIN validation",
+      directorGateIntro: "Select your director profile and enter your personal PIN before using super admin.",
+      directorSelectLabel: "Director profile",
+      directorPinLabel: "Personal PIN",
+      directorVerify: "Enter super admin",
+      directorVerifying: "Checking PIN...",
+      directorIncorrect: "The PIN could not be verified.",
+      directorRequired: "Select director",
+      directorPanelTitle: "Super admin director PINs",
+      directorPanelIntro: "Create internal director profiles, activate or deactivate access, and reset personal PINs.",
+      directorName: "Director name",
+      directorPin: "PIN",
+      directorCreate: "Create director",
+      directorSave: "Save",
+      directorActive: "Active",
+      directorInactive: "Inactive",
+      directorHasPin: "PIN configured",
+      directorNoPin: "No PIN",
+      directorResetPin: "New PIN",
+      directorIdentity: "PIN identity",
+      directorSignOut: "Close PIN identity",
       noAdminPermissionForAccount: "No administration permission was found for this account.",
       noAdminPermissions: "No administration permissions were found.",
       usersModule: "Users and permissions: create admins",
@@ -839,6 +1423,27 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       contentQuickText: "Paginas publicas, noticias, instructores y ajustes globales de la web en un solo lugar.",
       signOut: "Cerrar sesion",
       signingOut: "Cerrando sesion...",
+      directorGateTitle: "Validacion PIN de director",
+      directorGateIntro: "Selecciona tu perfil de director e introduce tu PIN personal antes de usar super admin.",
+      directorSelectLabel: "Perfil de director",
+      directorPinLabel: "PIN personal",
+      directorVerify: "Entrar como super admin",
+      directorVerifying: "Comprobando PIN...",
+      directorIncorrect: "No se pudo validar el PIN.",
+      directorRequired: "Selecciona director",
+      directorPanelTitle: "PIN de directores super admin",
+      directorPanelIntro: "Crea perfiles internos, activa o desactiva accesos y resetea PIN personales.",
+      directorName: "Nombre del director",
+      directorPin: "PIN",
+      directorCreate: "Crear director",
+      directorSave: "Guardar",
+      directorActive: "Activo",
+      directorInactive: "Inactivo",
+      directorHasPin: "PIN configurado",
+      directorNoPin: "Sin PIN",
+      directorResetPin: "Nuevo PIN",
+      directorIdentity: "Identidad PIN",
+      directorSignOut: "Cerrar identidad PIN",
       noAdminPermissionForAccount: "No se encontro ningun permiso de administracion para esta cuenta.",
       noAdminPermissions: "No se encontraron permisos de administracion.",
       usersModule: "Usuarios y permisos: crear admins",
