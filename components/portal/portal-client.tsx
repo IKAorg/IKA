@@ -135,6 +135,15 @@ type EventRegistrationHistory = {
   } | null;
 };
 
+type GradeReviewRequest = {
+  id: string;
+  status: "pending" | "in_review" | "approved" | "rejected" | "cancelled";
+  review_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type PortalPayload = {
   profile: {
     id: string;
@@ -147,6 +156,7 @@ type PortalPayload = {
   gradeHistory: GradeHistory[];
   achievements?: AchievementHistory[];
   eventRegistrations?: EventRegistrationHistory[];
+  gradeReviewRequests?: GradeReviewRequest[];
   dashboard: PortalDashboard | null;
 };
 
@@ -304,6 +314,7 @@ type PortalCopy = {
   gradeReviewHelp?: string;
   gradeReviewSent?: string;
   gradeReviewPending?: string;
+  gradeReviewStatus?: string;
   country: string;
   dojo: string;
   joinedIka: string;
@@ -684,6 +695,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
       "If your latest exam is not reflected yet, send a review request to your dojo administration.",
     gradeReviewSent: "Grade review request sent to your dojo administration.",
     gradeReviewPending: "There is already a pending grade review request for your record.",
+    gradeReviewStatus: "Grade review status",
     country: "Country",
     dojo: "Dojo",
     joinedIka: "Seniority",
@@ -795,6 +807,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
       "Si tu ultimo examen todavia no aparece reflejado, envia una solicitud de revision a la administracion de tu dojo.",
     gradeReviewSent: "Solicitud de revision de grado enviada a la administracion de tu dojo.",
     gradeReviewPending: "Ya existe una solicitud pendiente de revision de grado para tu ficha.",
+    gradeReviewStatus: "Estado de revision de grado",
     country: "Pais",
     dojo: "Dojo",
     joinedIka: "Antiguedad",
@@ -2599,6 +2612,7 @@ export function PortalClient({
                 grades={portal.gradeHistory}
                 achievements={portal.achievements ?? []}
                 eventRegistrations={portal.eventRegistrations ?? []}
+                gradeReviewRequests={portal.gradeReviewRequests ?? []}
                 locale={locale}
                 copy={copy}
                 supabase={supabase}
@@ -2924,6 +2938,7 @@ function MemberPanel({
   grades,
   achievements,
   eventRegistrations,
+  gradeReviewRequests,
   locale,
   copy,
   supabase,
@@ -2935,6 +2950,7 @@ function MemberPanel({
   grades: GradeHistory[];
   achievements: AchievementHistory[];
   eventRegistrations: EventRegistrationHistory[];
+  gradeReviewRequests: GradeReviewRequest[];
   locale: Locale;
   copy: PortalCopy;
   supabase: ReturnType<typeof createPortalClient>;
@@ -2951,6 +2967,7 @@ function MemberPanel({
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [gradeReviewLoading, setGradeReviewLoading] = useState(false);
+  const latestGradeReview = gradeReviewRequests[0] ?? null;
   const [uploading, setUploading] = useState(false);
   const [registrationSavingId, setRegistrationSavingId] = useState("");
   const [panelMessage, setPanelMessage] = useState("");
@@ -3179,6 +3196,7 @@ function MemberPanel({
           ? copy.gradeReviewPending ?? copy.fichaUpdated
           : copy.gradeReviewSent ?? copy.fichaUpdated,
       );
+      await onReloadPortal();
     } catch {
       setPanelMessage(copy.saveFichaError ?? "Save error.");
     } finally {
@@ -3271,6 +3289,12 @@ function MemberPanel({
                       ? "Si tu ultimo examen todavia no aparece reflejado, envia una solicitud de revision a la administracion de tu dojo."
                       : "If your latest exam is not reflected yet, send a review request to your dojo administration.")}
                 </p>
+                {latestGradeReview ? (
+                  <p className="mt-2 border border-[var(--line)] bg-white px-3 py-2 text-xs font-semibold text-[var(--muted)]">
+                    {copy.gradeReviewStatus ?? "Review status"}:{" "}
+                    {formatGradeReviewStatus(latestGradeReview.status, locale)}
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => void requestGradeReview()}
@@ -4130,6 +4154,18 @@ function getPortalMemberFallback(locale: Locale, type: "ika" | "grade") {
   } satisfies Record<Locale, Record<"ika" | "grade", string>>;
 
   return fallback[locale]?.[type] ?? fallback.en[type];
+}
+
+function formatGradeReviewStatus(
+  status: GradeReviewRequest["status"],
+  locale: Locale,
+) {
+  const es = locale === "es";
+  if (status === "pending") return es ? "pendiente" : "pending";
+  if (status === "in_review") return es ? "en revision" : "in review";
+  if (status === "approved") return es ? "resuelta" : "resolved";
+  if (status === "rejected") return es ? "rechazada" : "rejected";
+  return es ? "cerrada" : "closed";
 }
 
 const TSHIRT_SIZES = ["S", "M", "L", "XL", "XXL", "3XL", "XS", "2XS", "3XS"] as const;

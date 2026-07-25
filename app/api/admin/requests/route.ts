@@ -14,6 +14,7 @@ import {
 
 type FormType = "country" | "dojo" | "kenshi";
 type SubmissionStatus = "pending" | "needs_info" | "approved" | "rejected";
+type CorrectionStatus = "pending" | "in_review" | "approved" | "rejected" | "cancelled";
 
 type Body = {
   action?:
@@ -21,7 +22,8 @@ type Body = {
     | "toggle_form"
     | "delete_form"
     | "approve_submission"
-    | "update_submission_status";
+    | "update_submission_status"
+    | "update_grade_review";
   formType?: FormType;
   formId?: string;
   submissionId?: string;
@@ -33,6 +35,8 @@ type Body = {
   legalText?: string;
   reviewNotes?: string;
   sendEmail?: boolean;
+  correctionRequestId?: string;
+  newGrade?: string;
 };
 
 export async function GET(request: NextRequest) {
@@ -41,13 +45,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: guard.error }, { status: guard.status });
   }
 
-  const [formsResult, submissionsResult, countriesResult, dojosResult] = await Promise.all([
+  const [formsResult, submissionsResult, correctionRequestsResult, countriesResult, dojosResult] = await Promise.all([
     guard.admin
       .from("request_forms")
       .select("id,form_type,title,status,locale,country_id,dojo_id,created_by,access_token,legal_text,created_at,updated_at"),
     guard.admin
       .from("request_submissions")
       .select("id,form_id,submission_type,status,locale,applicant_email,applicant_name,payload,consent_accepted,review_notes,approved_entity_id,reviewed_by,reviewed_at,created_at,updated_at")
+      .order("created_at", { ascending: false })
+      .limit(500),
+    guard.admin
+      .from("correction_requests")
+      .select("id,member_id,requested_by,field_key,current_value,requested_value,status,review_notes,reviewed_by,reviewed_at,created_at,updated_at,members(id,ika_number,first_name,last_name,email,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,country_id,dojo_translations(language_code,name))),users_profiles(display_name,email)")
+      .eq("field_key", "current_grade")
       .order("created_at", { ascending: false })
       .limit(500),
     guard.admin
@@ -63,6 +73,7 @@ export async function GET(request: NextRequest) {
   const firstError =
     formsResult.error ??
     submissionsResult.error ??
+    correctionRequestsResult.error ??
     countriesResult.error ??
     dojosResult.error;
 
@@ -93,10 +104,14 @@ export async function GET(request: NextRequest) {
       (submission.payload as Record<string, unknown> | null) ?? {},
     ),
   }));
+  const gradeReviewRequests = ((correctionRequestsResult.data ?? []) as Array<Record<string, unknown>>)
+    .filter((requestItem) => canManageGradeReviewRequest(guard.scope, requestItem))
+    .map(formatGradeReviewRequest);
 
   return NextResponse.json({
     forms,
     submissions,
+    gradeReviewRequests,
     countries: countries.filter((country) => canManageCountry(guard.scope, country.id)),
     dojos: dojos.filter((dojo) => canManageDojo(guard.scope, dojo.id, dojo.country_id)),
     permissions: {
@@ -141,7 +156,97 @@ export async function POST(request: NextRequest) {
     return updateSubmissionStatus(guard.admin, guard.scope, body);
   }
 
+  if (body?.action === "update_grade_review") {
+    return updateGradeReview(guard.admin, guard.scope, body);
+  }
+
   return NextResponse.json({ error: "Accion no valida." }, { status: 400 });
+}
+
+async function updateGradeReview(admin: SupabaseAdminClient, scope: AdminScope, body: Body) {
+  const requestId = normalizeText(body.correctionRequestId);
+  if (!requestId) {
+    return NextResponse.json({ error: "Solicitud de revision obligatoria." }, { status: 400 });
+  }
+
+  const status = normalizeText(body.status) as CorrectionStatus;
+  if (!["approved", "rejected", "cancelled", "in_review"].includes(status)) {
+    return NextResponse.json({ error: "Estado de revision no valido." }, { status: 400 });
+  }
+
+  const correction = await admin
+    .from("correction_requests")
+    .select("id,member_id,field_key,status,members(id,current_grade,country_id,dojo_id)")
+    .eq("id", requestId)
+    .eq("field_key", "current_grade")
+    .maybeSingle<Record<string, unknown>>();
+
+  if (correction.error) {
+    return NextResponse.json({ error: correction.error.message }, { status: 500 });
+  }
+
+  if (!correction.data || !canManageGradeReviewRequest(scope, correction.data)) {
+    return NextResponse.json({ error: "No tienes permisos para revisar esta solicitud." }, { status: 403 });
+  }
+
+  const member = getRelatedRecord(correction.data.members);
+  const newGrade = normalizeText(body.newGrade);
+
+  if (status === "approved" && newGrade) {
+    const memberUpdate = await admin
+      .from("members")
+      .update({ current_grade: newGrade, updated_by: scope.profileId })
+      .eq("id", String(correction.data.member_id));
+
+    if (memberUpdate.error) {
+      return NextResponse.json({ error: memberUpdate.error.message }, { status: 500 });
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const historyInsert = await admin.from("grade_history").insert({
+      member_id: String(correction.data.member_id),
+      grade: newGrade,
+      exam_date: today,
+      notes: normalizeText(body.reviewNotes) || "Grade updated from portal review request.",
+      reviewed_by: scope.profileId,
+      reviewed_at: new Date().toISOString(),
+    });
+
+    if (historyInsert.error) {
+      await admin
+        .from("members")
+        .update({ current_grade: normalizeText(member.current_grade) || null, updated_by: scope.profileId })
+        .eq("id", String(correction.data.member_id));
+      return NextResponse.json({ error: historyInsert.error.message }, { status: 500 });
+    }
+  }
+
+  const correctionUpdate: Record<string, unknown> = {
+    status,
+    reviewed_by: scope.profileId,
+    reviewed_at: status === "in_review" ? null : new Date().toISOString(),
+    review_notes: normalizeText(body.reviewNotes),
+  };
+
+  if (newGrade) {
+    correctionUpdate.requested_value = {
+      requestType: "grade_review",
+      resolvedGrade: newGrade,
+    };
+  }
+
+  const updated = await admin
+    .from("correction_requests")
+    .update(correctionUpdate)
+    .eq("id", requestId)
+    .select("id,status,review_notes,reviewed_at")
+    .single();
+
+  if (updated.error) {
+    return NextResponse.json({ error: updated.error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, gradeReviewRequest: updated.data });
 }
 
 async function createForm(
@@ -766,6 +871,65 @@ function canSeeForm(
   }
 
   return false;
+}
+
+function canManageGradeReviewRequest(scope: AdminScope, requestItem: Record<string, unknown>) {
+  const member = getRelatedRecord(requestItem.members);
+  const countryId = normalizeText(member.country_id);
+  const dojoId = normalizeText(member.dojo_id);
+  return (
+    canManageDojo(scope, dojoId || null, countryId || null) ||
+    canManageCountry(scope, countryId || null)
+  );
+}
+
+function formatGradeReviewRequest(requestItem: Record<string, unknown>) {
+  const member = getRelatedRecord(requestItem.members);
+  const country = getRelatedRecord(member.countries);
+  const dojo = getRelatedRecord(member.dojos);
+  const requestedBy = getRelatedRecord(requestItem.users_profiles);
+
+  return {
+    id: String(requestItem.id),
+    member_id: String(requestItem.member_id),
+    status: String(requestItem.status),
+    current_value: requestItem.current_value ?? null,
+    requested_value: requestItem.requested_value ?? null,
+    review_notes: requestItem.review_notes ?? null,
+    reviewed_at: requestItem.reviewed_at ?? null,
+    created_at: String(requestItem.created_at),
+    requested_by: {
+      display_name: normalizeText(requestedBy.display_name),
+      email: normalizeEmail(requestedBy.email),
+    },
+    member: {
+      id: String(member.id ?? ""),
+      ika_number: normalizeText(member.ika_number),
+      first_name: normalizeText(member.first_name),
+      last_name: normalizeText(member.last_name),
+      email: normalizeEmail(member.email),
+      current_grade: normalizeText(member.current_grade),
+      country_id: normalizeText(member.country_id),
+      dojo_id: normalizeText(member.dojo_id),
+      country_name: getLocalizedName(country.country_translations) || normalizeText(country.code),
+      dojo_name: getLocalizedName(dojo.dojo_translations) || normalizeText(dojo.city),
+    },
+  };
+}
+
+function getRelatedRecord(value: unknown): Record<string, unknown> {
+  if (Array.isArray(value)) {
+    return (value[0] as Record<string, unknown> | undefined) ?? {};
+  }
+  return (value as Record<string, unknown> | null) ?? {};
+}
+
+function getLocalizedName(value: unknown) {
+  const translations = Array.isArray(value) ? value : [];
+  const first = translations.find((item) =>
+    normalizeText((item as Record<string, unknown>).name),
+  );
+  return first ? normalizeText((first as Record<string, unknown>).name) : "";
 }
 
 function defaultTitle(formType: FormType, locale: string) {

@@ -147,14 +147,25 @@ export async function GET(request: NextRequest) {
           .eq("member_id", portalMemberId)
           .order("created_at", { ascending: false })
       : { data: [], error: null };
+  const gradeReviewRequests =
+    portalMemberId
+      ? await supabase
+          .from("correction_requests")
+          .select("id,status,review_notes,reviewed_at,created_at,updated_at")
+          .eq("member_id", portalMemberId)
+          .eq("field_key", "current_grade")
+          .order("created_at", { ascending: false })
+          .limit(10)
+      : { data: [], error: null };
 
-  if (gradeHistory.error || achievements.error || eventRegistrations.error) {
+  if (gradeHistory.error || achievements.error || eventRegistrations.error || gradeReviewRequests.error) {
     return NextResponse.json(
       {
         error:
           gradeHistory.error?.message ??
           achievements.error?.message ??
-          eventRegistrations.error?.message,
+          eventRegistrations.error?.message ??
+          gradeReviewRequests.error?.message,
       },
       { status: 500 },
     );
@@ -167,6 +178,7 @@ export async function GET(request: NextRequest) {
     gradeHistory: gradeHistory.data ?? [],
     achievements: achievements.data ?? [],
     eventRegistrations: (eventRegistrations.data ?? []) as EventRegistrationRow[],
+    gradeReviewRequests: gradeReviewRequests.data ?? [],
     dashboard,
   });
 }

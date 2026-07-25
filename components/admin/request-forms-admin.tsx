@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Copy,
+  FileBadge,
   Loader2,
   MailCheck,
   Plus,
@@ -22,6 +23,7 @@ import { defaultLocale } from "@/lib/i18n/config";
 
 type FormType = "country" | "dojo" | "kenshi";
 type SubmissionStatus = "pending" | "needs_info" | "approved" | "rejected";
+type CorrectionStatus = "pending" | "in_review" | "approved" | "rejected" | "cancelled";
 
 type Payload = {
   forms: Array<{
@@ -45,6 +47,27 @@ type Payload = {
     applicant_name: string | null;
     payload: Record<string, unknown>;
     created_at: string;
+  }>;
+  gradeReviewRequests: Array<{
+    id: string;
+    status: CorrectionStatus;
+    review_notes: string | null;
+    reviewed_at: string | null;
+    created_at: string;
+    requested_by: {
+      display_name: string;
+      email: string;
+    };
+    member: {
+      id: string;
+      ika_number: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+      current_grade: string;
+      country_name: string;
+      dojo_name: string;
+    };
   }>;
   countries: Array<{
     id: string;
@@ -94,32 +117,38 @@ export function RequestFormsAdmin({
   const load = useCallback(async (attempt = 0) => {
     setLoading(true);
     setMessage("");
-    const requestHeaders = await headers();
-    const response = await fetch("/api/admin/requests", {
-      cache: "no-store",
-      headers: requestHeaders,
-    });
-    const data = await response.json().catch(() => ({}));
+    let currentAttempt = attempt;
 
-    if (!response.ok) {
+    while (true) {
+      const requestHeaders = await headers();
+      const response = await fetch("/api/admin/requests", {
+        cache: "no-store",
+        headers: requestHeaders,
+      });
+      const data = await response.json().catch(() => ({}));
+
       if (
-        attempt === 0 &&
+        !response.ok &&
+        currentAttempt === 0 &&
         (data.error === "No autenticado." ||
           data.error === "No se encontro un perfil administrador para esta sesion.") &&
         hasAdminSessionBridge()
       ) {
         await new Promise((resolve) => window.setTimeout(resolve, 250));
-        return load(1);
+        currentAttempt = 1;
+        continue;
       }
 
-      setPayload((current) => current);
-      setMessage(data.error ?? copy.loadError);
+      if (!response.ok) {
+        setPayload((current) => current);
+        setMessage(data.error ?? copy.loadError);
+      } else {
+        setPayload(data as Payload);
+      }
+
       setLoading(false);
       return;
     }
-
-    setPayload(data as Payload);
-    setLoading(false);
   }, [copy.loadError, headers]);
 
   useEffect(() => {
@@ -172,7 +201,7 @@ export function RequestFormsAdmin({
     ] as FormType[];
 
     if (allowed.length > 0 && !allowed.includes(formType)) {
-      setFormType(allowed[0]);
+      window.setTimeout(() => setFormType(allowed[0]), 0);
     }
   }, [payload, formType]);
 
@@ -276,6 +305,39 @@ export function RequestFormsAdmin({
     await load();
   }
 
+  async function updateGradeReview(
+    correctionRequestId: string,
+    status: CorrectionStatus,
+    newGrade = "",
+  ) {
+    setSaving(true);
+    setMessage("");
+    const response = await fetch("/api/admin/requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await headers()),
+      },
+      body: JSON.stringify({
+        action: "update_grade_review",
+        correctionRequestId,
+        status,
+        newGrade,
+        reviewNotes: "",
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setSaving(false);
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.actionError);
+      return;
+    }
+
+    setMessage(copy.gradeReviewUpdated);
+    await load();
+  }
+
   async function copyUrl(token: string) {
     const url = `${window.location.origin}/${initialLocale}/requests/${token}`;
     await navigator.clipboard.writeText(url);
@@ -316,6 +378,10 @@ export function RequestFormsAdmin({
   }
 
   const submissions = payload?.submissions ?? [];
+  const gradeReviewRequests = payload?.gradeReviewRequests ?? [];
+  const pendingGradeReviewRequests = gradeReviewRequests.filter(
+    (item) => item.status === "pending" || item.status === "in_review",
+  );
   const filteredSubmissions = submissions.filter((submission) =>
     statusFilter === "all" ? true : submission.status === statusFilter,
   );
@@ -348,6 +414,7 @@ export function RequestFormsAdmin({
     needsInfo: submissions.filter((item) => item.status === "needs_info").length,
     approved: submissions.filter((item) => item.status === "approved").length,
     rejected: submissions.filter((item) => item.status === "rejected").length,
+    pendingGradeReviews: pendingGradeReviewRequests.length,
   };
 
   if (loading) {
@@ -375,6 +442,7 @@ export function RequestFormsAdmin({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard label={copy.totalForms} value={String(counters.totalForms)} />
         <MetricCard label={copy.pendingShort} value={String(counters.pending)} />
+        <MetricCard label={copy.gradeReviewsShort} value={String(counters.pendingGradeReviews)} />
         <MetricCard
           label={copy.needsInfoShort}
           value={String(counters.needsInfo)}
@@ -577,6 +645,91 @@ export function RequestFormsAdmin({
 
       <section className="border border-[var(--line)] bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-semibold">{copy.gradeReviewsTitle}</h3>
+            <p className="mt-1 text-sm text-[var(--muted)]">{copy.gradeReviewsIntro}</p>
+          </div>
+          {pendingGradeReviewRequests.length ? (
+            <span className="border border-[var(--accent)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+              {pendingGradeReviewRequests.length} {copy.pendingShort}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {gradeReviewRequests.length ? (
+            gradeReviewRequests.map((requestItem) => {
+              const memberName = `${requestItem.member.first_name} ${requestItem.member.last_name}`.trim();
+              const canAct = requestItem.status === "pending" || requestItem.status === "in_review";
+              return (
+                <div key={requestItem.id} className="border border-[var(--line)] bg-[var(--paper)] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+                        {copy.gradeReviewType} {" | "} {formatCorrectionStatus(requestItem.status, copy)}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold">
+                        {memberName || requestItem.member.email || copy.noName}
+                      </p>
+                      <div className="mt-2 grid gap-1 text-sm text-[var(--muted)] sm:grid-cols-2">
+                        <p>{copy.ikaNumber}: {requestItem.member.ika_number || "-"}</p>
+                        <p>{copy.currentGrade}: {requestItem.member.current_grade || "-"}</p>
+                        <p>{copy.dojo}: {requestItem.member.dojo_name || "-"}</p>
+                        <p>{copy.country}: {requestItem.member.country_name || "-"}</p>
+                        <p>{copy.requestedBy}: {requestItem.requested_by.display_name || requestItem.requested_by.email || requestItem.member.email || "-"}</p>
+                        <p>{copy.requestedOn} {new Date(requestItem.created_at).toLocaleDateString(initialLocale)}</p>
+                      </div>
+                    </div>
+
+                    {canAct ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() =>
+                            updateGradeReview(
+                              requestItem.id,
+                              "approved",
+                              window.prompt(copy.newGradePrompt, requestItem.member.current_grade) ?? "",
+                            )
+                          }
+                          className="inline-flex items-center gap-2 bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          <FileBadge className="h-4 w-4" />
+                          {copy.resolve}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => updateGradeReview(requestItem.id, "rejected")}
+                          className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)] disabled:opacity-50"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          {copy.reject}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => updateGradeReview(requestItem.id, "cancelled")}
+                          className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          {copy.close}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-sm text-[var(--muted)]">{copy.noGradeReviews}</p>
+          )}
+        </div>
+      </section>
+
+      <section className="border border-[var(--line)] bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-xl font-semibold">{copy.pendingRequests}</h3>
           <select
             className="input-base min-w-[220px]"
@@ -709,6 +862,17 @@ function formatStatus(
   return copy.rejectedShort;
 }
 
+function formatCorrectionStatus(
+  value: CorrectionStatus,
+  copy: ReturnType<typeof getCopy>,
+) {
+  if (value === "pending") return copy.pendingShort;
+  if (value === "in_review") return copy.inReviewShort;
+  if (value === "approved") return copy.approvedShort;
+  if (value === "rejected") return copy.rejectedShort;
+  return copy.closedShort;
+}
+
 function describeFormScope(
   form: Payload["forms"][number],
   copy: ReturnType<typeof getCopy>,
@@ -783,6 +947,28 @@ function getCopy(locale: Locale) {
     needsInfoShort: es ? "Ampliar info" : "Needs info",
     approvedShort: es ? "Aprobadas" : "Approved",
     rejectedShort: es ? "Rechazadas" : "Rejected",
+    inReviewShort: es ? "En revision" : "In review",
+    closedShort: es ? "Cerradas" : "Closed",
+    gradeReviewsShort: es ? "Revision grado" : "Grade reviews",
+    gradeReviewsTitle: es ? "Solicitudes de revision de grado" : "Grade review requests",
+    gradeReviewsIntro: es
+      ? "Solicitudes enviadas desde la ficha Kenshi y visibles segun dojo, pais o administracion global."
+      : "Requests sent from the Kenshi profile and visible by dojo, country, or global scope.",
+    gradeReviewType: es ? "Revision de grado" : "Grade review",
+    ikaNumber: es ? "IKA ID" : "IKA ID",
+    currentGrade: es ? "Grado actual" : "Current grade",
+    requestedBy: es ? "Enviada por" : "Requested by",
+    resolve: es ? "Resolver / actualizar" : "Resolve / update",
+    close: es ? "Cerrar" : "Close",
+    newGradePrompt: es
+      ? "Nuevo grado si procede. Deja el valor actual o vacio para solo marcar como resuelta."
+      : "New grade if applicable. Keep the current value or leave empty to only mark as resolved.",
+    noGradeReviews: es
+      ? "No hay solicitudes de revision de grado en tu ambito."
+      : "There are no grade review requests in your scope.",
+    gradeReviewUpdated: es
+      ? "Solicitud de revision de grado actualizada."
+      : "Grade review request updated.",
     requestedOn: es ? "Solicitada:" : "Requested:",
     noRequests: es ? "No hay solicitudes pendientes." : "No pending requests.",
     noName: es ? "Solicitud sin nombre visible" : "Unnamed request",
