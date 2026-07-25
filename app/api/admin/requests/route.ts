@@ -208,8 +208,8 @@ async function updateGradeReview(admin: SupabaseAdminClient, scope: AdminScope, 
       grade: newGrade,
       exam_date: today,
       notes: normalizeText(body.reviewNotes) || "Grade updated from portal review request.",
-      reviewed_by: scope.profileId,
-      reviewed_at: new Date().toISOString(),
+      created_by: scope.profileId,
+      updated_by: scope.profileId,
     });
 
     if (historyInsert.error) {
