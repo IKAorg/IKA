@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
+  ClipboardList,
   FileText,
   FileUp,
   Globe2,
@@ -133,6 +134,18 @@ type DirectorProfile = {
   lastVerifiedAt: string | null;
 };
 
+type AuditLogEntry = {
+  id: string;
+  createdAt: string;
+  action: string;
+  tableName: string;
+  recordId: string | null;
+  actorName: string;
+  actorEmail: string;
+  adminName: string;
+  metadata: Record<string, unknown>;
+};
+
 type AdminScopePayload = {
   error?: string;
   scope?: AdminScope;
@@ -212,6 +225,14 @@ type AdminPanelCopy = {
   directorResetPin: string;
   directorIdentity: string;
   directorSignOut: string;
+  auditModule: string;
+  auditIntro: string;
+  auditRefresh: string;
+  auditEmpty: string;
+  auditWhen: string;
+  auditWho: string;
+  auditWhat: string;
+  auditWhere: string;
 };
 
 const directorSessionStorageKey = "ika-super-admin-director-session";
@@ -919,6 +940,16 @@ export function AdminPanel({ locale }: AdminPanelProps) {
             />
           </AdminModule>
         ) : null}
+
+        {isSuperAdmin ? (
+          <AdminModule id="admin-audit" title={copy.auditModule}>
+            <AuditLogsAdmin
+              copy={copy}
+              supabase={supabase}
+              session={session}
+            />
+          </AdminModule>
+        ) : null}
       </AdminGroup>
 
       {isGlobal ? (
@@ -1225,6 +1256,165 @@ function DirectorPinAdmin({
   );
 }
 
+function AuditLogsAdmin({
+  copy,
+  supabase,
+  session,
+}: {
+  copy: AdminPanelCopy;
+  supabase: ReturnType<typeof createPortalClient>;
+  session: Session | null;
+}) {
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function loadAuditLogs() {
+    setLoading(true);
+    setMessage("");
+    const headers = await getClientAdminHeaders(supabase, session);
+    const response = await fetch("/api/admin/audit-logs?limit=120", {
+      cache: "no-store",
+      headers,
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      logs?: AuditLogEntry[];
+      error?: string;
+    };
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.directorIncorrect);
+      setLogs([]);
+      setLoading(false);
+      return;
+    }
+
+    setLogs(data.logs ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadAuditLogs();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <ClipboardList size={18} className="text-[var(--accent)]" />
+          <p className="text-sm leading-6 text-[var(--muted)]">
+            {copy.auditIntro}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void loadAuditLogs()}
+          disabled={loading}
+          className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:opacity-60"
+        >
+          <ClipboardList size={17} />
+          {copy.auditRefresh}
+        </button>
+      </div>
+
+      {message ? (
+        <p className="text-sm font-semibold text-[var(--accent)]">{message}</p>
+      ) : null}
+
+      <div className="overflow-x-auto border border-[var(--line)]">
+        <table className="min-w-[900px] w-full border-collapse text-left text-sm">
+          <thead className="bg-[var(--paper)] text-xs uppercase tracking-[0.08em] text-[var(--muted)]">
+            <tr>
+              <th className="border-b border-[var(--line)] px-3 py-3">{copy.auditWhen}</th>
+              <th className="border-b border-[var(--line)] px-3 py-3">{copy.auditWho}</th>
+              <th className="border-b border-[var(--line)] px-3 py-3">{copy.auditWhat}</th>
+              <th className="border-b border-[var(--line)] px-3 py-3">{copy.auditWhere}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-3 py-5 text-center text-[var(--muted)]">
+                  {loading ? "Loading..." : copy.auditEmpty}
+                </td>
+              </tr>
+            ) : (
+              logs.map((log) => (
+                <tr key={log.id} className="border-t border-[var(--line)] align-top">
+                  <td className="px-3 py-3 whitespace-nowrap">
+                    {formatAuditDate(log.createdAt)}
+                  </td>
+                  <td className="px-3 py-3">
+                    <strong>{log.adminName || log.actorName || "Super admin"}</strong>
+                    {log.actorEmail ? (
+                      <span className="mt-1 block text-xs text-[var(--muted)]">
+                        {log.actorEmail}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-3">
+                    <strong>{formatAuditAction(log.action)}</strong>
+                    <span className="mt-1 block text-xs text-[var(--muted)]">
+                      {log.tableName}
+                      {log.recordId ? ` · ${log.recordId}` : ""}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span>{formatAuditLocation(log.metadata)}</span>
+                    {formatAuditIp(log.metadata) ? (
+                      <span className="mt-1 block text-xs text-[var(--muted)]">
+                        {formatAuditIp(log.metadata)}
+                      </span>
+                    ) : null}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function formatAuditDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("es", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(date);
+}
+
+function formatAuditAction(action: string) {
+  const labels: Record<string, string> = {
+    "admin.post": "Cambio admin",
+    "admin.patch": "Edicion admin",
+    "admin.delete": "Borrado admin",
+    "director_pin.create": "PIN admin creado",
+    "director_pin.update": "PIN admin actualizado",
+    "director_pin.verified": "PIN admin validado",
+    "director_pin.failed": "PIN admin incorrecto",
+  };
+
+  return labels[action] ?? action;
+}
+
+function formatAuditLocation(metadata: Record<string, unknown>) {
+  const path = typeof metadata.path === "string" ? metadata.path : "";
+  const search = typeof metadata.search === "string" ? metadata.search : "";
+  return path ? `${path}${search}` : "-";
+}
+
+function formatAuditIp(metadata: Record<string, unknown>) {
+  return typeof metadata.ip === "string" && metadata.ip ? `IP ${metadata.ip}` : "";
+}
+
 function readDirectorSessionToken() {
   if (typeof window === "undefined") {
     return "";
@@ -1387,6 +1577,14 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       directorResetPin: "New PIN",
       directorIdentity: "PIN identity",
       directorSignOut: "Close PIN identity",
+      auditModule: "Change queries",
+      auditIntro: "Review recent super admin actions, including who used the PIN identity, when, and which admin route was changed.",
+      auditRefresh: "Refresh",
+      auditEmpty: "No audit records found.",
+      auditWhen: "When",
+      auditWho: "Who",
+      auditWhat: "What changed",
+      auditWhere: "Where",
       noAdminPermissionForAccount: "No administration permission was found for this account.",
       noAdminPermissions: "No administration permissions were found.",
       usersModule: "Users and permissions: create admins",
@@ -1444,6 +1642,14 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       directorResetPin: "Nuevo PIN",
       directorIdentity: "Identidad PIN",
       directorSignOut: "Cerrar identidad PIN",
+      auditModule: "Consultas de cambios",
+      auditIntro: "Consulta las acciones recientes de super admin, quien uso la identidad PIN, cuando y que ruta admin se cambio.",
+      auditRefresh: "Actualizar",
+      auditEmpty: "No hay registros de auditoria.",
+      auditWhen: "Cuando",
+      auditWho: "Quien",
+      auditWhat: "Que cambio",
+      auditWhere: "Donde",
       noAdminPermissionForAccount: "No se encontro ningun permiso de administracion para esta cuenta.",
       noAdminPermissions: "No se encontraron permisos de administracion.",
       usersModule: "Usuarios y permisos: crear admins",

@@ -162,6 +162,9 @@ export async function requireScopedAdmin(request: NextRequest) {
 
     if (director) {
       scope.director = director;
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        await writeSuperAdminActionAudit(admin, request, profile.id, director.id);
+      }
     } else if (
       request.method !== "GET" &&
       request.method !== "HEAD" &&
@@ -456,6 +459,29 @@ export async function getVerifiedDirectorForRequest(
 
 export function hashDirectorSessionToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+async function writeSuperAdminActionAudit(
+  admin: SupabaseAdminClient,
+  request: NextRequest,
+  actorProfileId: string,
+  adminProfileId: string,
+) {
+  await admin.from("audit_logs").insert({
+    actor_profile_id: actorProfileId,
+    director_profile_id: adminProfileId,
+    action: `admin.${request.method.toLowerCase()}`,
+    table_name: "admin_api",
+    metadata: {
+      path: request.nextUrl.pathname,
+      search: request.nextUrl.search || null,
+      ip:
+        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        request.headers.get("x-real-ip") ||
+        null,
+      userAgent: request.headers.get("user-agent") ?? null,
+    },
+  });
 }
 
 export function normalizeEmail(value: unknown) {
