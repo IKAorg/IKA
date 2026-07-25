@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       .limit(500),
     guard.admin
       .from("correction_requests")
-      .select("id,member_id,requested_by,field_key,current_value,requested_value,status,review_notes,reviewed_by,reviewed_at,created_at,updated_at,members(id,ika_number,first_name,last_name,email,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,country_id,dojo_translations(language_code,name))),users_profiles(display_name,email)")
+      .select("id,member_id,requested_by,field_key,current_value,requested_value,status,review_notes,reviewed_by,reviewed_at,created_at,updated_at,members(id,ika_number,first_name,last_name,email,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,country_id,dojo_translations(language_code,name))),requested_by_profile:users_profiles!correction_requests_requested_by_fkey(display_name,email)")
       .eq("field_key", "current_grade")
       .order("created_at", { ascending: false })
       .limit(500),
@@ -887,7 +887,7 @@ function formatGradeReviewRequest(requestItem: Record<string, unknown>) {
   const member = getRelatedRecord(requestItem.members);
   const country = getRelatedRecord(member.countries);
   const dojo = getRelatedRecord(member.dojos);
-  const requestedBy = getRelatedRecord(requestItem.users_profiles);
+  const requestedBy = getRelatedRecord(requestItem.requested_by_profile);
 
   return {
     id: String(requestItem.id),
