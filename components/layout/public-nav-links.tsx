@@ -36,7 +36,7 @@ export function PublicNavLinks({
             aria-current={isActive ? "page" : undefined}
             className={cn(
               isActive
-                ? "font-bold text-[var(--foreground)]"
+                ? "font-extrabold text-black"
                 : "transition hover:text-[var(--foreground)]",
               linkClassName,
             )}
