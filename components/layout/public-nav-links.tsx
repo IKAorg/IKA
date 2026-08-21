@@ -26,8 +26,10 @@ export function PublicNavLinks({
     <nav className={className}>
       {links.map((item) => {
         const href = normalizePath(item.href);
+        const isLocaleHome = href.split("/").filter(Boolean).length === 1;
         const isActive =
-          pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+          pathname === href ||
+          (!isLocaleHome && href !== "/" && pathname.startsWith(`${href}/`));
 
         return (
           <Link
