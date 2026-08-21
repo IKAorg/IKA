@@ -4,6 +4,7 @@ import type { Locale } from "@/lib/i18n/config";
 import type { getDictionary } from "@/lib/i18n/dictionaries";
 import { LanguageSwitcher } from "./language-switcher";
 import { PortalSessionBadge } from "./portal-session-badge";
+import { PublicNavLinks } from "./public-nav-links";
 
 type SiteShellProps = {
   locale: Locale;
@@ -54,17 +55,10 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
             </span>
           </Link>
 
-          <nav className="hidden flex-1 flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-medium text-[var(--muted)] xl:flex">
-            {publicLinks.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="transition hover:text-[var(--foreground)]"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <PublicNavLinks
+            links={publicLinks}
+            className="hidden flex-1 flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-medium text-[var(--muted)] xl:flex"
+          />
 
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             <PortalSessionBadge locale={locale} />
@@ -78,17 +72,11 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
           </div>
         </div>
 
-        <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm font-medium text-[var(--muted)] sm:px-5 xl:hidden">
-          {publicLinks.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="inline-flex min-h-10 items-center transition hover:text-[var(--foreground)]"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <PublicNavLinks
+          links={publicLinks}
+          className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm font-medium text-[var(--muted)] sm:px-5 xl:hidden"
+          linkClassName="inline-flex min-h-10 items-center"
+        />
       </header>
 
       <main>{children}</main>
