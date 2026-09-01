@@ -59,6 +59,28 @@ img {
   height: auto;
 }
 
+main,
+section,
+article,
+div,
+form {
+  min-width: 0;
+}
+
+.ika-horizontal-nav {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ika-horizontal-nav > a,
+.ika-horizontal-nav > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 ::selection {
   background: var(--accent);
   color: white;

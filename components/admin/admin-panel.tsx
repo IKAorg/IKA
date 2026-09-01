@@ -1476,7 +1476,7 @@ function AdminModule({
   return (
     <details
       id={id}
-      className="border border-[var(--line)] bg-white px-4 py-4 sm:px-5 sm:py-5"
+      className="min-w-0 overflow-hidden border border-[var(--line)] bg-white px-4 py-4 sm:px-5 sm:py-5"
       open={isOpen}
       onToggle={(event) => {
         const nextOpen = (event.currentTarget as HTMLDetailsElement).open;
@@ -1488,7 +1488,7 @@ function AdminModule({
     >
       <summary className="cursor-pointer pr-8 text-lg font-semibold leading-tight sm:text-xl">{title}</summary>
       {isOpen || hasOpened ? (
-        <div className="mt-4 sm:mt-5">{children}</div>
+        <div className="mt-4 min-w-0 sm:mt-5">{children}</div>
       ) : null}
     </details>
   );
@@ -1506,7 +1506,7 @@ function AdminGroup({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="grid gap-4">
+    <section id={id} className="grid min-w-0 gap-4">
       <div className="border border-[var(--line)] bg-[var(--paper)] px-4 py-4 sm:px-5">
         <div className="flex items-center gap-3">
           <ShieldCheck size={18} className="text-[var(--accent)]" />

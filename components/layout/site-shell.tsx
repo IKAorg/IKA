@@ -31,10 +31,10 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--background)]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:gap-5 sm:px-5">
+        <div className="mx-auto flex max-w-7xl flex-nowrap items-center gap-3 px-4 py-3 sm:gap-5 sm:px-5">
           <Link
             href={`/${locale}`}
-            className="flex min-w-0 items-center gap-3"
+            className="flex min-w-0 shrink items-center gap-3"
             aria-label={brandLabel}
           >
             <Image
@@ -49,7 +49,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
               <span className="truncate text-lg font-semibold uppercase text-[var(--foreground)]">
                 IKA
               </span>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+              <span className="max-w-[14rem] truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)] lg:max-w-[18rem]">
                 {brandLabel}
               </span>
             </span>
@@ -57,10 +57,10 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
 
           <PublicNavLinks
             links={publicLinks}
-            className="hidden flex-1 flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-medium text-[var(--muted)] xl:flex"
+            className="ika-horizontal-nav hidden flex-1 items-center justify-center gap-x-5 gap-y-2 text-sm font-medium text-[var(--muted)] xl:flex"
           />
 
-          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
             <PortalSessionBadge locale={locale} />
             <LanguageSwitcher locale={locale} />
             <Link
@@ -74,7 +74,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
 
         <PublicNavLinks
           links={publicLinks}
-          className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm font-medium text-[var(--muted)] sm:px-5 xl:hidden"
+          className="ika-horizontal-nav mx-auto flex max-w-7xl items-center gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm font-medium text-[var(--muted)] sm:px-5 xl:hidden"
           linkClassName="inline-flex min-h-10 items-center"
         />
       </header>
