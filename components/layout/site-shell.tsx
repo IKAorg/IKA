@@ -57,7 +57,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
 
           <PublicNavLinks
             links={publicLinks}
-            className="ika-horizontal-nav hidden flex-1 items-center justify-center gap-x-5 gap-y-2 text-sm font-medium text-[var(--muted)] xl:flex"
+            className="ika-horizontal-nav hidden flex-1 items-center justify-center gap-x-4 gap-y-2 text-sm font-medium text-[var(--muted)] xl:flex"
           />
 
           <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
@@ -74,7 +74,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
 
         <PublicNavLinks
           links={publicLinks}
-          className="ika-horizontal-nav mx-auto flex max-w-7xl items-center gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm font-medium text-[var(--muted)] sm:px-5 xl:hidden"
+          className="ika-horizontal-nav mx-auto flex max-w-7xl items-center justify-center gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm font-medium text-[var(--muted)] sm:px-5 xl:hidden"
           linkClassName="inline-flex min-h-10 items-center"
         />
       </header>

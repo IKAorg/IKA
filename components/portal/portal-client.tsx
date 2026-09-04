@@ -2037,6 +2037,12 @@ export function PortalClient({
     }
   }, [getAuthHeaders, saveCachedPortal]);
 
+  useEffect(() => {
+    if (portal && !portal.dashboard && hasAdminPortalRole(portal.roles)) {
+      void loadPortalDashboard();
+    }
+  }, [loadPortalDashboard, portal]);
+
   const loadPortal = useCallback(async (options?: { silent?: boolean }) => {
     const silent = Boolean(options?.silent);
     const keepExistingPortal = silent || Boolean(portalRef.current);

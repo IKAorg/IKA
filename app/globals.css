@@ -68,11 +68,8 @@ form {
 }
 
 .ika-horizontal-nav {
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex-wrap: nowrap;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
+  flex-wrap: wrap;
 }
 
 .ika-horizontal-nav > a,
