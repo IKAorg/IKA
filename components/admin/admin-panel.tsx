@@ -877,6 +877,11 @@ export function AdminPanel({ locale }: AdminPanelProps) {
               disabled={signingOut}
               onClick={() => {
                 setSigningOut(true);
+                window.sessionStorage.removeItem(directorSessionStorageKey);
+                setDirectorToken("");
+                setScope((current) =>
+                  current ? { ...current, director: null } : current,
+                );
                 void signOutAndRedirect(supabase, locale);
               }}
               className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
@@ -1440,8 +1445,22 @@ function readDirectorSessionToken() {
 
   try {
     const raw = window.sessionStorage.getItem(directorSessionStorageKey);
-    return raw ? (JSON.parse(raw) as { token?: string }).token ?? "" : "";
+    const stored = raw
+      ? (JSON.parse(raw) as { token?: string; expiresAt?: string })
+      : null;
+
+    if (!stored?.token) {
+      return "";
+    }
+
+    if (stored.expiresAt && Date.parse(stored.expiresAt) <= Date.now()) {
+      window.sessionStorage.removeItem(directorSessionStorageKey);
+      return "";
+    }
+
+    return stored.token;
   } catch {
+    window.sessionStorage.removeItem(directorSessionStorageKey);
     return "";
   }
 }

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clearAdminSessionBridge } from "@/lib/supabase/admin-session-bridge";
 
-const portalStorageKeys = ["ika-portal-cache"];
+const portalStorageKeys = ["ika-portal-cache", "ika-super-admin-director-session"];
 
 export async function signOutAndRedirect(
   supabase: SupabaseClient,
