@@ -163,6 +163,7 @@ type MemberPatchBody = {
     courseId?: string;
   };
   member?: {
+    externalMemberId?: string;
     firstName?: string;
     lastName?: string;
     email?: string;
@@ -925,6 +926,7 @@ export async function PATCH(request: NextRequest) {
     const updated = await guard.admin
       .from("members")
       .update({
+        external_member_id: normalizeText(input.externalMemberId) || null,
         first_name: firstName,
         last_name: lastName,
         email,

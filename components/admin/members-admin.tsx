@@ -133,6 +133,7 @@ type CourseImportRow = {
 };
 
 type MemberEditForm = {
+  externalMemberId: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -3059,6 +3060,11 @@ export function MembersAdmin({
                         onChange={(value) => updateMemberForm("firstName", value)}
                       />
                       <EditField
+                        label={copy.externalMemberId}
+                        value={memberForm.externalMemberId}
+                        onChange={(value) => updateMemberForm("externalMemberId", value)}
+                      />
+                      <EditField
                         label={copy.lastName}
                         value={memberForm.lastName}
                         onChange={(value) => updateMemberForm("lastName", value)}
@@ -4129,6 +4135,7 @@ function isActiveImportStatus(value: string) {
 
 function memberToForm(member: MemberRow): MemberEditForm {
   return {
+    externalMemberId: member.external_member_id ?? "",
     firstName: member.first_name,
     lastName: member.last_name,
     email: member.email ?? "",
