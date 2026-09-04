@@ -2863,6 +2863,11 @@ function AdminDashboard({
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label={copy.metrics.globalActiveMembers ?? copy.metrics.activeMembers}
+          value={dashboard.totals.globalActiveMembers ?? dashboard.totals.activeMembers}
+          emphasis
+        />
         <MetricCard label={copy.metrics.countries} value={dashboard.totals.countries} />
         <MetricCard
           label={copy.metrics.activeDojos ?? copy.metrics.dojos}
@@ -2872,12 +2877,6 @@ function AdminDashboard({
           label={copy.metrics.coursesRegistered ?? copy.metrics.activeMembers}
           value={dashboard.totals.coursesRegistered ?? dashboard.totals.activeMembers}
         />
-        {!dashboard.scope.isGlobal ? (
-          <MetricCard
-            label={copy.metrics.globalActiveMembers ?? copy.metrics.activeMembers}
-            value={dashboard.totals.globalActiveMembers ?? dashboard.totals.activeMembers}
-          />
-        ) : null}
         <MetricCard label={copy.metrics.totalMembers} value={dashboard.totals.members} />
         <MetricCard label={copy.metrics.activeAdults} value={dashboard.totals.activeAdults} />
         <MetricCard label={copy.metrics.activeChildren} value={dashboard.totals.activeChildren} />
@@ -2937,10 +2936,26 @@ function AdminDashboard({
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: number }) {
+function MetricCard({
+  label,
+  value,
+  emphasis = false,
+}: {
+  label: string;
+  value: number;
+  emphasis?: boolean;
+}) {
   return (
-    <article className="border border-[var(--line)] bg-white p-5">
-      <p className="text-sm font-semibold text-[var(--muted)]">{label}</p>
+    <article
+      className={`border p-5 ${
+        emphasis
+          ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+          : "border-[var(--line)] bg-white"
+      }`}
+    >
+      <p className={`text-sm font-semibold ${emphasis ? "text-white/85" : "text-[var(--muted)]"}`}>
+        {label}
+      </p>
       <p className="mt-2 text-3xl font-semibold">{value}</p>
     </article>
   );
