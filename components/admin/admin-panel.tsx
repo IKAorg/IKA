@@ -149,9 +149,17 @@ type AuditLogEntry = {
 type AdminScopePayload = {
   error?: string;
   scope?: AdminScope;
+  summary?: AdminSummary;
   dashboard?: {
     scope?: AdminScope;
   } | null;
+};
+
+type AdminSummary = {
+  activeMembers: number;
+  countries: number;
+  dojos: number;
+  admins: number;
 };
 
 const portalCacheKey = "ika-portal-cache";
@@ -233,6 +241,10 @@ type AdminPanelCopy = {
   auditWho: string;
   auditWhat: string;
   auditWhere: string;
+  summaryActiveMembers: string;
+  summaryCountries: string;
+  summaryDojos: string;
+  summaryAdmins: string;
 };
 
 const directorSessionStorageKey = "ika-super-admin-director-session";
@@ -242,6 +254,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   const supabase = useMemo(() => createPortalClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [scope, setScope] = useState<AdminScope | null>(null);
+  const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [loadingScope, setLoadingScope] = useState(true);
   const [scopeMessage, setScopeMessage] = useState("");
   const [signingOut, setSigningOut] = useState(false);
@@ -446,6 +459,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
       }
 
       setScope(nextScope ?? null);
+      setSummary(scopePayload?.summary ?? null);
       setScopeMessage(
         nextScope
           ? ""
@@ -831,6 +845,14 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   return (
     <>
       <section className="border border-[var(--line)] bg-white p-4 sm:p-5">
+        {summary ? (
+          <div className="mb-5 grid gap-2 border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <AdminSummaryItem label={copy.summaryActiveMembers} value={summary.activeMembers} strong />
+            <AdminSummaryItem label={copy.summaryCountries} value={summary.countries} />
+            <AdminSummaryItem label={copy.summaryDojos} value={summary.dojos} />
+            <AdminSummaryItem label={copy.summaryAdmins} value={summary.admins} />
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex size-11 items-center justify-center bg-[var(--accent)] text-white">
@@ -1531,6 +1553,27 @@ function AdminLoading() {
   );
 }
 
+function AdminSummaryItem({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] py-1 last:border-b-0 sm:border-b-0">
+      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+        {label}
+      </span>
+      <span className={`text-base ${strong ? "font-extrabold text-[var(--accent)]" : "font-semibold"}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function adminPanelCopy(locale: Locale): AdminPanelCopy {
   const dictionaries: Partial<Record<Locale, Partial<AdminPanelCopy>>> = {
     en: {
@@ -1585,6 +1628,10 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       auditWho: "Who",
       auditWhat: "What changed",
       auditWhere: "Where",
+      summaryActiveMembers: "Active IKA members",
+      summaryCountries: "Countries",
+      summaryDojos: "Published dojos",
+      summaryAdmins: "Admin roles",
       noAdminPermissionForAccount: "No administration permission was found for this account.",
       noAdminPermissions: "No administration permissions were found.",
       usersModule: "Users and permissions: create admins",
@@ -1650,6 +1697,10 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       auditWho: "Quien",
       auditWhat: "Que cambio",
       auditWhere: "Donde",
+      summaryActiveMembers: "Miembros IKA activos",
+      summaryCountries: "Paises",
+      summaryDojos: "Dojos publicados",
+      summaryAdmins: "Roles admin",
       noAdminPermissionForAccount: "No se encontro ningun permiso de administracion para esta cuenta.",
       noAdminPermissions: "No se encontraron permisos de administracion.",
       usersModule: "Usuarios y permisos: crear admins",

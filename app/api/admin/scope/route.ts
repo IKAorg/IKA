@@ -16,6 +16,22 @@ export async function GET(request: NextRequest) {
   }
 
   const { scope } = guard;
+  const [membersResult, countriesResult, dojosResult, adminsResult] = await Promise.all([
+    guard.admin
+      .from("members")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active"),
+    guard.admin
+      .from("countries")
+      .select("id", { count: "exact", head: true }),
+    guard.admin
+      .from("dojos")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "published"),
+    guard.admin
+      .from("user_roles")
+      .select("id", { count: "exact", head: true }),
+  ]);
 
   return NextResponse.json({
     scope: {
@@ -23,6 +39,12 @@ export async function GET(request: NextRequest) {
       isGlobal: scope.isSuperAdmin || scope.isGlobalAdmin,
       countryIds: scope.countryIds,
       dojoIds: scope.dojoIds,
+    },
+    summary: {
+      activeMembers: membersResult.count ?? 0,
+      countries: countriesResult.count ?? 0,
+      dojos: dojosResult.count ?? 0,
+      admins: adminsResult.count ?? 0,
     },
   });
 }
