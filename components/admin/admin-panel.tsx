@@ -159,7 +159,6 @@ type AdminSummary = {
   activeMembers: number;
   countries: number;
   dojos: number;
-  admins: number;
 };
 
 const portalCacheKey = "ika-portal-cache";
@@ -244,7 +243,6 @@ type AdminPanelCopy = {
   summaryActiveMembers: string;
   summaryCountries: string;
   summaryDojos: string;
-  summaryAdmins: string;
 };
 
 const directorSessionStorageKey = "ika-super-admin-director-session";
@@ -845,11 +843,10 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     <>
       <section className="border border-[var(--line)] bg-white p-4 sm:p-5">
         {summary ? (
-          <div className="mb-5 grid gap-2 border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-5 grid gap-2 border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm sm:grid-cols-3">
             <AdminSummaryItem label={copy.summaryActiveMembers} value={summary.activeMembers} strong />
-            <AdminSummaryItem label={copy.summaryCountries} value={summary.countries} />
             <AdminSummaryItem label={copy.summaryDojos} value={summary.dojos} />
-            <AdminSummaryItem label={copy.summaryAdmins} value={summary.admins} />
+            <AdminSummaryItem label={copy.summaryCountries} value={summary.countries} />
           </div>
         ) : null}
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1629,8 +1626,7 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       auditWhere: "Where",
       summaryActiveMembers: "Active IKA members",
       summaryCountries: "Countries",
-      summaryDojos: "Published dojos",
-      summaryAdmins: "Admin roles",
+      summaryDojos: "Current dojos",
       noAdminPermissionForAccount: "No administration permission was found for this account.",
       noAdminPermissions: "No administration permissions were found.",
       usersModule: "Users and permissions: create admins",
@@ -1696,10 +1692,9 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       auditWho: "Quien",
       auditWhat: "Que cambio",
       auditWhere: "Donde",
-      summaryActiveMembers: "Miembros IKA activos",
+      summaryActiveMembers: "Miembros IKA activos totales",
       summaryCountries: "Paises",
-      summaryDojos: "Dojos publicados",
-      summaryAdmins: "Roles admin",
+      summaryDojos: "Dojos actuales",
       noAdminPermissionForAccount: "No se encontro ningun permiso de administracion para esta cuenta.",
       noAdminPermissions: "No se encontraron permisos de administracion.",
       usersModule: "Usuarios y permisos: crear admins",

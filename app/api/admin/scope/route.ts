@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { scope } = guard;
-  const [membersResult, countriesResult, dojosResult, adminsResult] = await Promise.all([
+  const [membersResult, countriesResult, dojosResult] = await Promise.all([
     guard.admin
       .from("members")
       .select("id", { count: "exact", head: true })
@@ -28,9 +28,6 @@ export async function GET(request: NextRequest) {
       .from("dojos")
       .select("id", { count: "exact", head: true })
       .eq("status", "published"),
-    guard.admin
-      .from("user_roles")
-      .select("id", { count: "exact", head: true }),
   ]);
 
   return NextResponse.json({
@@ -44,7 +41,6 @@ export async function GET(request: NextRequest) {
       activeMembers: membersResult.count ?? 0,
       countries: countriesResult.count ?? 0,
       dojos: dojosResult.count ?? 0,
-      admins: adminsResult.count ?? 0,
     },
   });
 }
