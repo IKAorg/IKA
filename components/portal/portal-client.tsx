@@ -2883,7 +2883,6 @@ function AdminDashboard({
           label={copy.metrics.coursesRegistered ?? copy.metrics.activeMembers}
           value={dashboard.totals.coursesRegistered ?? dashboard.totals.activeMembers}
         />
-        <MetricCard label={copy.metrics.totalMembers} value={dashboard.totals.members} />
         <MetricCard label={copy.metrics.activeAdults} value={dashboard.totals.activeAdults} />
         <MetricCard label={copy.metrics.activeChildren} value={dashboard.totals.activeChildren} />
       </div>
