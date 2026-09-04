@@ -620,10 +620,10 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     roleKeys.includes("global_admin");
   const isCountryAdmin = roleKeys.includes("country_admin") || countryIds.length > 0;
   const isDojoAdmin =
-    (roleKeys.includes("dojo_admin") || dojoIds.length > 0) && !isCountryAdmin;
+    roleKeys.includes("dojo_admin") || dojoIds.length > 0;
   const isSuperAdmin = roleKeys.includes("super_admin") || isOfficialSuperAdminSession;
   const canManageUsers = isGlobal;
-  const canManageMembers = isGlobal || isCountryAdmin || isDojoAdmin;
+  const canManageMembers = isGlobal || isDojoAdmin;
   const canManageCourses = isSuperAdmin;
   const canManageLocations = isGlobal || isCountryAdmin;
   const canManageEvents = isGlobal || isCountryAdmin;

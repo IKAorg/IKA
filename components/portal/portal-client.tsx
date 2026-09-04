@@ -174,6 +174,7 @@ type PortalDashboard = {
     activeDojos: number;
     members: number;
     activeMembers: number;
+    globalActiveMembers?: number;
     activeAdults: number;
     activeChildren: number;
     coursesRegistered: number;
@@ -402,6 +403,7 @@ type AdminDashboardCopy = {
     countries: string;
     dojos: string;
     activeMembers: string;
+    globalActiveMembers?: string;
     membersWithEmail?: string;
     activeDojos?: string;
     coursesRegistered?: string;
@@ -441,6 +443,7 @@ const adminDashboardCopies: Partial<Record<Locale, Partial<AdminDashboardCopy>>>
       countries: "Countries",
       dojos: "Dojos",
       activeMembers: "Active Kenshi",
+      globalActiveMembers: "Active IKA Kenshi",
       membersWithEmail: "Kenshi with email",
       activeDojos: "Active dojos",
       coursesRegistered: "IKA courses registered",
@@ -476,6 +479,7 @@ const adminDashboardCopies: Partial<Record<Locale, Partial<AdminDashboardCopy>>>
       countries: "Paises",
       dojos: "Dojos",
       activeMembers: "Kenshi activos",
+      globalActiveMembers: "Kenshis activos IKA",
       membersWithEmail: "Kenshi con email",
       activeDojos: "Dojos activos",
       coursesRegistered: "Cursos IKA registrados",
@@ -2677,6 +2681,7 @@ function AdminDashboard({
 
   const copy = { ...adminDashboardCopies.en!, ...(adminDashboardCopies[locale] ?? {}) } as AdminDashboardCopy;
   const isSuperAdmin = dashboard.scope.roleKeys.includes("super_admin");
+  const canShowMemberList = dashboard.scope.isGlobal || dashboard.scope.dojoIds.length > 0;
 
   const managementBody = (
     <section className="border border-[var(--line)] bg-white p-5">
@@ -2757,63 +2762,65 @@ function AdminDashboard({
                               </span>
                             </span>
                           </summary>
-                          <div className="mt-3 border border-[var(--line)] bg-white">
-                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-semibold">
-                              <span>{copy.dojoKenshi}</span>
-                              <span className="text-[var(--muted)]">
-                                {dojoMembers.length} {copy.records}
-                              </span>
-                            </div>
-                            <div className="overflow-auto" style={{ maxHeight: "28rem" }}>
-                              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                                <thead className="sticky top-0 z-10 bg-white">
-                                  <tr className="border-b border-[var(--line)]">
-                                    <th className="py-2 pl-3 pr-4">{copy.ikaId}</th>
-                                    <th className="py-2 pr-4">{copy.name}</th>
-                                    <th className="py-2 pr-4">{copy.group}</th>
-                                    <th className="py-2 pr-4">{copy.email}</th>
-                                    <th className="py-2 pr-4">{copy.grade}</th>
-                                    <th className="py-2 pr-4">{copy.status}</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {dojoMembers.length === 0 ? (
-                                    <tr>
-                                      <td className="py-3 pl-3 text-[var(--muted)]" colSpan={6}>
-                                        {copy.noKenshi}
-                                      </td>
+                          {canShowMemberList ? (
+                            <div className="mt-3 border border-[var(--line)] bg-white">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-semibold">
+                                <span>{copy.dojoKenshi}</span>
+                                <span className="text-[var(--muted)]">
+                                  {dojoMembers.length} {copy.records}
+                                </span>
+                              </div>
+                              <div className="overflow-auto" style={{ maxHeight: "28rem" }}>
+                                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                                  <thead className="sticky top-0 z-10 bg-white">
+                                    <tr className="border-b border-[var(--line)]">
+                                      <th className="py-2 pl-3 pr-4">{copy.ikaId}</th>
+                                      <th className="py-2 pr-4">{copy.name}</th>
+                                      <th className="py-2 pr-4">{copy.group}</th>
+                                      <th className="py-2 pr-4">{copy.email}</th>
+                                      <th className="py-2 pr-4">{copy.grade}</th>
+                                      <th className="py-2 pr-4">{copy.status}</th>
                                     </tr>
-                                  ) : (
-                                    dojoMembers.map((member) => (
-                                      <tr
-                                        key={member.id}
-                                        className="border-b border-[var(--line)]"
-                                      >
-                                        <td className="py-2 pl-3 pr-4">
-                                          {member.ika_number ?? "-"}
+                                  </thead>
+                                  <tbody>
+                                    {dojoMembers.length === 0 ? (
+                                      <tr>
+                                        <td className="py-3 pl-3 text-[var(--muted)]" colSpan={6}>
+                                          {copy.noKenshi}
                                         </td>
-                                        <td className="py-2 pr-4">
-                                          {member.first_name} {member.last_name}
-                                        </td>
-                                        <td className="py-2 pr-4">
-                                          {member.member_group === "child"
-                                            ? copy.childSingular
-                                            : member.member_group === "adult"
-                                              ? copy.adultSingular
-                                              : "-"}
-                                        </td>
-                                        <td className="py-2 pr-4">{member.email ?? "-"}</td>
-                                        <td className="py-2 pr-4">
-                                          {member.current_grade ?? "-"}
-                                        </td>
-                                        <td className="py-2 pr-4">{member.status}</td>
                                       </tr>
-                                    ))
-                                  )}
-                                </tbody>
-                              </table>
+                                    ) : (
+                                      dojoMembers.map((member) => (
+                                        <tr
+                                          key={member.id}
+                                          className="border-b border-[var(--line)]"
+                                        >
+                                          <td className="py-2 pl-3 pr-4">
+                                            {member.ika_number ?? "-"}
+                                          </td>
+                                          <td className="py-2 pr-4">
+                                            {member.first_name} {member.last_name}
+                                          </td>
+                                          <td className="py-2 pr-4">
+                                            {member.member_group === "child"
+                                              ? copy.childSingular
+                                              : member.member_group === "adult"
+                                                ? copy.adultSingular
+                                                : "-"}
+                                          </td>
+                                          <td className="py-2 pr-4">{member.email ?? "-"}</td>
+                                          <td className="py-2 pr-4">
+                                            {member.current_grade ?? "-"}
+                                          </td>
+                                          <td className="py-2 pr-4">{member.status}</td>
+                                        </tr>
+                                      ))
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
-                          </div>
+                          ) : null}
                         </details>
                       );
                     })
@@ -2865,6 +2872,12 @@ function AdminDashboard({
           label={copy.metrics.coursesRegistered ?? copy.metrics.activeMembers}
           value={dashboard.totals.coursesRegistered ?? dashboard.totals.activeMembers}
         />
+        {!dashboard.scope.isGlobal ? (
+          <MetricCard
+            label={copy.metrics.globalActiveMembers ?? copy.metrics.activeMembers}
+            value={dashboard.totals.globalActiveMembers ?? dashboard.totals.activeMembers}
+          />
+        ) : null}
         <MetricCard label={copy.metrics.totalMembers} value={dashboard.totals.members} />
         <MetricCard label={copy.metrics.activeAdults} value={dashboard.totals.activeAdults} />
         <MetricCard label={copy.metrics.activeChildren} value={dashboard.totals.activeChildren} />

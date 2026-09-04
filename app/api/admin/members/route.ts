@@ -1826,7 +1826,7 @@ async function requireMembersAdmin(request: NextRequest) {
   const roles = profile.user_roles ?? [];
   const roleKeys = roles.map((role) => getRoleKey(role.roles)).filter(Boolean);
   const isAllowed = roleKeys.some((role) =>
-    ["super_admin", "global_admin", "country_admin", "dojo_admin"].includes(
+    ["super_admin", "global_admin", "dojo_admin"].includes(
       role ?? "",
     ),
   );

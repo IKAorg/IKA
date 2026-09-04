@@ -689,6 +689,9 @@ async function getPortalDashboard(
   const activeMembers = visibleMembers.filter(
     (member) => member.status === "active",
   );
+  const globalActiveMembers = allMembers.filter(
+    (member) => member.status === "active",
+  );
   const activeAdults = activeMembers.filter(
     (member) => member.member_group === "adult",
   );
@@ -825,6 +828,8 @@ async function getPortalDashboard(
     return timeB - timeA;
   });
 
+  const canReceiveMemberList = scope.isGlobal || scope.dojoIds.length > 0;
+
   return {
     scope,
   totals: {
@@ -833,13 +838,14 @@ async function getPortalDashboard(
     activeDojos: membersByDojo.filter((dojo) => dojo.activeMembers > 0).length,
       members: visibleMembers.length,
       activeMembers: activeMembers.length,
+      globalActiveMembers: globalActiveMembers.length,
       activeAdults: activeAdults.length,
       activeChildren: activeChildren.length,
       coursesRegistered: uniqueCourses.size,
     },
     countries: visibleCountries.slice(0, 50),
     dojos: visibleDojos.slice(0, 80),
-    members: visibleMembers.slice(0, 100),
+    members: canReceiveMemberList ? visibleMembers.slice(0, 1000) : [],
     createdCourses: createdCourses.slice(0, 200),
   membersByDojo,
   membersByCountry,
