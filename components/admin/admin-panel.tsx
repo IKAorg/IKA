@@ -1559,7 +1559,7 @@ function AdminSummaryItem({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] py-1 last:border-b-0 sm:border-b-0">
+    <div className="flex items-center gap-1.5 border-b border-[var(--line)] py-1 last:border-b-0 sm:border-b-0">
       <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
         {label}
       </span>
