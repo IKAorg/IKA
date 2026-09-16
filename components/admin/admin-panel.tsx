@@ -685,14 +685,11 @@ export function AdminPanel({ locale }: AdminPanelProps) {
       return;
     }
 
-    window.sessionStorage.setItem(
-      directorSessionStorageKey,
-      JSON.stringify({
-        token: data.token,
-        expiresAt: data.expiresAt,
-        director: data.director,
-      }),
-    );
+    writeDirectorSession({
+      token: data.token,
+      expiresAt: data.expiresAt,
+      director: data.director,
+    });
     setDirectorToken(data.token);
     setScope((current) =>
       current ? { ...current, director: data.director ?? null } : current,
@@ -758,7 +755,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
       method: "DELETE",
       headers,
     }).catch(() => null);
-    window.sessionStorage.removeItem(directorSessionStorageKey);
+    clearStoredDirectorSession();
     setDirectorToken("");
     setScope((current) => (current ? { ...current, director: null } : current));
   }
@@ -877,7 +874,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
               disabled={signingOut}
               onClick={() => {
                 setSigningOut(true);
-                window.sessionStorage.removeItem(directorSessionStorageKey);
+                clearStoredDirectorSession();
                 setDirectorToken("");
                 setScope((current) =>
                   current ? { ...current, director: null } : current,
@@ -1444,7 +1441,9 @@ function readDirectorSessionToken() {
   }
 
   try {
-    const raw = window.sessionStorage.getItem(directorSessionStorageKey);
+    const raw =
+      window.localStorage.getItem(directorSessionStorageKey) ??
+      window.sessionStorage.getItem(directorSessionStorageKey);
     const stored = raw
       ? (JSON.parse(raw) as { token?: string; expiresAt?: string })
       : null;
@@ -1454,15 +1453,37 @@ function readDirectorSessionToken() {
     }
 
     if (stored.expiresAt && Date.parse(stored.expiresAt) <= Date.now()) {
-      window.sessionStorage.removeItem(directorSessionStorageKey);
+      clearStoredDirectorSession();
       return "";
     }
 
     return stored.token;
   } catch {
-    window.sessionStorage.removeItem(directorSessionStorageKey);
+    clearStoredDirectorSession();
     return "";
   }
+}
+
+function writeDirectorSession(value: {
+  token: string;
+  expiresAt?: string;
+  director?: DirectorSession;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(directorSessionStorageKey, JSON.stringify(value));
+  window.sessionStorage.removeItem(directorSessionStorageKey);
+}
+
+function clearStoredDirectorSession() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(directorSessionStorageKey);
+  window.sessionStorage.removeItem(directorSessionStorageKey);
 }
 
 async function getClientAdminHeaders(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { ImagePlus, Languages, Loader2, Newspaper, Save, Trash2, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
@@ -42,6 +42,14 @@ type NewsForm = {
   coverImageAlt: string;
 };
 
+type StoredNewsDraft = {
+  userId: string;
+  savedAt: string;
+  form: NewsForm;
+};
+
+const newsDraftStoragePrefix = "ika-news-admin-draft";
+
 function createEmptyForm(locale: Locale): NewsForm {
   return {
     locale,
@@ -55,6 +63,28 @@ function createEmptyForm(locale: Locale): NewsForm {
     coverImageUrl: "",
     coverImageAlt: "",
   };
+}
+
+function hasNewsDraftContent(form: NewsForm) {
+  return Boolean(
+    form.id ||
+      form.title.trim() ||
+      form.slug.trim() ||
+      form.excerpt.trim() ||
+      form.body.trim() ||
+      form.coverImageUrl.trim() ||
+      form.coverImageAlt.trim() ||
+      form.publishedAt ||
+      form.expiresAt,
+  );
+}
+
+function clearNewsDraft(draftStorageKey: string) {
+  if (!draftStorageKey || typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(draftStorageKey);
 }
 
 export function NewsAdmin({
@@ -72,6 +102,12 @@ export function NewsAdmin({
   const [translating, setTranslating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const restoredDraftKeyRef = useRef("");
+  const justRestoredDraftRef = useRef(false);
+  const lastSavedDraftRef = useRef("");
+  const draftStorageKey = session?.user.id
+    ? `${newsDraftStoragePrefix}:${session.user.id}`
+    : "";
 
   const loadNews = useCallback(async () => {
     setLoading(true);
@@ -120,6 +156,59 @@ export function NewsAdmin({
 
     return () => subscription.unsubscribe();
   }, [loadNews, supabase]);
+
+  useEffect(() => {
+    if (!draftStorageKey || restoredDraftKeyRef.current === draftStorageKey) {
+      return;
+    }
+
+    restoredDraftKeyRef.current = draftStorageKey;
+
+    try {
+      const raw = window.localStorage.getItem(draftStorageKey);
+      const stored = raw ? (JSON.parse(raw) as StoredNewsDraft) : null;
+
+      if (stored?.form && hasNewsDraftContent(stored.form)) {
+        justRestoredDraftRef.current = true;
+        setForm(stored.form);
+        lastSavedDraftRef.current = JSON.stringify(stored.form);
+      }
+    } catch {
+      window.localStorage.removeItem(draftStorageKey);
+    }
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (!draftStorageKey || restoredDraftKeyRef.current !== draftStorageKey) {
+      return;
+    }
+
+    if (justRestoredDraftRef.current) {
+      justRestoredDraftRef.current = false;
+      return;
+    }
+
+    if (!hasNewsDraftContent(form)) {
+      window.localStorage.removeItem(draftStorageKey);
+      lastSavedDraftRef.current = "";
+      return;
+    }
+
+    const serialized = JSON.stringify(form);
+    if (serialized === lastSavedDraftRef.current) {
+      return;
+    }
+
+    lastSavedDraftRef.current = serialized;
+    window.localStorage.setItem(
+      draftStorageKey,
+      JSON.stringify({
+        userId: session?.user.id ?? "",
+        savedAt: new Date().toISOString(),
+        form,
+      } satisfies StoredNewsDraft),
+    );
+  }, [draftStorageKey, form, session?.user.id]);
 
   function hydrateForm(item: NewsRow, locale: Locale): NewsForm {
     const translation =
@@ -182,7 +271,10 @@ export function NewsAdmin({
     }
 
     setMessage(copy.saved);
-    setForm(createEmptyForm(form.locale));
+    clearNewsDraft(draftStorageKey);
+    const emptyForm = createEmptyForm(form.locale);
+    lastSavedDraftRef.current = JSON.stringify(emptyForm);
+    setForm(emptyForm);
     await loadNews();
     setSaving(false);
   }
@@ -196,7 +288,10 @@ export function NewsAdmin({
     }
 
     if (form.id === id) {
-      setForm(createEmptyForm(form.locale));
+      clearNewsDraft(draftStorageKey);
+      const emptyForm = createEmptyForm(form.locale);
+      lastSavedDraftRef.current = JSON.stringify(emptyForm);
+      setForm(emptyForm);
     }
 
     setMessage(copy.deleted);
@@ -329,7 +424,11 @@ export function NewsAdmin({
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setForm(hydrateForm(item, form.locale))}
+                      onClick={() => {
+                        const nextForm = hydrateForm(item, form.locale);
+                        lastSavedDraftRef.current = JSON.stringify(nextForm);
+                        setForm(nextForm);
+                      }}
                       className="border border-[var(--line)] px-3 py-2 text-sm font-semibold"
                     >
                       {copy.edit}
@@ -473,7 +572,12 @@ export function NewsAdmin({
           </button>
           <button
             type="button"
-            onClick={() => setForm(createEmptyForm(form.locale))}
+            onClick={() => {
+              clearNewsDraft(draftStorageKey);
+              const emptyForm = createEmptyForm(form.locale);
+              lastSavedDraftRef.current = JSON.stringify(emptyForm);
+              setForm(emptyForm);
+            }}
             className="inline-flex items-center gap-2 border border-[var(--line)] px-4 py-2 font-semibold"
           >
             <Trash2 size={16} />

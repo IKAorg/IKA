@@ -9,7 +9,7 @@ import {
 
 const pinIterations = 120000;
 const pinKeyLength = 32;
-const sessionDurationMs = 12 * 60 * 60 * 1000;
+const sessionDurationMs = 10 * 365 * 24 * 60 * 60 * 1000;
 
 type DirectorRow = {
   id: string;
