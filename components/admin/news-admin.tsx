@@ -270,12 +270,18 @@ export function NewsAdmin({
       return;
     }
 
-    setMessage(copy.saved);
-    clearNewsDraft(draftStorageKey);
+    setMessage(copy.translatingAfterSave);
+    setTranslating(true);
+
+    const translationMessage = await translateNewsItem(result.data.id, form.locale);
     const emptyForm = createEmptyForm(form.locale);
+
+    clearNewsDraft(draftStorageKey);
     lastSavedDraftRef.current = JSON.stringify(emptyForm);
     setForm(emptyForm);
     await loadNews();
+    setMessage(translationMessage ?? copy.savedAndTranslated);
+    setTranslating(false);
     setSaving(false);
   }
 
@@ -351,24 +357,38 @@ export function NewsAdmin({
     setMessage("");
 
     try {
+      const translationMessage = await translateNewsItem(form.id, form.locale);
+      setMessage(translationMessage ?? copy.translated);
+      await loadNews();
+    } catch {
+      setMessage(copy.translateConnectionError);
+    } finally {
+      setTranslating(false);
+    }
+  }
+
+  async function translateNewsItem(newsId: string, sourceLocale: Locale) {
+    try {
       const response = await fetch("/api/admin/translate-news", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          newsId: form.id,
-          sourceLocale: form.locale,
+          newsId,
+          sourceLocale,
         }),
       });
       const result = (await response.json()) as {
         message?: string;
         error?: string;
       };
-      setMessage(result.message ?? result.error ?? copy.translated);
-      await loadNews();
+
+      if (!response.ok) {
+        return result.error ?? copy.translateConnectionError;
+      }
+
+      return result.message ?? copy.translated;
     } catch {
-      setMessage(copy.translateConnectionError);
-    } finally {
-      setTranslating(false);
+      return copy.translateConnectionError;
     }
   }
 
@@ -696,8 +716,14 @@ function getCopy(locale: Locale) {
     translateAll: es ? "Traducir a todos los idiomas" : "Translate to all languages",
     newItem: es ? "Nueva noticia" : "New news item",
     saved: es ? "Noticia guardada." : "News item saved.",
+    savedAndTranslated: es
+      ? "Noticia guardada y traducida a todos los idiomas."
+      : "News item saved and translated to all languages.",
     deleted: es ? "Noticia eliminada." : "News item deleted.",
     translated: es ? "Traduccion completada." : "Translation completed.",
+    translatingAfterSave: es
+      ? "Noticia guardada. Traduciendo automaticamente a todos los idiomas..."
+      : "News item saved. Automatically translating to all languages...",
     saveError: es ? "No se pudo guardar la noticia." : "The news item could not be saved.",
     selectImage: es ? "Selecciona un archivo de imagen." : "Select an image file.",
     saveBeforeTranslate: es ? "Guarda primero la noticia antes de traducirla." : "Save the news item before translating it.",
