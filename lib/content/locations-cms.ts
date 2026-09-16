@@ -139,7 +139,10 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
     return {
       id: country.id,
       code: country.code,
-      membershipType: country.membership_type ?? "official",
+      membershipType: getCountryMembershipType(
+        country.code,
+        country.membership_type,
+      ),
       memberId: country.ika_country_id ?? "",
       name: translation.name,
       slug: translation.slug,
@@ -188,6 +191,19 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   });
 
   return { countries: publicCountries, dojos: publicDojos };
+}
+
+function getCountryMembershipType(
+  code: string,
+  membershipType: "official" | "associated" | null,
+) {
+  const associatedCountryCodes = new Set(["CR", "MY", "FR"]);
+
+  if (associatedCountryCodes.has(code.trim().toUpperCase())) {
+    return "associated";
+  }
+
+  return membershipType ?? "official";
 }
 
 function getCountryFlagUrls(code: string, uploadedFlagUrl?: string) {

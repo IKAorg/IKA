@@ -16,12 +16,8 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
   const content = await getEditablePublicPageContent(safeLocale, "countries");
   const { countries, dojos } = await getPublicCountriesAndDojos(safeLocale);
   const labels = countryPageLabels[safeLocale] ?? countryPageLabels[defaultLocale]!;
-  const officialCountries = countries.filter(
-    (country) => country.membershipType !== "associated",
-  );
-  const associatedCountries = countries.filter(
-    (country) => country.membershipType === "associated",
-  );
+  const officialCountries = countries.filter((country) => !isAssociatedCountry(country));
+  const associatedCountries = countries.filter(isAssociatedCountry);
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-5 sm:py-14">
@@ -281,6 +277,15 @@ function CountrySection({
             );
           })}
     </section>
+  );
+}
+
+function isAssociatedCountry(
+  country: Awaited<ReturnType<typeof getPublicCountriesAndDojos>>["countries"][number],
+) {
+  return (
+    country.membershipType === "associated" ||
+    ["CR", "MY", "FR"].includes(country.code.trim().toUpperCase())
   );
 }
 
