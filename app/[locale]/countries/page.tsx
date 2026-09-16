@@ -511,6 +511,7 @@ function getFlagFallback(code: string) {
     CR: "\u{1F1E8}\u{1F1F7}",
     CZ: "\u{1F1E8}\u{1F1FF}",
     ES: "\u{1F1EA}\u{1F1F8}",
+    FR: "\u{1F1EB}\u{1F1F7}",
     GB: "\u{1F1EC}\u{1F1E7}",
     HK: "\u{1F1ED}\u{1F1F0}",
     ID: "\u{1F1EE}\u{1F1E9}",

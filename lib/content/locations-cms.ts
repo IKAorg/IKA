@@ -194,6 +194,7 @@ function getCountryFlagUrls(code: string, uploadedFlagUrl?: string) {
     CR: ["cr"],
     CZ: ["cz"],
     ES: ["es"],
+    FR: ["fr"],
     GB: ["gb"],
     HK: ["hk"],
     ID: ["id"],

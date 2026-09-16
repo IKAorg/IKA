@@ -24,6 +24,7 @@ import { getCountryCatalog } from "@/lib/i18n/country-catalog";
 import { getPublicPageContent } from "@/lib/i18n/public-pages";
 
 type ContentStatus = "draft" | "published" | "archived";
+type CountryMembershipType = "official" | "associated";
 
 type MediaRow = {
   id: string;
@@ -41,6 +42,7 @@ type CountryTranslationRow = {
 type CountryRow = {
   id: string;
   code: string;
+  membership_type?: CountryMembershipType | null;
   ika_country_id?: string | null;
   status: ContentStatus;
   is_public: boolean;
@@ -80,6 +82,7 @@ type CountryForm = {
   id?: string;
   locale: Locale;
   code: string;
+  membershipType: CountryMembershipType;
   status: ContentStatus;
   isPublic: boolean;
   name: string;
@@ -130,6 +133,7 @@ function createEmptyCountryForm(locale: Locale): CountryForm {
   return {
     locale,
     code: "",
+    membershipType: "official",
     status: "published",
     isPublic: true,
     name: "",
@@ -166,17 +170,18 @@ function createEmptyDojoForm(locale: Locale): DojoForm {
 }
 
 const legacyCountrySeeds = [
-  { code: "CR", index: 0 },
+  { code: "CR", index: 0, membershipType: "associated" },
   { code: "CZ", index: 1 },
   { code: "ID", index: 2 },
-  { code: "MY", index: 3 },
-  { code: "IE", index: 4 },
-  { code: "IT", index: 5 },
-  { code: "HK", index: 6 },
-  { code: "JP", index: 7 },
-  { code: "ES", index: 8 },
-  { code: "CH", index: 9 },
-  { code: "GB", index: 10 },
+  { code: "MY", index: 3, membershipType: "associated" },
+  { code: "FR", index: 4, membershipType: "associated" },
+  { code: "IE", index: 5 },
+  { code: "IT", index: 6 },
+  { code: "HK", index: 7 },
+  { code: "JP", index: 8 },
+  { code: "ES", index: 9 },
+  { code: "CH", index: 10 },
+  { code: "GB", index: 11 },
 ];
 
 export function LocationsAdmin({
@@ -597,6 +602,7 @@ export function LocationsAdmin({
             code: seed.code,
             status: "published",
             is_public: true,
+            membership_type: seed.membershipType ?? "official",
           })
           .eq("id", countryId);
 
@@ -612,6 +618,7 @@ export function LocationsAdmin({
             code: seed.code,
             status: "published",
             is_public: true,
+            membership_type: seed.membershipType ?? "official",
           })
           .select("id")
           .single();
@@ -1091,11 +1098,17 @@ function CountryList({
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
-                      {country.status} · {country.is_public ? copy.public : copy.hidden}
+                      {country.status} · {country.is_public ? copy.public : copy.hidden} ·{" "}
+                      {country.membership_type === "associated"
+                        ? copy.associatedMember
+                        : copy.officialMember}
                     </p>
                     <h4 className="mt-1 text-lg font-semibold">{name}</h4>
                     <p className="text-sm text-[var(--muted)]">
-                      {country.ika_country_id ?? copy.pendingId} · {country.code}
+                      {country.membership_type === "associated"
+                        ? copy.noIkaCountryId
+                        : country.ika_country_id ?? copy.pendingId}{" "}
+                      · {country.code}
                     </p>
                   </div>
                 </div>
@@ -1293,6 +1306,20 @@ function CountryFormView({
             options={statusOptions(copy)}
           />
         </div>
+        <AdminSelect
+          label={copy.membershipType}
+          value={form.membershipType}
+          onChange={(value) =>
+            setForm((current) => ({
+              ...current,
+              membershipType: value as CountryMembershipType,
+            }))
+          }
+          options={[
+            { value: "official", label: copy.officialMember },
+            { value: "associated", label: copy.associatedMember },
+          ]}
+        />
         <TextInput
           label={copy.countryCodeReadOnly}
           value={form.code}
@@ -1899,6 +1926,7 @@ function hydrateCountryForm(
     id: country.id,
     locale,
     code: country.code,
+    membershipType: country.membership_type ?? "official",
     status: country.status,
     isPublic: country.is_public,
     name: translation?.name ?? "",
@@ -2007,8 +2035,8 @@ function locationsAdminCopy(locale: Locale) {
       : "Paste or upload the CSV exported from Google Sheets to create or update countries in bulk. Super admin only.",
     importCountriesButton: es ? "Importar paises" : "Import countries",
     importCountriesHelper: es
-      ? "Columnas recomendadas: country_code, country_name, status, is_public, responsible_person, representative_entity, responsible_email, description_es."
-      : "Recommended columns: country_code, country_name, status, is_public, responsible_person, representative_entity, responsible_email, description_es.",
+      ? "Columnas recomendadas: country_code, country_name, membership_type, status, is_public, responsible_person, representative_entity, responsible_email, description_es. membership_type: official o associated."
+      : "Recommended columns: country_code, country_name, membership_type, status, is_public, responsible_person, representative_entity, responsible_email, description_es. membership_type: official or associated.",
     loadingCountries: es ? "Cargando paises..." : "Loading countries...",
     noCountries: es
       ? "Aun no hay paises en Supabase. Importa los existentes para empezar a editarlos."
@@ -2016,6 +2044,10 @@ function locationsAdminCopy(locale: Locale) {
     public: es ? "Publico" : "Public",
     hidden: es ? "Oculto" : "Hidden",
     pendingId: es ? "ID pendiente" : "Pending ID",
+    noIkaCountryId: es ? "Sin ID IKA de pais" : "No country IKA ID",
+    membershipType: es ? "Tipo de membresia" : "Membership type",
+    officialMember: es ? "Miembro oficial" : "Official member",
+    associatedMember: es ? "Miembro asociado" : "Associated member",
     edit: es ? "Editar" : "Edit",
     delete: es ? "Borrar" : "Delete",
     loadingDojos: es ? "Cargando dojos..." : "Loading dojos...",

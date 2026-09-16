@@ -27,6 +27,7 @@ type LocationBody = {
     id?: string;
     locale?: string;
     code?: string;
+    membershipType?: string;
     status?: string;
     isPublic?: boolean;
     name?: string;
@@ -92,6 +93,7 @@ export async function GET(request: NextRequest) {
   const countries = scopeCountries(
     (countriesResult.data ?? []) as Array<{
       id: string;
+      membership_type: string;
       flag_media_id: string | null;
       main_image_media_id: string | null;
       representative_entity: string | null;
@@ -200,6 +202,14 @@ async function importCountriesCsv(
     const status = normalizeStatus(
       getRowValue(row.record, ["status", "estado"]) || "published",
     );
+    const membershipType = normalizeMembershipType(
+      getRowValue(row.record, [
+        "membership_type",
+        "tipo_miembro",
+        "tipo_membresia",
+        "member_type",
+      ]),
+    );
     const isPublic = normalizeYesNo(
       getRowValue(row.record, ["is_public", "publico", "public"]),
       true,
@@ -248,6 +258,7 @@ async function importCountriesCsv(
 
     const payload = {
       code,
+      membership_type: membershipType,
       status,
       is_public: isPublic,
       responsible_person: responsiblePerson || null,
@@ -499,6 +510,7 @@ async function saveCountry(
 
   const payload = {
     code,
+    membership_type: normalizeMembershipType(input.membershipType),
     status: normalizeStatus(input.status),
     is_public: input.isPublic !== false,
     responsible_person: normalizeText(input.responsiblePerson) || null,
@@ -804,7 +816,7 @@ function getScopedCountries(
   const query = admin
     .from("countries")
     .select(
-      "id,code,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,membership_type,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
     )
     .order("code", { ascending: true });
 
@@ -821,6 +833,25 @@ function getScopedCountries(
   }
 
   return query.in("id", countryIds);
+}
+
+function normalizeMembershipType(value: unknown) {
+  const normalized = normalizeText(value).toLowerCase();
+
+  if (
+    [
+      "associated",
+      "associate",
+      "asociado",
+      "asociada",
+      "miembro_asociado",
+      "miembro asociado",
+    ].includes(normalized)
+  ) {
+    return "associated";
+  }
+
+  return "official";
 }
 
 function normalizeText(value: unknown) {
