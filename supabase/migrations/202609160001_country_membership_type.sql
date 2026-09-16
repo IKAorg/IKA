@@ -52,12 +52,7 @@ translations(language_code, name, slug) as (
     ('fr', 'France', 'france'),
     ('ja', 'France', 'france'),
     ('zh', 'France', 'france'),
-    ('cs', 'Francie', 'francie'),
-    ('id', 'Prancis', 'prancis'),
-    ('ms', 'Perancis', 'perancis'),
-    ('eu', 'Frantzia', 'frantzia'),
-    ('pt', 'Franca', 'franca'),
-    ('de', 'Frankreich', 'frankreich')
+    ('cs', 'Francie', 'francie')
 )
 insert into public.country_translations (
   country_id,
