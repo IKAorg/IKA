@@ -11,6 +11,7 @@ type MediaRow = {
 type CountryRow = {
   id: string;
   code: string;
+  membership_type: "official" | "associated" | null;
   ika_country_id: string | null;
   responsible_person: string | null;
   representative_entity: string | null;
@@ -47,6 +48,7 @@ type DojoRow = {
 export type PublicCountry = {
   id: string;
   code: string;
+  membershipType: "official" | "associated";
   memberId: string;
   name: string;
   slug: string;
@@ -88,7 +90,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   const { data: countriesData } = await supabase
     .from("countries")
     .select(
-      "id,code,ika_country_id,responsible_person,representative_entity,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,membership_type,ika_country_id,responsible_person,representative_entity,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
     )
     .eq("status", "published")
     .eq("is_public", true)
@@ -137,6 +139,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
     return {
       id: country.id,
       code: country.code,
+      membershipType: country.membership_type ?? "official",
       memberId: country.ika_country_id ?? "",
       name: translation.name,
       slug: translation.slug,

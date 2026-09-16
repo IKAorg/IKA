@@ -16,6 +16,12 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
   const content = await getEditablePublicPageContent(safeLocale, "countries");
   const { countries, dojos } = await getPublicCountriesAndDojos(safeLocale);
   const labels = countryPageLabels[safeLocale] ?? countryPageLabels[defaultLocale]!;
+  const officialCountries = countries.filter(
+    (country) => country.membershipType !== "associated",
+  );
+  const associatedCountries = countries.filter(
+    (country) => country.membershipType === "associated",
+  );
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-5 sm:py-14">
@@ -28,8 +34,57 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
       </p>
       <PublicContentBlocks blocks={content.blocks} />
       {countries.length > 0 ? (
-        <div id="countries-list" className="mt-10 grid gap-3">
-          {countries.map((country) => {
+        <div id="countries-list" className="mt-10 grid gap-10">
+          <CountrySection
+            title={labels.officialMembers ?? "Members"}
+            countries={officialCountries}
+            dojos={dojos}
+            labels={labels}
+          />
+          <CountrySection
+            title={labels.associatedMembers ?? "Associated members"}
+            countries={associatedCountries}
+            dojos={dojos}
+            labels={labels}
+          />
+        </div>
+      ) : !content.hasCmsBlocks ? (
+        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {content.countries?.map((country) => (
+            <div
+              key={country}
+              className="border border-[var(--line)] bg-white p-4"
+            >
+              {country}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CountrySection({
+  title,
+  countries,
+  dojos,
+  labels,
+}: {
+  title: string;
+  countries: Awaited<ReturnType<typeof getPublicCountriesAndDojos>>["countries"];
+  dojos: Awaited<ReturnType<typeof getPublicCountriesAndDojos>>["dojos"];
+  labels: (typeof countryPageLabels)[Locale];
+}) {
+  if (!countries.length || !labels) {
+    return null;
+  }
+
+  return (
+    <section className="grid gap-3">
+      <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+        {title}
+      </h2>
+      {countries.map((country) => {
             const countryDojos = dojos.filter(
               (dojo) => dojo.countryId === country.id,
             );
@@ -225,19 +280,6 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
               </details>
             );
           })}
-        </div>
-      ) : !content.hasCmsBlocks ? (
-        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {content.countries?.map((country) => (
-            <div
-              key={country}
-              className="border border-[var(--line)] bg-white p-4"
-            >
-              {country}
-            </div>
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -262,6 +304,8 @@ const countryPageLabels: Partial<
       phone: string;
       email: string;
       flag: string;
+      officialMembers?: string;
+      associatedMembers?: string;
     }
   >
 > = {
@@ -282,6 +326,8 @@ const countryPageLabels: Partial<
     phone: "Phone",
     email: "Email",
     flag: "flag",
+    officialMembers: "Members",
+    associatedMembers: "Associated members",
   },
   es: {
     countryContact: "Representante oficial IKA",
@@ -300,6 +346,8 @@ const countryPageLabels: Partial<
     phone: "Telefono",
     email: "Email",
     flag: "bandera",
+    officialMembers: "Miembros",
+    associatedMembers: "Miembros asociados",
   },
   it: {
     countryContact: "Rappresentante ufficiale IKA",
