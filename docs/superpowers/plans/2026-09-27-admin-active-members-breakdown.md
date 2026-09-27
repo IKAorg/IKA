@@ -74,6 +74,6 @@ Expected: compilacion y generacion de paginas con exit code 0.
 Run: `git diff --check`
 Expected: sin errores de espacios ni conflictos.
 
-- [ ] **Step 4: Publicar**
+- [x] **Step 4: Publicar**
 
 Crear un commit limitado a estos archivos y enviar `main` a `origin` para activar el despliegue de Vercel.
