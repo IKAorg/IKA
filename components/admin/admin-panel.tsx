@@ -157,6 +157,8 @@ type AdminScopePayload = {
 
 type AdminSummary = {
   activeMembers: number;
+  activeAdults: number;
+  activeChildren: number;
   countries: number;
   dojos: number;
 };
@@ -241,6 +243,8 @@ type AdminPanelCopy = {
   auditWhat: string;
   auditWhere: string;
   summaryActiveMembers: string;
+  summaryAdults: string;
+  summaryChildren: string;
   summaryCountries: string;
   summaryDojos: string;
 };
@@ -841,7 +845,27 @@ export function AdminPanel({ locale }: AdminPanelProps) {
       <section className="border border-[var(--line)] bg-white p-4 sm:p-5">
         {summary ? (
           <div className="mb-5 grid gap-2 border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm sm:grid-cols-3">
-            <AdminSummaryItem label={copy.summaryActiveMembers} value={summary.activeMembers} strong />
+            <AdminSummaryItem
+              label={copy.summaryActiveMembers}
+              value={summary.activeMembers}
+              strong
+              detail={
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+                  <span className="whitespace-nowrap">
+                    {copy.summaryAdults}{" "}
+                    <strong className="text-sm text-[var(--foreground)]">
+                      {summary.activeAdults}
+                    </strong>
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {copy.summaryChildren}{" "}
+                    <strong className="text-sm text-[var(--foreground)]">
+                      {summary.activeChildren}
+                    </strong>
+                  </span>
+                </div>
+              }
+            />
             <AdminSummaryItem label={copy.summaryDojos} value={summary.dojos} />
             <AdminSummaryItem label={copy.summaryCountries} value={summary.countries} />
           </div>
@@ -1593,19 +1617,28 @@ function AdminSummaryItem({
   label,
   value,
   strong = false,
+  detail,
 }: {
   label: string;
   value: number;
   strong?: boolean;
+  detail?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-1.5 border-b border-[var(--line)] py-1 last:border-b-0 sm:border-b-0">
-      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
-        {label}
-      </span>
-      <span className={`text-base ${strong ? "font-extrabold text-[var(--accent)]" : "font-semibold"}`}>
-        {value}
-      </span>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--line)] py-1 last:border-b-0 sm:border-b-0">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+          {label}
+        </span>
+        <span
+          className={`text-base ${
+            strong ? "font-extrabold text-[var(--accent)]" : "font-semibold"
+          }`}
+        >
+          {value}
+        </span>
+      </div>
+      {detail}
     </div>
   );
 }
@@ -1665,6 +1698,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       auditWhat: "What changed",
       auditWhere: "Where",
       summaryActiveMembers: "Active IKA members",
+      summaryAdults: "Adults",
+      summaryChildren: "Children",
       summaryCountries: "Countries",
       summaryDojos: "Current dojos",
       noAdminPermissionForAccount: "No administration permission was found for this account.",
@@ -1733,6 +1768,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       auditWhat: "Que cambio",
       auditWhere: "Donde",
       summaryActiveMembers: "Miembros IKA activos totales",
+      summaryAdults: "Adultos",
+      summaryChildren: "Niños",
       summaryCountries: "Paises",
       summaryDojos: "Dojos actuales",
       noAdminPermissionForAccount: "No se encontro ningun permiso de administracion para esta cuenta.",
@@ -1749,6 +1786,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Instructores oficiales IKA",
     },
     it: {
+      summaryAdults: "Adulti",
+      summaryChildren: "Bambini",
       noAdminPermissionForAccount: "Non e stato trovato alcun permesso di amministrazione per questo account.",
       noAdminPermissions: "Non sono stati trovati permessi di amministrazione.",
       usersModule: "Utenti e permessi: creare admin",
@@ -1763,6 +1802,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Istruttori ufficiali IKA",
     },
     fr: {
+      summaryAdults: "Adultes",
+      summaryChildren: "Enfants",
       noAdminPermissionForAccount: "Aucune autorisation d'administration n'a ete trouvee pour ce compte.",
       noAdminPermissions: "Aucune autorisation d'administration n'a ete trouvee.",
       usersModule: "Utilisateurs et permissions : creer des admins",
@@ -1776,7 +1817,17 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       pagesModule: "Pages publiques",
       instructorsModule: "Instructeurs officiels IKA",
     },
+    ja: {
+      summaryAdults: "成人",
+      summaryChildren: "子ども",
+    },
+    zh: {
+      summaryAdults: "成人",
+      summaryChildren: "儿童",
+    },
     cs: {
+      summaryAdults: "Dospělí",
+      summaryChildren: "Děti",
       noAdminPermissionForAccount: "Pro tento ucet nebylo nalezeno zadne administracni opravneni.",
       noAdminPermissions: "Nebyla nalezena zadna administracni opravneni.",
       usersModule: "Uzivatele a opravneni: vytvorit adminy",
@@ -1791,6 +1842,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Oficialni instruktori IKA",
     },
     id: {
+      summaryAdults: "Dewasa",
+      summaryChildren: "Anak-anak",
       noAdminPermissionForAccount: "Tidak ditemukan izin administrasi untuk akun ini.",
       noAdminPermissions: "Tidak ditemukan izin administrasi.",
       usersModule: "Pengguna dan izin: buat admin",
@@ -1805,6 +1858,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Instruktur resmi IKA",
     },
     ms: {
+      summaryAdults: "Dewasa",
+      summaryChildren: "Kanak-kanak",
       noAdminPermissionForAccount: "Tiada kebenaran pentadbiran ditemui untuk akaun ini.",
       noAdminPermissions: "Tiada kebenaran pentadbiran ditemui.",
       usersModule: "Pengguna dan kebenaran: cipta admin",
@@ -1819,6 +1874,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Jurulatih rasmi IKA",
     },
     eu: {
+      summaryAdults: "Helduak",
+      summaryChildren: "Haurrak",
       noAdminPermissionForAccount: "Ez da administrazio-baimenik aurkitu kontu honentzat.",
       noAdminPermissions: "Ez da administrazio-baimenik aurkitu.",
       usersModule: "Erabiltzaileak eta baimenak: adminak sortu",
@@ -1833,6 +1890,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "IKAko irakasle ofizialak",
     },
     pt: {
+      summaryAdults: "Adultos",
+      summaryChildren: "Crianças",
       noAdminPermissionForAccount: "Nao foi encontrada qualquer permissao de administracao para esta conta.",
       noAdminPermissions: "Nao foram encontradas permissoes de administracao.",
       usersModule: "Utilizadores e permissoes: criar admins",
@@ -1847,6 +1906,8 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Instrutores oficiais IKA",
     },
     de: {
+      summaryAdults: "Erwachsene",
+      summaryChildren: "Kinder",
       noAdminPermissionForAccount: "Fur dieses Konto wurde keine Administrationsberechtigung gefunden.",
       noAdminPermissions: "Es wurden keine Administrationsberechtigungen gefunden.",
       usersModule: "Benutzer und Berechtigungen: Admins erstellen",

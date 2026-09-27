@@ -16,11 +16,27 @@ export async function GET(request: NextRequest) {
   }
 
   const { scope } = guard;
-  const [membersResult, countriesResult, dojosResult] = await Promise.all([
+  const [
+    membersResult,
+    adultsResult,
+    childrenResult,
+    countriesResult,
+    dojosResult,
+  ] = await Promise.all([
     guard.admin
       .from("members")
       .select("id", { count: "exact", head: true })
       .eq("status", "active"),
+    guard.admin
+      .from("members")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active")
+      .eq("member_group", "adult"),
+    guard.admin
+      .from("members")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active")
+      .eq("member_group", "child"),
     guard.admin
       .from("countries")
       .select("id", { count: "exact", head: true }),
@@ -39,6 +55,8 @@ export async function GET(request: NextRequest) {
     },
     summary: {
       activeMembers: membersResult.count ?? 0,
+      activeAdults: adultsResult.count ?? 0,
+      activeChildren: childrenResult.count ?? 0,
       countries: countriesResult.count ?? 0,
       dojos: dojosResult.count ?? 0,
     },
