@@ -4,6 +4,7 @@ import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { createPublicSupabaseClient } from "@/lib/supabase/public-client";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
 import { getLocaleForCountryCode } from "@/lib/i18n/country-locale";
+import { getMemberImportIdentityStrategy } from "@/lib/admin/member-import-identity";
 
 type ScopeRole = {
   country_id: string | null;
@@ -1248,7 +1249,8 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const existingByExternalId = row.externalMemberId
+    const identityStrategy = getMemberImportIdentityStrategy(row);
+    const existingByExternalId = identityStrategy === "external"
       ? await guard.admin
           .from("members")
           .select("id")
@@ -1256,24 +1258,22 @@ export async function POST(request: NextRequest) {
           .eq("external_member_id", row.externalMemberId)
           .maybeSingle<{ id: string }>()
       : { data: null, error: null };
-    const existingByEmail = existingByExternalId.data
-      ? { data: null, error: null }
-      : row.email
+    const existingByEmail = identityStrategy === "email"
       ? await guard.admin
           .from("members")
           .select("id")
           .ilike("email", row.email)
           .maybeSingle<{ id: string }>()
       : { data: null, error: null };
-    const existingByName = existingByExternalId.data || existingByEmail.data
-      ? { data: null, error: null }
-      : await guard.admin
+    const existingByName = identityStrategy === "name"
+      ? await guard.admin
           .from("members")
           .select("id")
           .eq("dojo_id", dojoId)
           .ilike("first_name", row.firstName)
           .ilike("last_name", row.lastName)
-          .maybeSingle<{ id: string }>();
+          .maybeSingle<{ id: string }>()
+      : { data: null, error: null };
     const existingMember =
       existingByExternalId.data ?? existingByEmail.data ?? existingByName.data;
 
