@@ -13,6 +13,7 @@ import {
   LogOut,
   MapPinned,
   ShieldCheck,
+  Trash2,
   UserCog,
   UsersRound,
 } from "lucide-react";
@@ -227,6 +228,11 @@ type AdminPanelCopy = {
   directorPin: string;
   directorCreate: string;
   directorSave: string;
+  directorDelete: string;
+  directorDeleteConfirm: (name: string) => string;
+  directorDeleted: string;
+  directorDeleteError: string;
+  directorDeleteCurrent: string;
   directorActive: string;
   directorInactive: string;
   directorHasPin: string;
@@ -753,6 +759,33 @@ export function AdminPanel({ locale }: AdminPanelProps) {
     await loadDirectorProfiles();
   }
 
+  async function deleteDirector(nextDirector: DirectorProfile) {
+    if (!window.confirm(copy.directorDeleteConfirm(nextDirector.displayName))) {
+      return;
+    }
+
+    setDirectorMessage("");
+    const headers = await getClientAdminHeaders(supabase, sessionRef.current);
+    const response = await fetch(
+      `/api/admin/director-pin?directorId=${encodeURIComponent(nextDirector.id)}`,
+      {
+        method: "DELETE",
+        headers,
+      },
+    );
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+
+    if (!response.ok) {
+      setDirectorMessage(data.error ?? copy.directorDeleteError);
+      return;
+    }
+
+    await loadDirectorProfiles();
+    setDirectorMessage(copy.directorDeleted);
+  }
+
   async function clearDirectorIdentity() {
     const headers = await getClientAdminHeaders(supabase, sessionRef.current);
     await fetch("/api/admin/director-pin", {
@@ -980,7 +1013,9 @@ export function AdminPanel({ locale }: AdminPanelProps) {
               onFormChange={setDirectorForm}
               onCreate={createDirector}
               onUpdate={updateDirector}
+              onDelete={deleteDirector}
               onReload={loadDirectorProfiles}
+              currentDirectorId={scope.director?.id ?? ""}
             />
           </AdminModule>
         ) : null}
@@ -1181,7 +1216,9 @@ function DirectorPinAdmin({
   onFormChange,
   onCreate,
   onUpdate,
+  onDelete,
   onReload,
+  currentDirectorId,
 }: {
   copy: AdminPanelCopy;
   directors: DirectorProfile[];
@@ -1192,7 +1229,9 @@ function DirectorPinAdmin({
     director: DirectorProfile,
     patch: { displayName?: string; pin?: string; isActive?: boolean },
   ) => void;
+  onDelete: (director: DirectorProfile) => void;
   onReload: () => void;
+  currentDirectorId: string;
 }) {
   const [resetPins, setResetPins] = useState<Record<string, string>>({});
 
@@ -1258,7 +1297,7 @@ function DirectorPinAdmin({
             >
               {director.isActive ? copy.directorActive : copy.directorInactive}
             </button>
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
               <input
                 value={resetPins[director.id] ?? ""}
                 onChange={(event) =>
@@ -1282,6 +1321,20 @@ function DirectorPinAdmin({
                 className="inline-flex min-h-11 items-center justify-center border border-[var(--line)] px-3 text-sm font-semibold"
               >
                 {copy.directorSave}
+              </button>
+              <button
+                type="button"
+                disabled={director.id === currentDirectorId}
+                onClick={() => onDelete(director)}
+                aria-label={copy.directorDelete}
+                title={
+                  director.id === currentDirectorId
+                    ? copy.directorDeleteCurrent
+                    : copy.directorDelete
+                }
+                className="inline-flex size-11 items-center justify-center border border-[var(--line)] text-[var(--accent)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <Trash2 size={18} />
               </button>
             </div>
           </div>
@@ -1442,6 +1495,7 @@ function formatAuditAction(action: string) {
     "admin.delete": "Borrado admin",
     "director_pin.create": "PIN admin creado",
     "director_pin.update": "PIN admin actualizado",
+    "director_pin.delete": "PIN admin eliminado",
     "director_pin.verified": "PIN admin validado",
     "director_pin.failed": "PIN admin incorrecto",
   };
@@ -1682,6 +1736,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       directorPin: "PIN",
       directorCreate: "Create admin",
       directorSave: "Save",
+      directorDelete: "Delete admin",
+      directorDeleteConfirm: (name) => `Permanently delete ${name}?`,
+      directorDeleted: "Admin deleted.",
+      directorDeleteError: "The admin could not be deleted.",
+      directorDeleteCurrent: "You cannot delete your current PIN identity.",
       directorActive: "Active",
       directorInactive: "Inactive",
       directorHasPin: "PIN configured",
@@ -1752,6 +1811,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       directorPin: "PIN",
       directorCreate: "Crear admin",
       directorSave: "Guardar",
+      directorDelete: "Eliminar admin",
+      directorDeleteConfirm: (name) => `¿Eliminar definitivamente a ${name}?`,
+      directorDeleted: "Admin eliminado.",
+      directorDeleteError: "No se pudo eliminar el admin.",
+      directorDeleteCurrent: "No puedes eliminar tu identidad PIN actual.",
       directorActive: "Activo",
       directorInactive: "Inactivo",
       directorHasPin: "PIN configurado",
@@ -1786,6 +1850,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Instructores oficiales IKA",
     },
     it: {
+      directorDelete: "Elimina admin",
+      directorDeleteConfirm: (name) => `Eliminare definitivamente ${name}?`,
+      directorDeleted: "Admin eliminato.",
+      directorDeleteError: "Impossibile eliminare l'admin.",
+      directorDeleteCurrent: "Non puoi eliminare la tua identita PIN attuale.",
       summaryAdults: "Adulti",
       summaryChildren: "Bambini",
       noAdminPermissionForAccount: "Non e stato trovato alcun permesso di amministrazione per questo account.",
@@ -1802,6 +1871,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Istruttori ufficiali IKA",
     },
     fr: {
+      directorDelete: "Supprimer l'admin",
+      directorDeleteConfirm: (name) => `Supprimer definitivement ${name} ?`,
+      directorDeleted: "Admin supprime.",
+      directorDeleteError: "Impossible de supprimer l'admin.",
+      directorDeleteCurrent: "Vous ne pouvez pas supprimer votre identite PIN actuelle.",
       summaryAdults: "Adultes",
       summaryChildren: "Enfants",
       noAdminPermissionForAccount: "Aucune autorisation d'administration n'a ete trouvee pour ce compte.",
@@ -1818,14 +1892,29 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Instructeurs officiels IKA",
     },
     ja: {
+      directorDelete: "管理者を削除",
+      directorDeleteConfirm: (name) => `${name} を完全に削除しますか？`,
+      directorDeleted: "管理者を削除しました。",
+      directorDeleteError: "管理者を削除できませんでした。",
+      directorDeleteCurrent: "現在使用中のPIN IDは削除できません。",
       summaryAdults: "成人",
       summaryChildren: "子ども",
     },
     zh: {
+      directorDelete: "删除管理员",
+      directorDeleteConfirm: (name) => `永久删除 ${name}？`,
+      directorDeleted: "管理员已删除。",
+      directorDeleteError: "无法删除管理员。",
+      directorDeleteCurrent: "不能删除当前使用的PIN身份。",
       summaryAdults: "成人",
       summaryChildren: "儿童",
     },
     cs: {
+      directorDelete: "Odstranit administratora",
+      directorDeleteConfirm: (name) => `Trvale odstranit ${name}?`,
+      directorDeleted: "Administrator byl odstranen.",
+      directorDeleteError: "Administratora se nepodarilo odstranit.",
+      directorDeleteCurrent: "Nelze odstranit aktualne pouzivanou PIN identitu.",
       summaryAdults: "Dospělí",
       summaryChildren: "Děti",
       noAdminPermissionForAccount: "Pro tento ucet nebylo nalezeno zadne administracni opravneni.",
@@ -1842,6 +1931,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Oficialni instruktori IKA",
     },
     id: {
+      directorDelete: "Hapus admin",
+      directorDeleteConfirm: (name) => `Hapus ${name} secara permanen?`,
+      directorDeleted: "Admin telah dihapus.",
+      directorDeleteError: "Admin tidak dapat dihapus.",
+      directorDeleteCurrent: "Anda tidak dapat menghapus identitas PIN yang sedang digunakan.",
       summaryAdults: "Dewasa",
       summaryChildren: "Anak-anak",
       noAdminPermissionForAccount: "Tidak ditemukan izin administrasi untuk akun ini.",
@@ -1858,6 +1952,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Instruktur resmi IKA",
     },
     ms: {
+      directorDelete: "Padam admin",
+      directorDeleteConfirm: (name) => `Padam ${name} secara kekal?`,
+      directorDeleted: "Admin telah dipadam.",
+      directorDeleteError: "Admin tidak dapat dipadam.",
+      directorDeleteCurrent: "Anda tidak boleh memadam identiti PIN yang sedang digunakan.",
       summaryAdults: "Dewasa",
       summaryChildren: "Kanak-kanak",
       noAdminPermissionForAccount: "Tiada kebenaran pentadbiran ditemui untuk akaun ini.",
@@ -1874,6 +1973,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Jurulatih rasmi IKA",
     },
     eu: {
+      directorDelete: "Ezabatu administratzailea",
+      directorDeleteConfirm: (name) => `${name} behin betiko ezabatu?`,
+      directorDeleted: "Administratzailea ezabatu da.",
+      directorDeleteError: "Ezin izan da administratzailea ezabatu.",
+      directorDeleteCurrent: "Ezin duzu uneko PIN identitatea ezabatu.",
       summaryAdults: "Helduak",
       summaryChildren: "Haurrak",
       noAdminPermissionForAccount: "Ez da administrazio-baimenik aurkitu kontu honentzat.",
@@ -1890,6 +1994,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "IKAko irakasle ofizialak",
     },
     pt: {
+      directorDelete: "Eliminar administrador",
+      directorDeleteConfirm: (name) => `Eliminar ${name} permanentemente?`,
+      directorDeleted: "Administrador eliminado.",
+      directorDeleteError: "Nao foi possivel eliminar o administrador.",
+      directorDeleteCurrent: "Nao pode eliminar a identidade PIN atual.",
       summaryAdults: "Adultos",
       summaryChildren: "Crianças",
       noAdminPermissionForAccount: "Nao foi encontrada qualquer permissao de administracao para esta conta.",
@@ -1906,6 +2015,11 @@ function adminPanelCopy(locale: Locale): AdminPanelCopy {
       instructorsModule: "Instrutores oficiais IKA",
     },
     de: {
+      directorDelete: "Admin löschen",
+      directorDeleteConfirm: (name) => `${name} dauerhaft löschen?`,
+      directorDeleted: "Admin gelöscht.",
+      directorDeleteError: "Der Admin konnte nicht gelöscht werden.",
+      directorDeleteCurrent: "Die aktuell verwendete PIN-Identität kann nicht gelöscht werden.",
       summaryAdults: "Erwachsene",
       summaryChildren: "Kinder",
       noAdminPermissionForAccount: "Fur dieses Konto wurde keine Administrationsberechtigung gefunden.",

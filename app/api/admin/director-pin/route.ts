@@ -6,6 +6,7 @@ import {
   normalizeText,
   requireScopedAdmin,
 } from "@/lib/admin/request-forms";
+import { validateDirectorDeletion } from "@/lib/admin/director-deletion";
 
 const pinIterations = 120000;
 const pinKeyLength = 32;
@@ -203,15 +204,78 @@ export async function DELETE(request: NextRequest) {
     return jsonError(guard.error, guard.status);
   }
 
-  const token = normalizeText(request.headers.get("x-ika-director-session"));
-  if (token) {
-    await guard.admin
-      .from("super_admin_director_sessions")
-      .update({ revoked_at: new Date().toISOString() })
-      .eq("token_hash", hashDirectorSessionToken(token));
+  const directorId = normalizeText(request.nextUrl.searchParams.get("directorId"));
+
+  if (!directorId) {
+    const token = normalizeText(request.headers.get("x-ika-director-session"));
+    if (token) {
+      await guard.admin
+        .from("super_admin_director_sessions")
+        .update({ revoked_at: new Date().toISOString() })
+        .eq("token_hash", hashDirectorSessionToken(token));
+    }
+
+    return NextResponse.json({ ok: true });
   }
 
-  return NextResponse.json({ ok: true });
+  if (!guard.scope.isSuperAdmin) {
+    return jsonError("Solo super admin puede eliminar PIN de admins.", 403);
+  }
+
+  if (!guard.scope.director) {
+    return jsonError("Valida tu PIN antes de eliminar admins.", 403);
+  }
+
+  const [target, activeDirectors] = await Promise.all([
+    guard.admin
+      .from("super_admin_directors")
+      .select("id,display_name,is_active")
+      .eq("id", directorId)
+      .maybeSingle<{ id: string; display_name: string; is_active: boolean }>(),
+    guard.admin
+      .from("super_admin_directors")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true),
+  ]);
+
+  if (target.error || activeDirectors.error) {
+    return jsonError(target.error?.message ?? activeDirectors.error?.message ?? "", 500);
+  }
+
+  if (!target.data) {
+    return jsonError("El admin que quieres eliminar ya no existe.", 404);
+  }
+
+  const validationError = validateDirectorDeletion({
+    targetId: directorId,
+    currentDirectorId: guard.scope.director.id,
+    targetIsActive: target.data.is_active,
+    activeDirectorCount: activeDirectors.count ?? 0,
+  });
+
+  if (validationError) {
+    return jsonError(validationError, 400);
+  }
+
+  await writeDirectorAudit(guard.admin, {
+    actorProfileId: guard.scope.profileId,
+    directorId: guard.scope.director.id,
+    action: "director_pin.delete",
+    targetDirectorId: directorId,
+    metadata: { targetDisplayName: target.data.display_name },
+    request,
+  });
+
+  const deleted = await guard.admin
+    .from("super_admin_directors")
+    .delete()
+    .eq("id", directorId);
+
+  if (deleted.error) {
+    return jsonError(deleted.error.message, 500);
+  }
+
+  return NextResponse.json({ ok: true, directorId });
 }
 
 async function verifyDirectorPin(
@@ -342,6 +406,7 @@ async function writeDirectorAudit(
     directorId: string;
     action: string;
     targetDirectorId: string;
+    metadata?: Record<string, unknown>;
     request: NextRequest;
   },
 ) {
@@ -354,6 +419,7 @@ async function writeDirectorAudit(
     metadata: {
       ip: getClientIp(input.request),
       userAgent: input.request.headers.get("user-agent") ?? null,
+      ...input.metadata,
     },
   });
 }
