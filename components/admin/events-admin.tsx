@@ -18,6 +18,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import Image from "next/image";
 import { optimizeImageForUpload } from "@/lib/media/optimize-image";
+import { uploadImageToDrive } from "@/lib/media/upload-to-drive";
 import { createClient } from "@/lib/supabase/browser";
 import { getAdminSessionBridgeHeaders } from "@/lib/supabase/admin-session-bridge";
 import {
@@ -609,28 +610,14 @@ export function EventsAdmin({
       outputType: "image/webp",
       fileNameBase: file.name,
     });
-    const extension = optimizedFile.name.split(".").pop()?.toLowerCase() || "webp";
-    const uniqueId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : String(file.lastModified);
-    const safeName = slugify(optimizedFile.name.replace(/\.[^.]+$/, "")) || "event-cover";
-    const storagePath = `events/${uniqueId}-${safeName}.${extension}`;
-
-    const { error } = await supabase.storage.from("public-media").upload(storagePath, optimizedFile, {
-      cacheControl: "31536000",
-      contentType: optimizedFile.type,
-      upsert: true,
-    });
-
-    if (error) {
-      setMessage(error.message);
+    try {
+      const url = await uploadImageToDrive(optimizedFile, "events");
+      setForm((current) => ({ ...current, coverImageUrl: url }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo subir la imagen.");
       setUploading(false);
       return;
     }
-
-    const { data } = supabase.storage.from("public-media").getPublicUrl(storagePath);
-    setForm((current) => ({ ...current, coverImageUrl: data.publicUrl }));
     setUploading(false);
   }
 

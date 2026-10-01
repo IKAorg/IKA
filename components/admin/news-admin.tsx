@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ImagePlus, Languages, Loader2, Newspaper, Save, Trash2, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { optimizeImageForUpload } from "@/lib/media/optimize-image";
+import { uploadImageToDrive } from "@/lib/media/upload-to-drive";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, localeLabels, locales, type Locale } from "@/lib/i18n/config";
 
@@ -320,30 +321,14 @@ export function NewsAdmin({
       outputType: "image/webp",
       fileNameBase: file.name,
     });
-    const extension = optimizedFile.name.split(".").pop()?.toLowerCase() || "webp";
-    const uniqueId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : String(file.lastModified);
-    const safeName = slugify(optimizedFile.name.replace(/\.[^.]+$/, "")) || "news-cover";
-    const storagePath = `news/${uniqueId}-${safeName}.${extension}`;
-
-    const { error } = await supabase.storage
-      .from("public-media")
-      .upload(storagePath, optimizedFile, {
-        cacheControl: "31536000",
-        contentType: optimizedFile.type,
-        upsert: true,
-      });
-
-    if (error) {
-      setMessage(error.message);
+    try {
+      const url = await uploadImageToDrive(optimizedFile, "news");
+      setForm((current) => ({ ...current, coverImageUrl: url }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo subir la imagen.");
       setUploading(false);
       return;
     }
-
-    const { data } = supabase.storage.from("public-media").getPublicUrl(storagePath);
-    setForm((current) => ({ ...current, coverImageUrl: data.publicUrl }));
     setUploading(false);
   }
 

@@ -18,6 +18,7 @@ import {
   getOfficialInstructorsAdminCopy,
 } from "@/lib/admin/official-instructors-copy";
 import { optimizeImageForUpload } from "@/lib/media/optimize-image";
+import { uploadImageToDrive } from "@/lib/media/upload-to-drive";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 
@@ -301,37 +302,18 @@ export function OfficialInstructorsAdmin({
       fileNameBase: file.name,
     });
 
-    const extension = optimizedFile.name.split(".").pop()?.toLowerCase() || "webp";
-    const uniqueId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : String(Date.now());
-    const safeName = slugify(optimizedFile.name.replace(/\.[^.]+$/, "")) || "instructor";
-    const storagePath = `official-instructors/${uniqueId}-${safeName}.${extension}`;
-
-    const { error } = await supabase.storage
-      .from("public-media")
-      .upload(storagePath, optimizedFile, {
-        cacheControl: "31536000",
-        contentType: optimizedFile.type,
-        upsert: true,
-      });
-
-    if (error) {
-      setMessage(error.message);
+    try {
+      const url = await uploadImageToDrive(optimizedFile, "instructors");
+      setForm((current) => ({
+        ...current,
+        photoUrl: url,
+        photoAlt: current.photoAlt || current.fullName,
+      }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo subir la imagen.");
       setUploading(false);
       return;
     }
-
-    const { data } = supabase.storage
-      .from("public-media")
-      .getPublicUrl(storagePath);
-
-    setForm((current) => ({
-      ...current,
-      photoUrl: data.publicUrl,
-      photoAlt: current.photoAlt || current.fullName,
-    }));
     setUploading(false);
   }
 
@@ -866,14 +848,4 @@ function getInitials(value: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
-}
-
-function slugify(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }

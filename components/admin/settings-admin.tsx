@@ -13,6 +13,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { adminLocales } from "@/lib/admin/admin-locales";
 import { optimizeImageForUpload } from "@/lib/media/optimize-image";
+import { uploadImageToDrive } from "@/lib/media/upload-to-drive";
 import { getSettingsAdminCopy } from "@/lib/admin/settings-admin-copy";
 import type { Locale } from "@/lib/i18n/config";
 import { createClient } from "@/lib/supabase/browser";
@@ -159,29 +160,14 @@ export function SettingsAdmin({ initialLocale }: { initialLocale: Locale }) {
       fileNameBase: file.name,
     });
 
-    const extension = optimizedFile.name.split(".").pop()?.toLowerCase() || "webp";
-    const baseName = slugify(optimizedFile.name.replace(/\.[^.]+$/, "")) || "secretary";
-    const storagePath = `about/secretary-general/${Date.now()}-${baseName}.${extension}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("public-media")
-      .upload(storagePath, optimizedFile, {
-        cacheControl: "31536000",
-        contentType: optimizedFile.type,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      setMessage(uploadError.message);
+    try {
+      const url = await uploadImageToDrive(optimizedFile, "pages");
+      setSecretary((current) => ({ ...current, photoUrl: url }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo subir la imagen.");
       setUploading(false);
       return;
     }
-
-    const { data } = supabase.storage
-      .from("public-media")
-      .getPublicUrl(storagePath);
-
-    setSecretary((current) => ({ ...current, photoUrl: data.publicUrl }));
     setUploading(false);
   }
 
@@ -517,7 +503,6 @@ export function SettingsAdmin({ initialLocale }: { initialLocale: Locale }) {
     </section>
   );
 }
-
 function NumberField({
   label,
   value,
@@ -584,14 +569,4 @@ function clampSeconds(value: unknown, fallback: number) {
   }
 
   return Math.min(180, Math.max(18, Math.round(numberValue)));
-}
-
-function slugify(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }

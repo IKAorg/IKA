@@ -2,6 +2,8 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
+import type { SupabaseAdminClient } from "@/lib/admin/request-forms";
+import { uploadDriveImage } from "@/lib/google-drive/media";
 
 type UntypedTable = {
   Row: Record<string, unknown>;
@@ -490,22 +492,19 @@ async function uploadMemberProfileImage(
     return { error: "La foto no puede superar 5 MB.", url: "" };
   }
 
-  const storagePath = `members/${memberId}/profile-${Date.now()}.${extension}`;
-  const uploaded = await supabase.storage
-    .from("public-media")
-    .upload(storagePath, buffer, {
-      cacheControl: "31536000",
-      contentType: mimeType,
-      upsert: true,
+  try {
+    const uploaded = await uploadDriveImage({
+      admin: supabase as unknown as SupabaseAdminClient,
+      input: buffer,
+      originalName: normalizeOptionalText(upload.name) || `profile.${extension}`,
+      category: "profiles",
+      visibility: "private",
+      memberId,
     });
-
-  if (uploaded.error) {
-    return { error: uploaded.error.message, url: "" };
+    return { error: "", url: uploaded.url };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo subir la foto a Drive.", url: "" };
   }
-
-  const { data } = supabase.storage.from("public-media").getPublicUrl(storagePath);
-
-  return { error: "", url: data.publicUrl };
 }
 
 async function getPortalRequestContext(request: NextRequest) {

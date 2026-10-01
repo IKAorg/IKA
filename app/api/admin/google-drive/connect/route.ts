@@ -10,7 +10,10 @@ export async function GET(request: NextRequest) {
   }
   const state = createOauthState();
   const redirectUri = new URL("/api/admin/google-drive/callback", request.nextUrl.origin).toString();
-  const response = NextResponse.redirect(getGoogleAuthorizationUrl(redirectUri, state));
+  const authorizationUrl = getGoogleAuthorizationUrl(redirectUri, state);
+  const response = request.headers.get("accept")?.includes("application/json")
+    ? NextResponse.json({ authorizationUrl })
+    : NextResponse.redirect(authorizationUrl);
   response.cookies.set("ika-drive-oauth-state", state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -20,4 +23,3 @@ export async function GET(request: NextRequest) {
   });
   return response;
 }
-

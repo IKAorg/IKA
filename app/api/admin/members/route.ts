@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { createPublicSupabaseClient } from "@/lib/supabase/public-client";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
+import { uploadDriveImage } from "@/lib/google-drive/media";
 import { getLocaleForCountryCode } from "@/lib/i18n/country-locale";
 import { getMemberImportIdentityStrategy } from "@/lib/admin/member-import-identity";
 
@@ -2556,23 +2557,19 @@ async function uploadMemberProfileImage(
     return { error: "La imagen no puede superar 5 MB." };
   }
 
-  const safeName = slugify(normalizeText(upload?.name).replace(/\.[^.]+$/, "")) || "foto";
-  const storagePath = `members/${memberId}/profile-${Date.now()}-${safeName}.${extension}`;
-  const stored = await supabase.storage
-    .from("public-media")
-    .upload(storagePath, buffer, {
-      cacheControl: "31536000",
-      contentType: mimeType,
-      upsert: true,
+  try {
+    const uploaded = await uploadDriveImage({
+      admin: supabase,
+      input: buffer,
+      originalName: normalizeText(upload?.name) || `profile.${extension}`,
+      category: "profiles",
+      visibility: "private",
+      memberId,
     });
-
-  if (stored.error) {
-    return { error: stored.error.message };
+    return { url: uploaded.url };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo subir la foto a Drive." };
   }
-
-  const { data } = supabase.storage.from("public-media").getPublicUrl(storagePath);
-
-  return { url: data.publicUrl };
 }
 
 function normalizeEmail(value: unknown) {

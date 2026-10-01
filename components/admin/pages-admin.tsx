@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { optimizeImageForUpload } from "@/lib/media/optimize-image";
+import { uploadImageToDrive } from "@/lib/media/upload-to-drive";
 import { createClient } from "@/lib/supabase/browser";
 import { defaultLocale, localeLabels, type Locale } from "@/lib/i18n/config";
 import {
@@ -365,38 +366,18 @@ export function PagesAdmin({
       fileNameBase: `${form.pageKey}-${file.name}`,
     });
 
-    const extension = optimizedFile.name.split(".").pop()?.toLowerCase() || "webp";
-    const safePage = slugify(form.pageKey) || "page";
-    const uniqueId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : String(file.lastModified);
-    const safeName =
-      slugify(optimizedFile.name.replace(/\.[^.]+$/, "")) || `imagen-${uniqueId}`;
-    const storagePath = `pages/${safePage}/${uniqueId}-${safeName}.${extension}`;
-
-    const { error } = await supabase.storage
-      .from("public-media")
-      .upload(storagePath, optimizedFile, {
-        cacheControl: "31536000",
-        contentType: optimizedFile.type,
-        upsert: true,
-      });
-
-    if (error) {
-      setMessage(error.message);
+    let url: string;
+    try {
+      url = await uploadImageToDrive(optimizedFile, "pages");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo subir la imagen.");
       setUploadingBlockImageId("");
       return;
     }
-
-    const { data } = supabase.storage
-      .from("public-media")
-      .getPublicUrl(storagePath);
-
     setPages((current) =>
       updateLocalBlock(current, form.pageId, {
         ...block,
-        data: { ...block.data, image: data.publicUrl },
+        data: { ...block.data, image: url },
       }),
     );
     setUploadingBlockImageId("");

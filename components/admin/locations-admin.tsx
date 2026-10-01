@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 import { optimizeImageForUpload } from "@/lib/media/optimize-image";
+import { uploadImageToDrive } from "@/lib/media/upload-to-drive";
 import {
   getAdminSessionBridgeHeaders,
   hasAdminSessionBridge,
@@ -828,32 +829,15 @@ export function LocationsAdmin({
       fileNameBase: `${scope}-${file.name}`,
     });
 
-    const extension = optimizedFile.name.split(".").pop()?.toLowerCase() || "webp";
-    const safeScope = slugify(scope) || "image";
-    const safeName =
-      slugify(optimizedFile.name.replace(/\.[^.]+$/, "")) || `imagen-${Date.now()}`;
-    const storagePath = `locations/${safeScope}/${Date.now()}-${safeName}.${extension}`;
-
-    const { error } = await supabase.storage
-      .from("public-media")
-      .upload(storagePath, optimizedFile, {
-        cacheControl: "31536000",
-        contentType: optimizedFile.type,
-        upsert: true,
-      });
-
-    setUploadingField(null);
-
-    if (error) {
-      setMessage(error.message);
+    try {
+      const url = await uploadImageToDrive(optimizedFile, "locations");
+      setUploadingField(null);
+      return url;
+    } catch (error) {
+      setUploadingField(null);
+      setMessage(error instanceof Error ? error.message : "No se pudo subir la imagen.");
       return null;
     }
-
-    const { data } = supabase.storage
-      .from("public-media")
-      .getPublicUrl(storagePath);
-
-    return data.publicUrl;
   }
 
   async function getUniqueDojoSlug(

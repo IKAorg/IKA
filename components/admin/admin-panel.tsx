@@ -110,6 +110,11 @@ const SettingsAdmin = dynamic(
   },
 );
 
+const GoogleDriveAdmin = dynamic(
+  () => import("@/components/admin/google-drive-admin").then((mod) => mod.GoogleDriveAdmin),
+  { ssr: false, loading: () => <AdminLoading /> },
+);
+
 type AdminPanelProps = {
   locale: Locale;
 };
@@ -1017,6 +1022,12 @@ export function AdminPanel({ locale }: AdminPanelProps) {
               onReload={loadDirectorProfiles}
               currentDirectorId={scope.director?.id ?? ""}
             />
+          </AdminModule>
+        ) : null}
+
+        {isSuperAdmin ? (
+          <AdminModule id="admin-google-drive" title="Google Drive">
+            <GoogleDriveAdmin locale={locale} />
           </AdminModule>
         ) : null}
 
