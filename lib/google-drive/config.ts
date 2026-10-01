@@ -11,5 +11,6 @@ export const driveFolderIds = {
   profiles: "14EhI2U2A_4OAJR3rVxptFoT0NQb6Hu5c",
 } as const;
 
-export type DriveMediaCategory = keyof Omit<typeof driveFolderIds, "root" | "public" | "private">;
+export type DriveFolderMap = Record<keyof typeof driveFolderIds, string>;
 
+export type DriveMediaCategory = keyof Omit<typeof driveFolderIds, "root" | "public" | "private">;

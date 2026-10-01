@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseAdminClient } from "@/lib/admin/request-forms";
 import { driveFetch } from "./client";
-import { driveFolderIds, type DriveMediaCategory } from "./config";
+import type { DriveMediaCategory } from "./config";
+import { getConnectedFolderId } from "./folders";
 import { optimizeImage } from "./image-processing";
 
 export async function uploadDriveImage(args: {
@@ -19,7 +20,7 @@ export async function uploadDriveImage(args: {
   const assetId = randomUUID();
   const cleanBase = args.originalName.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 80) || "image";
   const fileName = `${cleanBase}-${assetId.slice(0, 8)}.webp`;
-  const folderId = driveFolderIds[args.category];
+  const folderId = await getConnectedFolderId(args.admin, args.category);
   const boundary = `ika-${randomUUID()}`;
   const metadata = JSON.stringify({ name: fileName, parents: [folderId] });
   const body = Buffer.concat([

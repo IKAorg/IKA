@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireScopedAdmin } from "@/lib/admin/request-forms";
-import { driveFolderIds } from "@/lib/google-drive/config";
 import { encryptSecret } from "@/lib/google-drive/crypto";
+import { ensureDriveFolderTree } from "@/lib/google-drive/folders";
 import { exchangeAuthorizationCode, verifyOauthState } from "@/lib/google-drive/oauth";
 
 export async function GET(request: NextRequest) {
@@ -25,14 +25,15 @@ export async function GET(request: NextRequest) {
       headers: { authorization: `Bearer ${tokens.access_token}` },
     });
     const user = (await userInfo.json()) as { email?: string };
+    const folderMap = await ensureDriveFolderTree(tokens.access_token as string);
     const saved = await guard.admin.from("google_drive_connections").upsert({
       provider: "google_drive",
       account_email: user.email || null,
       encrypted_refresh_token: encrypted.encrypted,
       token_iv: encrypted.iv,
       token_auth_tag: encrypted.authTag,
-      root_folder_id: driveFolderIds.root,
-      folder_map: driveFolderIds,
+      root_folder_id: folderMap.root,
+      folder_map: folderMap,
       connected_by: guard.scope.profileId,
     }, { onConflict: "provider" });
     if (saved.error) throw saved.error;
@@ -44,4 +45,3 @@ export async function GET(request: NextRequest) {
   response.cookies.delete("ika-drive-oauth-state");
   return response;
 }
-
