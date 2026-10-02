@@ -2693,20 +2693,25 @@ function AdminDashboard({
   const managementBody = (
     <section className="border border-[var(--line)] bg-white p-5">
       {!isSuperAdmin ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-2xl font-semibold">{copy.managementTitle}</h3>
-          <a
-            href={`/${locale}/admin`}
-            onClick={() => {
-              if (session) {
-                saveAdminSessionBridge(session);
-              }
-            }}
-            className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
-          >
-            <ExternalLink size={15} />
-            {copy.editInfo}
-          </a>
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--line)] pb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+              {copy.dashboardEyebrow}
+            </p>
+            <h3 className="mt-1 text-2xl font-semibold">{copy.managementTitle}</h3>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-[var(--muted)]">
+            <span>
+              <strong className="text-base text-[var(--ink)]">{dashboard.totals.countries}</strong>{" "}
+              {copy.metrics.countries}
+            </span>
+            <span>
+              <strong className="text-base text-[var(--ink)]">
+                {dashboard.totals.activeDojos ?? dashboard.totals.dojos}
+              </strong>{" "}
+              {copy.metrics.activeDojos ?? copy.metrics.dojos}
+            </span>
+          </div>
         </div>
       ) : null}
       <div className="mt-4 grid gap-3">
@@ -2721,25 +2726,33 @@ function AdminDashboard({
             return (
               <details
                 key={country.countryId}
-                className="border border-[var(--line)] bg-[var(--paper)] p-3"
+                className="group border border-[var(--line)] bg-[var(--paper)] transition-colors open:bg-white"
               >
-                <summary className="cursor-pointer">
-                  <span className="inline-flex flex-wrap items-center gap-3 text-lg font-semibold">
+                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 p-3 marker:content-none">
+                  <span className="inline-flex min-w-0 flex-wrap items-center gap-3 text-lg font-semibold">
                     {country.logoUrl ? (
                       <img
                         src={country.logoUrl}
                         alt=""
-                        className="size-12 border border-[var(--line)] bg-white object-contain p-1"
+                        className="size-11 shrink-0 border border-[var(--line)] bg-white object-contain p-1"
                       />
                     ) : null}
-                    <span>
-                      {country.countryName} · {country.dojoCount} {copy.metrics.dojos} ·{" "}
-                      {country.activeMembers} {copy.activeKenshi} · {copy.adults}{" "}
-                      {country.activeAdults} / {copy.children} {country.activeChildren}
+                    <span className="min-w-0">
+                      <span className="block">{country.countryName}</span>
+                      <span className="mt-1 block text-sm font-normal text-[var(--muted)]">
+                        {country.dojoCount} {copy.metrics.dojos} · {country.activeMembers}{" "}
+                        {copy.activeKenshi} · {copy.adults} {country.activeAdults} / {copy.children}{" "}
+                        {country.activeChildren}
+                      </span>
                     </span>
                   </span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180"
+                    size={20}
+                  />
                 </summary>
-                <div className="mt-3 grid gap-3">
+                <div className="grid gap-3 border-t border-[var(--line)] p-3">
                   {countryDojos.length === 0 ? (
                     <p className="text-sm text-[var(--muted)]">{copy.noDojos}</p>
                   ) : (
@@ -2751,10 +2764,10 @@ function AdminDashboard({
                       return (
                         <details
                           key={dojo.dojoId}
-                          className="border border-[var(--line)] bg-white p-3"
+                          className="group/dojo border border-[var(--line)] bg-white"
                         >
-                          <summary className="cursor-pointer">
-                            <span className="inline-flex flex-wrap items-center gap-3 font-semibold">
+                          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 p-3 marker:content-none">
+                            <span className="inline-flex min-w-0 flex-wrap items-center gap-3 font-semibold">
                               {dojo.logoUrl ? (
                                 <img
                                   src={dojo.logoUrl}
@@ -2762,12 +2775,20 @@ function AdminDashboard({
                                   className="size-10 border border-[var(--line)] bg-white object-contain p-1"
                                 />
                               ) : null}
-                              <span>
-                                {dojo.dojoName} · {dojo.activeMembers} {copy.activeKenshi} /{" "}
-                                {dojo.totalMembers} {copy.total} · {copy.adults}{" "}
-                                {dojo.activeAdults} / {copy.children} {dojo.activeChildren}
+                              <span className="min-w-0">
+                                <span className="block">{dojo.dojoName}</span>
+                                <span className="mt-1 block text-sm font-normal text-[var(--muted)]">
+                                  {dojo.activeMembers} {copy.activeKenshi} / {dojo.totalMembers}{" "}
+                                  {copy.total} · {copy.adults} {dojo.activeAdults} / {copy.children}{" "}
+                                  {dojo.activeChildren}
+                                </span>
                               </span>
                             </span>
+                            <ChevronDown
+                              aria-hidden="true"
+                              className="shrink-0 text-[var(--muted)] transition-transform group-open/dojo:rotate-180"
+                              size={18}
+                            />
                           </summary>
                           {canShowMemberList ? (
                             <div className="mt-3 border border-[var(--line)] bg-white">
