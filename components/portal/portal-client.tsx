@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileBadge,
   CalendarCheck2,
+  ChevronDown,
   KeyRound,
   Loader2,
   LogOut,
@@ -3552,12 +3553,14 @@ function MemberPanel({
         </div>
       </section>
 
-      <section className="border border-[var(--line)] bg-white p-5">
-        <div className="flex items-center gap-3">
-          <FileBadge size={22} className="text-[var(--accent)]" />
-          <h3 className="text-2xl font-semibold">{copy.gradeHistoryTitle}</h3>
-        </div>
-        <div className="mt-5 grid gap-3">
+      <details className="group border border-[#d9dde5] bg-white shadow-[0_8px_24px_rgba(14,27,50,0.04)]">
+        <summary className="flex cursor-pointer list-none items-center gap-4 p-5 transition hover:bg-[#f7f8fa] sm:p-6 [&::-webkit-details-marker]:hidden">
+          <span className="flex size-11 shrink-0 items-center justify-center bg-[#111d33] text-white"><FileBadge size={21} /></span>
+          <h3 className="min-w-0 flex-1 text-lg font-semibold text-[#111d33] sm:text-2xl">{copy.gradeHistoryTitle}</h3>
+          <span className="border border-[#d9dde5] bg-[#f4f6f9] px-2.5 py-1 text-xs font-semibold text-[#5c6678]">{grades.length}</span>
+          <ChevronDown size={22} className="shrink-0 text-[var(--accent)] transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="grid gap-3 border-t border-[#e2e5ea] p-5 sm:p-6">
           {grades.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">{copy.noGrades}</p>
           ) : (
@@ -3590,17 +3593,20 @@ function MemberPanel({
             ))
           )}
         </div>
-      </section>
+      </details>
 
-      <section className="border border-[var(--line)] bg-white p-5">
-        <div className="flex items-center gap-3">
-          <CalendarCheck2 size={22} className="text-[var(--accent)]" />
-          <h3 className="text-2xl font-semibold">
+      <details className="group border border-[#d9dde5] bg-white shadow-[0_8px_24px_rgba(14,27,50,0.04)]">
+        <summary className="flex cursor-pointer list-none items-center gap-4 p-5 transition hover:bg-[#f7f8fa] sm:p-6 [&::-webkit-details-marker]:hidden">
+          <span className="flex size-11 shrink-0 items-center justify-center bg-[#111d33] text-white"><CalendarCheck2 size={21} /></span>
+          <h3 className="min-w-0 flex-1 text-lg font-semibold text-[#111d33] sm:text-2xl">
             {myEventsTitle}
           </h3>
-        </div>
-        <p className="mt-2 text-sm text-[var(--muted)]">{eventSectionHelp}</p>
-        <div className="mt-5 grid gap-4">
+          <span className="border border-[#d9dde5] bg-[#f4f6f9] px-2.5 py-1 text-xs font-semibold text-[#5c6678]">{eventRegistrations.length}</span>
+          <ChevronDown size={22} className="shrink-0 text-[var(--accent)] transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="border-t border-[#e2e5ea] p-5 sm:p-6">
+          <p className="text-sm text-[var(--muted)]">{eventSectionHelp}</p>
+          <div className="mt-5 grid gap-4">
           {eventRegistrations.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
               {noEventsRegistered}
@@ -3751,16 +3757,19 @@ function MemberPanel({
               );
             })
           )}
+          </div>
         </div>
-      </section>
-      <section className="border border-[var(--line)] bg-white p-5">
-        <div className="flex items-center gap-3">
-          <Trophy size={22} className="text-[var(--accent)]" />
-          <h3 className="text-2xl font-semibold">
+      </details>
+      <details className="group border border-[#d9dde5] bg-white shadow-[0_8px_24px_rgba(14,27,50,0.04)]">
+        <summary className="flex cursor-pointer list-none items-center gap-4 p-5 transition hover:bg-[#f7f8fa] sm:p-6 [&::-webkit-details-marker]:hidden">
+          <span className="flex size-11 shrink-0 items-center justify-center bg-[var(--accent)] text-white"><Trophy size={21} /></span>
+          <h3 className="min-w-0 flex-1 text-lg font-semibold text-[#111d33] sm:text-2xl">
             {copy.achievementsTitle}
           </h3>
-        </div>
-        <div className="mt-5 grid gap-3">
+          <span className="border border-[#d9dde5] bg-[#f4f6f9] px-2.5 py-1 text-xs font-semibold text-[#5c6678]">{achievements.length}</span>
+          <ChevronDown size={22} className="shrink-0 text-[var(--accent)] transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="grid gap-3 border-t border-[#e2e5ea] p-5 sm:p-6">
           {achievements.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
               {copy.noAchievements}
@@ -3871,7 +3880,7 @@ function MemberPanel({
             </>
           )}
         </div>
-      </section>
+      </details>
     </div>
   );
 }
