@@ -35,6 +35,8 @@ type LocationBody = {
     description?: string;
     responsiblePerson?: string;
     representativeEntity?: string;
+    responsibleEntityType?: string;
+    responsibleWebsite?: string;
     responsibleEmail?: string;
     flagMediaId?: string | null;
     flagMediaUrl?: string | null;
@@ -515,6 +517,8 @@ async function saveCountry(
     is_public: input.isPublic !== false,
     responsible_person: normalizeText(input.responsiblePerson) || null,
     representative_entity: normalizeText(input.representativeEntity) || null,
+    responsible_entity_type: normalizeResponsibleEntityType(input.responsibleEntityType),
+    responsible_website: normalizeWebsite(input.responsibleWebsite),
     responsible_email: normalizeText(input.responsibleEmail) || null,
     flag_media_id: await resolveMediaId(
       admin,
@@ -816,7 +820,7 @@ function getScopedCountries(
   const query = admin
     .from("countries")
     .select(
-      "id,code,membership_type,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,membership_type,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_entity_type,responsible_website,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
     )
     .order("code", { ascending: true });
 
@@ -856,6 +860,19 @@ function normalizeMembershipType(value: unknown) {
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeResponsibleEntityType(value: unknown) {
+  const type = normalizeText(value);
+  return ["association", "dojo", "club", "group", "other"].includes(type)
+    ? type
+    : null;
+}
+
+function normalizeWebsite(value: unknown) {
+  const website = normalizeText(value);
+  if (!website) return null;
+  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
 }
 
 function normalizeStatus(value: unknown) {

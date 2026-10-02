@@ -40,6 +40,8 @@ type CountryTranslationRow = {
   description: string | null;
 };
 
+type ResponsibleEntityType = "association" | "dojo" | "club" | "group" | "other";
+
 type CountryRow = {
   id: string;
   code: string;
@@ -49,6 +51,8 @@ type CountryRow = {
   is_public: boolean;
   responsible_person: string | null;
   representative_entity: string | null;
+  responsible_entity_type: ResponsibleEntityType | null;
+  responsible_website: string | null;
   responsible_email: string | null;
   flag_media_id: string | null;
   main_image_media_id: string | null;
@@ -92,6 +96,8 @@ type CountryForm = {
   description: string;
   responsiblePerson: string;
   representativeEntity: string;
+  responsibleEntityType: ResponsibleEntityType | "";
+  responsibleWebsite: string;
   responsibleEmail: string;
   logoUrl: string;
   imageUrl: string;
@@ -143,6 +149,8 @@ function createEmptyCountryForm(locale: Locale): CountryForm {
     description: "",
     responsiblePerson: "",
     representativeEntity: "",
+    responsibleEntityType: "",
+    responsibleWebsite: "",
     responsibleEmail: "",
     logoUrl: "",
     imageUrl: "",
@@ -1368,6 +1376,33 @@ function CountryFormView({
           />
         </div>
         <div className="grid gap-3 md:grid-cols-2">
+          <AdminSelect
+            label={copy.responsibleEntityType}
+            value={form.responsibleEntityType}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                responsibleEntityType: value as ResponsibleEntityType | "",
+              }))
+            }
+            options={[
+              { value: "", label: copy.optionalNotDefined },
+              { value: "association", label: copy.entityAssociation },
+              { value: "dojo", label: copy.entityDojo },
+              { value: "club", label: copy.entityClub },
+              { value: "group", label: copy.entityGroup },
+              { value: "other", label: copy.entityOther },
+            ]}
+          />
+          <TextInput
+            label={copy.responsibleWebsite}
+            value={form.responsibleWebsite}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, responsibleWebsite: value }))
+            }
+          />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
           <TextInput
           label={copy.responsibleEmail}
             value={form.responsibleEmail}
@@ -1919,6 +1954,8 @@ function hydrateCountryForm(
     description: translation?.description ?? "",
     responsiblePerson: country.responsible_person ?? "",
     representativeEntity: country.representative_entity ?? "",
+    responsibleEntityType: country.responsible_entity_type ?? "",
+    responsibleWebsite: country.responsible_website ?? "",
     responsibleEmail: country.responsible_email ?? "",
     logoUrl: getMediaUrl(country.flag_media_id, mediaById),
     imageUrl: getMediaUrl(country.main_image_media_id, mediaById),
@@ -2056,6 +2093,14 @@ function locationsAdminCopy(locale: Locale) {
     representativeEntity: es
       ? "Entidad representante del pais"
       : "Country representative entity",
+    responsibleEntityType: es ? "Tipo de entidad responsable" : "Responsible entity type",
+    responsibleWebsite: es ? "Pagina web oficial del responsable" : "Responsible entity website",
+    optionalNotDefined: es ? "Opcional / sin definir" : "Optional / not defined",
+    entityAssociation: es ? "Asociacion o federacion" : "Association or federation",
+    entityDojo: es ? "Dojo" : "Dojo",
+    entityClub: es ? "Club" : "Club",
+    entityGroup: es ? "Grupo" : "Group",
+    entityOther: es ? "Otra entidad" : "Other entity",
     responsibleEmail: es ? "Email responsable" : "Responsible email",
     countryFlag: es ? "Bandera del pais" : "Country flag",
     countryFlagSelectorHelp: es

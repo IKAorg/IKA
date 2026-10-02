@@ -15,6 +15,8 @@ type CountryRow = {
   ika_country_id: string | null;
   responsible_person: string | null;
   representative_entity: string | null;
+  responsible_entity_type: "association" | "dojo" | "club" | "group" | "other" | null;
+  responsible_website: string | null;
   responsible_email: string | null;
   flag_media_id: string | null;
   country_translations: Array<{
@@ -55,6 +57,8 @@ export type PublicCountry = {
   description: string;
   responsiblePerson: string;
   representativeEntity: string;
+  responsibleEntityType: "association" | "dojo" | "club" | "group" | "other" | "";
+  responsibleWebsite: string;
   responsibleEmail: string;
   logoUrl: string;
   flagUrls: string[];
@@ -90,7 +94,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   const { data: countriesData } = await supabase
     .from("countries")
     .select(
-      "id,code,membership_type,ika_country_id,responsible_person,representative_entity,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,membership_type,ika_country_id,responsible_person,representative_entity,responsible_entity_type,responsible_website,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
     )
     .eq("status", "published")
     .eq("is_public", true)
@@ -149,6 +153,8 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       description: translation.description ?? "",
       responsiblePerson: country.responsible_person ?? "",
       representativeEntity: country.representative_entity ?? "",
+      responsibleEntityType: country.responsible_entity_type ?? "",
+      responsibleWebsite: normalizePublicWebsite(country.responsible_website),
       responsibleEmail: country.responsible_email ?? "",
       logoUrl: logo?.storage_path ?? "",
       flagUrls: getCountryFlagUrls(country.code, logo?.storage_path),
@@ -191,6 +197,12 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   });
 
   return { countries: publicCountries, dojos: publicDojos };
+}
+
+function normalizePublicWebsite(value: string | null) {
+  const website = value?.trim() ?? "";
+  if (!website) return "";
+  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
 }
 
 function getCountryMembershipType(

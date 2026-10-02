@@ -36,12 +36,14 @@ export default async function CountriesPage({ params }: CountriesPageProps) {
             countries={officialCountries}
             dojos={dojos}
             labels={labels}
+            locale={safeLocale}
           />
           <CountrySection
             title={labels.associatedMembers ?? "Associated members"}
             countries={associatedCountries}
             dojos={dojos}
             labels={labels}
+            locale={safeLocale}
           />
         </div>
       ) : !content.hasCmsBlocks ? (
@@ -65,11 +67,13 @@ function CountrySection({
   countries,
   dojos,
   labels,
+  locale,
 }: {
   title: string;
   countries: Awaited<ReturnType<typeof getPublicCountriesAndDojos>>["countries"];
   dojos: Awaited<ReturnType<typeof getPublicCountriesAndDojos>>["dojos"];
   labels: (typeof countryPageLabels)[Locale];
+  locale: Locale;
 }) {
   if (!countries.length || !labels) {
     return null;
@@ -119,11 +123,23 @@ function CountrySection({
                       </span>
                     </span>
                   </span>
-                  <span className="shrink-0 text-sm font-semibold text-[var(--accent)] group-open:hidden">
-                    {labels.openCountry}
-                  </span>
-                  <span className="hidden shrink-0 text-sm font-semibold text-[var(--accent)] group-open:inline">
-                    {labels.closeCountry}
+                  <span className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
+                    {country.responsibleWebsite ? (
+                      <a
+                        href={country.responsibleWebsite}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-semibold text-[var(--accent)] underline-offset-4 hover:underline"
+                      >
+                        {labels.website}
+                      </a>
+                    ) : null}
+                    <span className="text-sm font-semibold text-[var(--accent)] group-open:hidden">
+                      {labels.openCountry}
+                    </span>
+                    <span className="hidden text-sm font-semibold text-[var(--accent)] group-open:inline">
+                      {labels.closeCountry}
+                    </span>
                   </span>
                 </summary>
 
@@ -150,6 +166,11 @@ function CountrySection({
                               {labels.representativeEntity}:{" "}
                             </span>
                             <span>{country.representativeEntity}</span>
+                            {country.responsibleEntityType ? (
+                              <span className="ml-2 text-xs uppercase tracking-[0.1em] text-[var(--muted)]">
+                                {formatResponsibleEntityType(country.responsibleEntityType, locale)}
+                              </span>
+                            ) : null}
                           </p>
                         ) : null}
                         <p className="text-lg font-semibold tracking-[0.01em] text-black">
@@ -161,6 +182,16 @@ function CountrySection({
                             href={`mailto:${country.responsibleEmail}`}
                           >
                             {country.responsibleEmail}
+                          </a>
+                        ) : null}
+                        {country.responsibleWebsite ? (
+                          <a
+                            className="inline-flex w-fit items-center border border-[var(--accent)] px-3 py-2 font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
+                            href={country.responsibleWebsite}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {labels.website}
                           </a>
                         ) : null}
                         <div className="mt-2 rounded-sm border border-[var(--line)] bg-white px-4 py-4">
@@ -309,6 +340,7 @@ const countryPageLabels: Partial<
       phone: string;
       email: string;
       flag: string;
+      website: string;
       officialMembers?: string;
       associatedMembers?: string;
     }
@@ -331,6 +363,7 @@ const countryPageLabels: Partial<
     phone: "Phone",
     email: "Email",
     flag: "flag",
+    website: "Official website",
     officialMembers: "Members",
     associatedMembers: "Associated members",
   },
@@ -351,6 +384,7 @@ const countryPageLabels: Partial<
     phone: "Telefono",
     email: "Email",
     flag: "bandera",
+    website: "Web oficial",
     officialMembers: "Miembros",
     associatedMembers: "Miembros asociados",
   },
@@ -371,6 +405,7 @@ const countryPageLabels: Partial<
     phone: "Telefono",
     email: "Email",
     flag: "bandiera",
+    website: "Sito ufficiale",
   },
   fr: {
     countryContact: "Representant officiel IKA",
@@ -389,6 +424,7 @@ const countryPageLabels: Partial<
     phone: "Telephone",
     email: "Email",
     flag: "drapeau",
+    website: "Site officiel",
   },
   ja: {
     countryContact: "\u516c\u5f0f IKA \u4ee3\u8868",
@@ -407,6 +443,7 @@ const countryPageLabels: Partial<
     phone: "\u96fb\u8a71",
     email: "\u30e1\u30fc\u30eb",
     flag: "\u65d7",
+    website: "\u516c\u5f0f\u30b5\u30a4\u30c8",
   },
   zh: {
     countryContact: "IKA \u5b98\u65b9\u4ee3\u8868",
@@ -425,6 +462,7 @@ const countryPageLabels: Partial<
     phone: "\u7535\u8bdd",
     email: "\u7535\u5b50\u90ae\u7bb1",
     flag: "\u56fd\u65d7",
+    website: "\u5b98\u65b9\u7f51\u7ad9",
   },
   cs: {
     countryContact: "Oficialni zastupce IKA",
@@ -443,6 +481,7 @@ const countryPageLabels: Partial<
     phone: "Telefon",
     email: "Email",
     flag: "vlajka",
+    website: "Oficialni web",
   },
   id: {
     countryContact: "Perwakilan resmi IKA",
@@ -461,6 +500,7 @@ const countryPageLabels: Partial<
     phone: "Telepon",
     email: "Email",
     flag: "bendera",
+    website: "Situs rasmi",
   },
   ms: {
     countryContact: "Wakil rasmi IKA",
@@ -479,6 +519,7 @@ const countryPageLabels: Partial<
     phone: "Telefon",
     email: "E-mel",
     flag: "bendera",
+    website: "Laman rasmi",
   },
   eu: {
     countryContact: "IKA ordezkari ofiziala",
@@ -497,6 +538,7 @@ const countryPageLabels: Partial<
     phone: "Telefonoa",
     email: "Emaila",
     flag: "bandera",
+    website: "Webgune ofiziala",
   },
   pt: {
     countryContact: "Representante oficial da IKA",
@@ -515,6 +557,7 @@ const countryPageLabels: Partial<
     phone: "Telefone",
     email: "Email",
     flag: "bandeira",
+    website: "Site oficial",
   },
   de: {
     countryContact: "Offizieller IKA-Vertreter",
@@ -533,8 +576,27 @@ const countryPageLabels: Partial<
     phone: "Telefon",
     email: "E-Mail",
     flag: "Flagge",
+    website: "Offizielle Website",
   },
 };
+
+function formatResponsibleEntityType(type: string, locale: Locale) {
+  const labels: Record<Locale, Record<string, string>> = {
+    en: { association: "Association / federation", dojo: "Dojo", club: "Club", group: "Group", other: "Other entity" },
+    es: { association: "Asociacion / federacion", dojo: "Dojo", club: "Club", group: "Grupo", other: "Otra entidad" },
+    it: { association: "Associazione / federazione", dojo: "Dojo", club: "Club", group: "Gruppo", other: "Altra entita" },
+    fr: { association: "Association / federation", dojo: "Dojo", club: "Club", group: "Groupe", other: "Autre entite" },
+    ja: { association: "\u5354\u4f1a / \u9023\u76df", dojo: "\u9053\u5834", club: "\u30af\u30e9\u30d6", group: "\u30b0\u30eb\u30fc\u30d7", other: "\u305d\u306e\u4ed6" },
+    zh: { association: "\u534f\u4f1a / \u8054\u5408\u4f1a", dojo: "\u9053\u573a", club: "\u4ff1\u4e50\u90e8", group: "\u56e2\u4f53", other: "\u5176\u4ed6\u673a\u6784" },
+    cs: { association: "Asociace / federace", dojo: "Dojo", club: "Klub", group: "Skupina", other: "Jiny subjekt" },
+    id: { association: "Asosiasi / federasi", dojo: "Dojo", club: "Klub", group: "Grup", other: "Entitas lain" },
+    ms: { association: "Persatuan / persekutuan", dojo: "Dojo", club: "Kelab", group: "Kumpulan", other: "Entiti lain" },
+    eu: { association: "Elkartea / federazioa", dojo: "Dojoa", club: "Kluba", group: "Taldea", other: "Beste erakunde bat" },
+    pt: { association: "Associacao / federacao", dojo: "Dojo", club: "Clube", group: "Grupo", other: "Outra entidade" },
+    de: { association: "Verband / Foderation", dojo: "Dojo", club: "Club", group: "Gruppe", other: "Andere Organisation" },
+  };
+  return labels[locale]?.[type] ?? labels.en[type] ?? type;
+}
 
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
