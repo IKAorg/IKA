@@ -3289,135 +3289,73 @@ function MemberPanel({
     <div className="grid gap-5">
       <section className="overflow-hidden border border-[#d9dde5] bg-white shadow-[0_20px_60px_rgba(14,27,50,0.08)]">
         <div className="relative overflow-hidden bg-[#111d33] text-white">
-          <div className="grid gap-4">
-            <div className="grid gap-4 border border-white/15 bg-[#172641] p-5 shadow-sm sm:grid-cols-[auto_1fr] sm:items-center">
-              <div className="flex h-20 w-20 items-center justify-center bg-white p-2 shadow-sm">
-                <Image
-                  src="/images/ika-logo.webp"
-                  alt="IKA"
-                  width={64}
-                  height={64}
-                  className="object-contain"
-                />
-              </div>
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#ef9aa7]">
-                  Ficha IKA
-                </p>
-                <h3 className="mt-2 text-3xl font-semibold sm:text-4xl">{memberFullName}</h3>
-                <p className="mt-2 font-mono text-sm text-white/65">
-                  {member.ika_number || getPortalMemberFallback(locale, "ika")}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="border border-white/15 bg-white/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                  {copy.currentGrade}
-                </p>
-                <p className="mt-2 text-lg font-semibold text-white">{memberGradeLabel}</p>
-                <p className="mt-2 text-xs leading-5 text-white/55">
-                  {copy.gradeReviewHelp ??
-                    (locale === "es"
-                      ? "Si tu ultimo examen todavia no aparece reflejado, envia una solicitud de revision a la administracion de tu dojo."
-                      : "If your latest exam is not reflected yet, send a review request to your dojo administration.")}
-                </p>
-                {latestGradeReview ? (
-                  <p className="mt-2 border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white/70">
-                    {copy.gradeReviewStatus ?? "Review status"}:{" "}
-                    {formatGradeReviewStatus(latestGradeReview.status, locale)}
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => void requestGradeReview()}
-                  disabled={gradeReviewLoading}
-                  className="mt-3 inline-flex items-center gap-2 border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {gradeReviewLoading ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <ShieldCheck size={14} />
-                  )}
-                  {copy.requestGradeReview ??
-                    (locale === "es" ? "Solicitar revision de grado" : "Request grade review")}
-                </button>
-              </div>
-              <div className="border border-white/15 bg-white/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                  {copy.status}
-                </p>
-                <p className="mt-2 text-lg font-semibold text-emerald-300">{memberStatusLabel}</p>
-              </div>
-              <div className="border border-white/15 bg-white/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                  {copy.country}
-                </p>
-                <p className="mt-2 text-lg font-semibold text-white">{memberCountry}</p>
-              </div>
-              <div className="border border-white/15 bg-white/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                  {copy.dojo}
-                </p>
-                <p className="mt-2 text-lg font-semibold text-white">{memberDojo}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-5 border border-white/15 bg-[#172641] p-5 shadow-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-            <div className="grid gap-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#ef9aa7]">
-                {copy.photo}
-              </p>
-              <p className="text-sm leading-6 text-white/60">
-                {locale === "es"
-                  ? "Tu perfil privado IKA mantiene una imagen clara y visible para tu ficha interna."
-                  : "Your private IKA profile keeps a clear visible image for your internal record."}
-              </p>
-              <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em] text-white/45">
-                <span>{memberGroupLabel}</span>
-                <span aria-hidden="true">•</span>
-                <span>{memberStatusLabel}</span>
-              </div>
-            </div>
-
-            <div className="grid justify-items-start gap-3 sm:justify-items-end">
-              <div className="flex aspect-[4/5] w-36 items-center justify-center overflow-hidden border border-white/15 bg-white/5 shadow-sm sm:w-40">
+          <div className="pointer-events-none absolute -right-5 -top-16 select-none text-[13rem] font-black leading-none text-white/[0.025] sm:text-[19rem]">IKA</div>
+          <div className="relative grid gap-0 lg:grid-cols-[15rem_minmax(0,1fr)]">
+            <div className="grid content-start justify-items-center gap-4 border-b border-white/10 bg-[#172641] p-6 lg:border-b-0 lg:border-r lg:p-8">
+              <div className="flex aspect-[4/5] w-40 items-center justify-center overflow-hidden border border-white/20 bg-white/5 shadow-[0_16px_40px_rgba(0,0,0,0.2)] sm:w-48 lg:w-full">
                 {displayedProfileImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={displayedProfileImageUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={displayedProfileImageUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex flex-col items-center gap-2 px-3 text-center text-white/50">
-                    <UserRound size={46} />
+                  <div className="flex flex-col items-center gap-3 px-4 text-center text-white/50">
+                    <UserRound size={52} />
                     <span className="text-xs">{copy.selectImage}</span>
                   </div>
                 )}
               </div>
-              <label className="inline-flex cursor-pointer items-center gap-2 border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15">
-                {uploading ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <Upload size={15} />
-                )}
+              <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 border border-white/20 bg-white/10 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15">
+                {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
                 {copy.changePhoto}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={uploading}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) {
-                      void uploadProfileImage(file);
-                    }
-                  }}
-                />
+                <input type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadProfileImage(file); }} />
               </label>
+            </div>
+
+            <div className="grid content-between gap-7 p-6 sm:p-8 lg:p-10">
+              <div className="flex flex-wrap items-start justify-between gap-5 border-b border-white/15 pb-6">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="size-16 shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.22)]">
+                    <Image src="/images/ika-logo.webp" alt="IKA" width={64} height={84} className="h-[84px] w-full object-cover object-top" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold tracking-[0.16em] text-white">IKA</p>
+                    <p className="mt-1 max-w-48 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-white/45">International Kempo Association</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-2 border border-emerald-300/30 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-300">
+                  <span className="size-1.5 rounded-full bg-emerald-300" /> {memberStatusLabel}
+                </span>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef9aa7]">Ficha IKA</p>
+                <h3 className="mt-3 text-3xl font-semibold leading-tight sm:text-5xl">{memberFullName}</h3>
+                <p className="mt-3 font-mono text-base text-white/55">{member.ika_number || getPortalMemberFallback(locale, "ika")}</p>
+              </div>
+
+              <div className="grid gap-px overflow-hidden border border-white/15 bg-white/15 sm:grid-cols-4">
+                {[
+                  [copy.currentGrade, memberGradeLabel],
+                  [copy.group, memberGroupLabel],
+                  [copy.country, memberCountry],
+                  [copy.dojo, memberDojo],
+                ].map(([label, value]) => (
+                  <div key={label} className="min-w-0 bg-[#111d33] p-4">
+                    <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white/40">{label}</p>
+                    <p className="mt-2 truncate text-base font-semibold text-white">{value || copy.pending}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-5">
+                <div className="text-xs leading-5 text-white/50">
+                  <p>{copy.gradeReviewHelp ?? (locale === "es" ? "¿Tu ultimo examen no aparece reflejado? Solicita una revision." : "Is your latest exam missing? Request a review.")}</p>
+                  {latestGradeReview ? <p className="mt-1 font-semibold text-[#ef9aa7]">{copy.gradeReviewStatus ?? "Review status"}: {formatGradeReviewStatus(latestGradeReview.status, locale)}</p> : null}
+                </div>
+                <button type="button" onClick={() => void requestGradeReview()} disabled={gradeReviewLoading} className="inline-flex items-center gap-2 border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/15 disabled:opacity-60">
+                  {gradeReviewLoading ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                  {copy.requestGradeReview ?? (locale === "es" ? "Solicitar revision" : "Request review")}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3426,14 +3364,8 @@ function MemberPanel({
           <dl className="grid gap-x-6 p-5 text-sm sm:grid-cols-2 sm:p-8 lg:p-10">
             <div className="border-l-4 border-[var(--accent)] bg-[#f4f6f9] p-4 sm:col-span-2">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center bg-white p-1 shadow-sm">
-                  <Image
-                    src="/images/ika-logo.webp"
-                    alt="IKA"
-                    width={34}
-                    height={34}
-                    className="object-contain"
-                  />
+                <div className="flex h-12 w-12 items-center justify-center bg-[#111d33] text-white shadow-sm">
+                  <FileBadge size={22} />
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
