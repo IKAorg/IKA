@@ -98,6 +98,7 @@ export function RequestFormsAdmin({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [copiedFormToken, setCopiedFormToken] = useState("");
   const [formType, setFormType] = useState<FormType>("kenshi");
   const [countryId, setCountryId] = useState("");
   const [dojoId, setDojoId] = useState("");
@@ -340,8 +341,33 @@ export function RequestFormsAdmin({
 
   async function copyUrl(token: string) {
     const url = `${window.location.origin}/${initialLocale}/requests/${token}`;
-    await navigator.clipboard.writeText(url);
+    let copied = false;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = url;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      copied = document.execCommand("copy");
+      textarea.remove();
+    }
+
+    if (!copied) {
+      window.prompt(copy.copyFallback, url);
+      return;
+    }
+
+    setCopiedFormToken(token);
     setMessage(copy.linkCopied);
+    window.setTimeout(() => {
+      setCopiedFormToken((current) => (current === token ? "" : current));
+    }, 2500);
   }
 
   async function deleteForm(formId: string, formTitle: string) {
@@ -580,6 +606,17 @@ export function RequestFormsAdmin({
                           dojoNameById(form.dojo_id),
                         )}
                       </p>
+                      <p className="mt-1 text-sm font-medium text-[var(--ink)]">
+                        {copy.reusableLink} ·{" "}
+                        {copy.responseCount.replace(
+                          "{count}",
+                          String(
+                            payload.submissions.filter(
+                              (submission) => submission.form_id === form.id,
+                            ).length,
+                          ),
+                        )}
+                      </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
                         <span
                           className={`border px-2 py-1 font-semibold ${
@@ -602,10 +639,20 @@ export function RequestFormsAdmin({
                       <button
                         type="button"
                         onClick={() => copyUrl(form.access_token)}
-                        className="inline-flex min-h-12 items-center justify-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+                        className={`inline-flex min-h-12 items-center justify-center gap-2 border px-3 py-2 text-sm font-semibold transition-colors ${
+                          copiedFormToken === form.access_token
+                            ? "border-green-700 bg-green-50 text-green-800"
+                            : "border-[var(--line)] bg-white text-[var(--ink)]"
+                        }`}
                       >
-                        <Copy className="h-4 w-4" />
-                        {copy.copy}
+                        {copiedFormToken === form.access_token ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                        {copiedFormToken === form.access_token
+                          ? copy.linkCopiedShort
+                          : copy.copy}
                       </button>
                       <button
                         type="button"
@@ -973,6 +1020,14 @@ function getCopy(locale: Locale) {
     noRequests: es ? "No hay solicitudes pendientes." : "No pending requests.",
     noName: es ? "Solicitud sin nombre visible" : "Unnamed request",
     linkCopied: es ? "Enlace copiado." : "Link copied.",
+    linkCopiedShort: es ? "Enlace copiado" : "Link copied",
+    reusableLink: es
+      ? "Enlace reutilizable para varias personas"
+      : "Reusable link for multiple people",
+    responseCount: es ? "{count} respuestas recibidas" : "{count} responses received",
+    copyFallback: es
+      ? "El navegador no permitio copiar automaticamente. Copia este enlace:"
+      : "The browser did not allow automatic copying. Copy this link:",
     deleted: es ? "Formulario eliminado." : "Form deleted.",
     activated: es ? "Formulario activado." : "Form activated.",
     deactivated: es ? "Formulario desactivado." : "Form deactivated.",
