@@ -3286,11 +3286,11 @@ function MemberPanel({
 
   return (
     <div className="grid gap-5">
-      <section className="overflow-hidden border border-[var(--line)] bg-white">
-        <div className="grid gap-5 border-b border-[var(--line)] bg-[linear-gradient(135deg,#f8f4ec_0%,#f4ede4_48%,#eee6dc_100%)] p-4 text-[var(--text)] sm:p-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+      <section className="overflow-hidden border border-[#d9dde5] bg-white shadow-[0_20px_60px_rgba(14,27,50,0.08)]">
+        <div className="relative overflow-hidden bg-[#111d33] text-white">
           <div className="grid gap-4">
-            <div className="grid gap-4 border border-[rgba(20,18,16,0.08)] bg-[rgba(255,255,255,0.82)] p-4 shadow-sm backdrop-blur sm:grid-cols-[auto_1fr] sm:items-center">
-              <div className="flex h-20 w-20 items-center justify-center border border-[var(--line)] bg-white p-2 shadow-sm">
+            <div className="grid gap-4 border border-white/15 bg-[#172641] p-5 shadow-sm sm:grid-cols-[auto_1fr] sm:items-center">
+              <div className="flex h-20 w-20 items-center justify-center bg-white p-2 shadow-sm">
                 <Image
                   src="/images/ika-logo.webp"
                   alt="IKA"
@@ -3300,30 +3300,30 @@ function MemberPanel({
                 />
               </div>
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#ef9aa7]">
                   Ficha IKA
                 </p>
                 <h3 className="mt-2 text-3xl font-semibold sm:text-4xl">{memberFullName}</h3>
-                <p className="mt-2 text-sm text-[var(--muted)]">
+                <p className="mt-2 font-mono text-sm text-white/65">
                   {member.ika_number || getPortalMemberFallback(locale, "ika")}
                 </p>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+              <div className="border border-white/15 bg-white/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                   {copy.currentGrade}
                 </p>
-                <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberGradeLabel}</p>
-                <p className="mt-2 text-xs text-[var(--muted)]">
+                <p className="mt-2 text-lg font-semibold text-white">{memberGradeLabel}</p>
+                <p className="mt-2 text-xs leading-5 text-white/55">
                   {copy.gradeReviewHelp ??
                     (locale === "es"
                       ? "Si tu ultimo examen todavia no aparece reflejado, envia una solicitud de revision a la administracion de tu dojo."
                       : "If your latest exam is not reflected yet, send a review request to your dojo administration.")}
                 </p>
                 {latestGradeReview ? (
-                  <p className="mt-2 border border-[var(--line)] bg-white px-3 py-2 text-xs font-semibold text-[var(--muted)]">
+                  <p className="mt-2 border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white/70">
                     {copy.gradeReviewStatus ?? "Review status"}:{" "}
                     {formatGradeReviewStatus(latestGradeReview.status, locale)}
                   </p>
@@ -3332,7 +3332,7 @@ function MemberPanel({
                   type="button"
                   onClick={() => void requestGradeReview()}
                   disabled={gradeReviewLoading}
-                  className="mt-3 inline-flex items-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text)] transition hover:bg-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-3 inline-flex items-center gap-2 border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {gradeReviewLoading ? (
                     <Loader2 size={14} className="animate-spin" />
@@ -3343,38 +3343,38 @@ function MemberPanel({
                     (locale === "es" ? "Solicitar revision de grado" : "Request grade review")}
                 </button>
               </div>
-              <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+              <div className="border border-white/15 bg-white/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                   {copy.status}
                 </p>
-                <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberStatusLabel}</p>
+                <p className="mt-2 text-lg font-semibold text-emerald-300">{memberStatusLabel}</p>
               </div>
-              <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+              <div className="border border-white/15 bg-white/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                   {copy.country}
                 </p>
-                <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberCountry}</p>
+                <p className="mt-2 text-lg font-semibold text-white">{memberCountry}</p>
               </div>
-              <div className="border border-[rgba(20,18,16,0.08)] bg-white/80 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+              <div className="border border-white/15 bg-white/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                   {copy.dojo}
                 </p>
-                <p className="mt-2 text-lg font-semibold text-[var(--text)]">{memberDojo}</p>
+                <p className="mt-2 text-lg font-semibold text-white">{memberDojo}</p>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-4 border border-[rgba(20,18,16,0.08)] bg-[rgba(255,255,255,0.82)] p-4 shadow-sm backdrop-blur sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="grid gap-5 border border-white/15 bg-[#172641] p-5 shadow-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
             <div className="grid gap-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#ef9aa7]">
                 {copy.photo}
               </p>
-              <p className="text-sm text-[var(--muted)]">
+              <p className="text-sm leading-6 text-white/60">
                 {locale === "es"
                   ? "Tu perfil privado IKA mantiene una imagen clara y visible para tu ficha interna."
                   : "Your private IKA profile keeps a clear visible image for your internal record."}
               </p>
-              <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+              <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em] text-white/45">
                 <span>{memberGroupLabel}</span>
                 <span aria-hidden="true">•</span>
                 <span>{memberStatusLabel}</span>
@@ -3382,7 +3382,7 @@ function MemberPanel({
             </div>
 
             <div className="grid justify-items-start gap-3 sm:justify-items-end">
-              <div className="flex h-36 w-36 items-center justify-center overflow-hidden border border-[var(--line)] bg-white shadow-sm">
+              <div className="flex aspect-[4/5] w-36 items-center justify-center overflow-hidden border border-white/15 bg-white/5 shadow-sm sm:w-40">
                 {displayedProfileImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -3391,13 +3391,13 @@ function MemberPanel({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex flex-col items-center gap-2 px-3 text-center text-[var(--muted)]">
+                  <div className="flex flex-col items-center gap-2 px-3 text-center text-white/50">
                     <UserRound size={46} />
                     <span className="text-xs">{copy.selectImage}</span>
                   </div>
                 )}
               </div>
-              <label className="inline-flex cursor-pointer items-center gap-2 border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm transition hover:bg-[var(--paper)]">
+              <label className="inline-flex cursor-pointer items-center gap-2 border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15">
                 {uploading ? (
                   <Loader2 size={15} className="animate-spin" />
                 ) : (
@@ -3421,11 +3421,11 @@ function MemberPanel({
           </div>
         </div>
 
-        <div className="grid gap-6 p-4 sm:p-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div className="border border-[var(--line)] bg-[var(--paper)] p-4 sm:col-span-2">
+        <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
+          <dl className="grid gap-x-6 p-5 text-sm sm:grid-cols-2 sm:p-8 lg:p-10">
+            <div className="border-l-4 border-[var(--accent)] bg-[#f4f6f9] p-4 sm:col-span-2">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center border border-[var(--line)] bg-white p-1 shadow-sm">
+                <div className="flex h-12 w-12 items-center justify-center bg-white p-1 shadow-sm">
                   <Image
                     src="/images/ika-logo.webp"
                     alt="IKA"
@@ -3438,7 +3438,7 @@ function MemberPanel({
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
                     {copy.ikaPassport}
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-[var(--text)]">
+                  <p className="mt-1 font-mono text-2xl font-semibold text-[#111d33]">
                     {member.ika_number || getPortalMemberFallback(locale, "ika")}
                   </p>
                 </div>
@@ -3482,8 +3482,9 @@ function MemberPanel({
             />
           </dl>
 
-          <div className="grid gap-3 border border-[var(--line)] bg-[var(--paper)] p-4">
-            <h4 className="text-xl font-semibold">{copy.editableData}</h4>
+          <div className="grid content-start gap-4 border-t border-[#d9dde5] bg-[#f4f6f9] p-5 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
+            <div className="flex size-11 items-center justify-center bg-[#111d33] text-white"><KeyRound size={20} /></div>
+            <h4 className="text-2xl font-semibold text-[#111d33]">{copy.editableData}</h4>
             <p className="text-sm text-[var(--muted)]">
               {locale === "es"
                 ? "Desde aqui puedes actualizar tu contacto, tu foto y tus credenciales privadas."
@@ -3496,7 +3497,7 @@ function MemberPanel({
               <input
                 value={contactEmail}
                 onChange={(event) => setContactEmail(event.target.value)}
-                className="border border-[var(--line)] bg-white px-3 py-2 font-normal"
+                className="border border-[#ccd2dc] bg-white px-3 py-3 font-normal outline-none transition focus:border-[var(--accent)]"
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -3506,19 +3507,19 @@ function MemberPanel({
               <input
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
-                className="border border-[var(--line)] bg-white px-3 py-2 font-normal"
+                className="border border-[#ccd2dc] bg-white px-3 py-3 font-normal outline-none transition focus:border-[var(--accent)]"
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
                 <KeyRound size={15} /> {copy.newPassword}
               </span>
-              <div className="grid grid-cols-[1fr_auto] border border-[var(--line)] bg-white">
+              <div className="grid grid-cols-[1fr_auto] border border-[#ccd2dc] bg-white focus-within:border-[var(--accent)]">
                 <input
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
                   type={showNewPassword ? "text" : "password"}
-                  className="min-w-0 px-3 py-2 font-normal outline-none"
+                  className="min-w-0 px-3 py-3 font-normal outline-none"
                 />
                 <button
                   type="button"
@@ -3537,7 +3538,7 @@ function MemberPanel({
               type="button"
               onClick={() => void saveFicha()}
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 font-semibold text-white disabled:opacity-50"
+              className="mt-2 inline-flex items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3.5 font-semibold text-white shadow-[0_8px_20px_rgba(151,28,48,0.18)] transition hover:brightness-95 disabled:opacity-50"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               {copy.saveFicha}
@@ -3905,11 +3906,11 @@ function InfoRow({
   copy: PortalCopy;
 }) {
   return (
-    <div className="grid gap-1 border border-[var(--line)] bg-[var(--paper)] px-3 py-3 shadow-sm">
-      <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+    <div className="grid min-w-0 gap-1 border-b border-[#e2e5ea] py-4">
+      <dt className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#7a8495]">
         {label}
       </dt>
-      <dd className="text-[var(--muted)]">{value || copy.pending}</dd>
+      <dd className="truncate font-medium text-[#1b2940]">{value || copy.pending}</dd>
     </div>
   );
 }
