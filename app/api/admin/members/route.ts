@@ -501,6 +501,86 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true, courseId });
   }
 
+  if (body.action === "delete_bulk_courses") {
+    if (!hasSuperAdminRole(guard.scope)) {
+      return NextResponse.json(
+        { error: "Solo super admin puede eliminar un curso completo." },
+        { status: 403 },
+      );
+    }
+
+    const courseIds = Array.isArray(body.courseIds)
+      ? Array.from(
+          new Set(body.courseIds.map((value) => normalizeText(value)).filter(Boolean)),
+        )
+      : [];
+
+    if (courseIds.length === 0) {
+      return NextResponse.json(
+        { error: "Curso no valido para eliminar." },
+        { status: 400 },
+      );
+    }
+
+    const courses = await guard.admin
+      .from("grade_history")
+      .select("id,member_id,grade,exam_date")
+      .in("id", courseIds);
+
+    if (courses.error) {
+      return NextResponse.json({ error: courses.error.message }, { status: 500 });
+    }
+
+    const courseRows = (courses.data ?? []) as Array<{
+      id: string;
+      member_id: string;
+      grade: string;
+      exam_date: string;
+    }>;
+
+    if (courseRows.length !== courseIds.length) {
+      return NextResponse.json(
+        { error: "Alguno de los registros del curso ya no esta disponible." },
+        { status: 409 },
+      );
+    }
+
+    const deleted = await guard.admin.rpc("delete_ika_grouped_course", {
+      p_course_ids: courseIds,
+    });
+
+    if (deleted.error) {
+      return NextResponse.json({ error: deleted.error.message }, { status: 500 });
+    }
+
+    const deletedCount = Number(deleted.data ?? 0);
+
+    if (deletedCount !== courseIds.length) {
+      return NextResponse.json(
+        { error: "No se pudo eliminar el curso completo." },
+        { status: 409 },
+      );
+    }
+
+    await guard.admin.from("audit_logs").insert({
+      actor_profile_id: guard.profileId,
+      action: "course.delete",
+      table_name: "grade_history",
+      record_id: courseRows[0]?.id ?? null,
+      old_value: {
+        title: courseRows[0]?.grade ?? "",
+        date: courseRows[0]?.exam_date ?? "",
+        course_ids: courseIds,
+        member_ids: Array.from(new Set(courseRows.map((course) => course.member_id))),
+      },
+      metadata: {
+        deleted_course_records: deletedCount,
+      },
+    });
+
+    return NextResponse.json({ ok: true, deletedCourses: deletedCount });
+  }
+
   if (body.action === "update_bulk_courses") {
     const courseIds = Array.isArray(body.courseIds)
       ? body.courseIds.map((value) => normalizeText(value)).filter(Boolean)

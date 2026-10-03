@@ -360,6 +360,7 @@ export function MembersAdmin({
   const [registryCountryFilter, setRegistryCountryFilter] = useState("");
   const [registryDojoFilter, setRegistryDojoFilter] = useState("");
   const [savingRegistryKey, setSavingRegistryKey] = useState("");
+  const [deletingRegistryKey, setDeletingRegistryKey] = useState("");
   const [memberForm, setMemberForm] = useState<MemberEditForm | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [memberStatusView, setMemberStatusView] = useState<
@@ -966,6 +967,54 @@ export function MembersAdmin({
     setRegistryForm(null);
     setSavingRegistryKey("");
     setMessage(copy.bulkCourseUpdated());
+  }
+
+  async function deleteRegistryCourse(
+    courseKey: string,
+    courseIds: string[],
+    courseTitle: string,
+  ) {
+    if (!window.confirm(copy.deleteRegistryCourseConfirm(courseTitle))) {
+      return;
+    }
+
+    const firstCourse = payload.courseHistory.find((course) => course.id === courseIds[0]);
+
+    if (!firstCourse) {
+      setMessage(copy.deleteRegistryCourseError);
+      return;
+    }
+
+    setDeletingRegistryKey(courseKey);
+    setMessage("");
+
+    const response = await fetch("/api/admin/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        action: "delete_bulk_courses",
+        memberId: firstCourse.member_id,
+        courseIds,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error ?? copy.deleteRegistryCourseError);
+      setDeletingRegistryKey("");
+      return;
+    }
+
+    if (editingRegistryKey === courseKey) {
+      setEditingRegistryKey("");
+      setRegistryForm(null);
+    }
+    await loadMembers();
+    setDeletingRegistryKey("");
+    setMessage(copy.deleteRegistryCourseSuccess(courseTitle));
   }
 
   async function importCourseRows() {
@@ -2825,14 +2874,36 @@ export function MembersAdmin({
                         {copy.bulkMembersSelected(course.memberIds.length)}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => startEditingRegistryCourse(course)}
-                      className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-4 py-2 font-semibold text-white"
-                    >
-                      <Pencil size={16} />
-                      {copy.edit}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditingRegistryCourse(course)}
+                        disabled={deletingRegistryKey === course.key}
+                        className="inline-flex items-center justify-center gap-2 bg-[var(--ink-blue)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+                      >
+                        <Pencil size={16} />
+                        {copy.edit}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void deleteRegistryCourse(
+                            course.key,
+                            course.courseIds,
+                            course.title,
+                          )
+                        }
+                        disabled={deletingRegistryKey === course.key}
+                        className="inline-flex items-center justify-center gap-2 border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
+                      >
+                        {deletingRegistryKey === course.key ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                        {copy.deleteCourse}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -4467,6 +4538,17 @@ function membersAdminCopy(locale: Locale) {
       es
         ? "Curso o Taikai actualizado correctamente."
         : "Course or Taikai updated successfully.",
+    deleteRegistryCourseConfirm: (title: string) =>
+      es
+        ? `¿Eliminar definitivamente el curso "${title}"? Se eliminaran sus asistencias y logros vinculados, pero no se eliminara ningun Kenshi.`
+        : `Permanently delete the course "${title}"? Its linked attendance records and achievements will be deleted, but no Kenshi will be removed.`,
+    deleteRegistryCourseSuccess: (title: string) =>
+      es
+        ? `El curso "${title}" se ha eliminado correctamente.`
+        : `The course "${title}" was deleted successfully.`,
+    deleteRegistryCourseError: es
+      ? "No se pudo eliminar el curso."
+      : "The course could not be deleted.",
     coursesImported: (imported: number, updated: number, skipped: number, errors: number) =>
       es
         ? `Cursos nuevos: ${imported}. Actualizados: ${updated}. Omitidos: ${skipped}. Errores: ${errors}.`
