@@ -219,6 +219,17 @@ export function LocationsAdmin({
   const requestCounterRef = useRef(0);
   const inFlightRef = useRef(false);
 
+  function openEditor(editorId: "country-editor" | "dojo-editor") {
+    window.requestAnimationFrame(() => {
+      const editor = document.getElementById(editorId);
+      const details = editor?.querySelector("details");
+      if (details instanceof HTMLDetailsElement) {
+        details.open = true;
+      }
+      editor?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -356,10 +367,12 @@ export function LocationsAdmin({
 
   function editCountry(country: CountryRow) {
     setCountryForm(hydrateCountryForm(country, countryForm.locale, mediaById));
+    openEditor("country-editor");
   }
 
   function editDojo(dojo: DojoRow) {
     setDojoForm(hydrateDojoForm(dojo, dojoForm.locale, mediaById));
+    openEditor("dojo-editor");
   }
 
   function changeCountryFormLocale(locale: Locale) {
@@ -913,6 +926,35 @@ export function LocationsAdmin({
         </div>
       </div>
 
+      <div className="mt-5 flex flex-wrap gap-3 border-y border-[var(--line)] py-4">
+        {canCreateCountry ? (
+          <button
+            type="button"
+            onClick={() => {
+              setCountryForm(createEmptyCountryForm(countryForm.locale));
+              openEditor("country-editor");
+            }}
+            className="inline-flex min-h-11 items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white"
+          >
+            <Plus size={17} />
+            {copy.newCountry}
+          </button>
+        ) : null}
+        {canEditCountry ? (
+          <button
+            type="button"
+            onClick={() => {
+              setDojoForm(createEmptyDojoForm(dojoForm.locale));
+              openEditor("dojo-editor");
+            }}
+            className="inline-flex min-h-11 items-center gap-2 bg-[var(--ink-blue)] px-4 py-2 font-semibold text-white"
+          >
+            <Plus size={17} />
+            {copy.newDojo}
+          </button>
+        ) : null}
+      </div>
+
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <div className="grid gap-5">
           {canEditCountry ? (
@@ -971,7 +1013,8 @@ export function LocationsAdmin({
             />
           ) : null}
           {canEditCountry && (canCreateCountry || Boolean(countryForm.id)) ? (
-            <CountryFormView
+            <div id="country-editor" className="scroll-mt-24">
+              <CountryFormView
               form={countryForm}
               setForm={setCountryForm}
               onLocaleChange={changeCountryFormLocale}
@@ -986,21 +1029,24 @@ export function LocationsAdmin({
                 }
               }}
               copy={copy}
-            />
+              />
+            </div>
           ) : null}
-          <DojoFormView
-            form={dojoForm}
-            setForm={setDojoForm}
-            onLocaleChange={changeDojoFormLocale}
-            countries={countries}
-            lockCountry={!isGlobalScope && countries.length === 1}
-            saving={saving}
-            uploadingField={uploadingField}
-            onUploadImage={uploadPublicImage}
-            onSave={saveDojo}
-            onReset={() => setDojoForm(createEmptyDojoForm(dojoForm.locale))}
-            copy={copy}
-          />
+          <div id="dojo-editor" className="scroll-mt-24">
+            <DojoFormView
+              form={dojoForm}
+              setForm={setDojoForm}
+              onLocaleChange={changeDojoFormLocale}
+              countries={countries}
+              lockCountry={!isGlobalScope && countries.length === 1}
+              saving={saving}
+              uploadingField={uploadingField}
+              onUploadImage={uploadPublicImage}
+              onSave={saveDojo}
+              onReset={() => setDojoForm(createEmptyDojoForm(dojoForm.locale))}
+              copy={copy}
+            />
+          </div>
         </div>
       </div>
 

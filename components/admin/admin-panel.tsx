@@ -289,6 +289,28 @@ export function AdminPanel({ locale }: AdminPanelProps) {
   const directorLoadKey = `${scope?.roleKeys?.join("|") ?? ""}:${scope?.director?.id ?? ""}`;
 
   useEffect(() => {
+    const restoreDirectorIdentity = () => {
+      const storedToken = readDirectorSessionToken();
+      setDirectorToken((current) => (current === storedToken ? current : storedToken));
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        restoreDirectorIdentity();
+      }
+    };
+
+    restoreDirectorIdentity();
+    window.addEventListener("storage", restoreDirectorIdentity);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("storage", restoreDirectorIdentity);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined" || !directorToken) {
       return;
     }
@@ -922,14 +944,20 @@ export function AdminPanel({ locale }: AdminPanelProps) {
           </div>
           <div className="flex flex-wrap gap-2">
             {isSuperAdmin && scope.director ? (
-              <button
-                type="button"
-                onClick={() => void clearDirectorIdentity()}
-                className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
-              >
-                <KeyRound size={17} />
-                {copy.directorIdentity}: {scope.director.displayName}
-              </button>
+              <>
+                <div className="inline-flex min-h-11 items-center gap-2 border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-sm font-semibold">
+                  <KeyRound size={17} />
+                  {copy.directorIdentity}: {scope.director.displayName}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void clearDirectorIdentity()}
+                  className="inline-flex min-h-11 items-center gap-2 border border-[var(--accent)] bg-white px-4 py-2 text-sm font-semibold text-[var(--accent)]"
+                >
+                  <LogOut size={17} />
+                  {copy.directorSignOut}
+                </button>
+              </>
             ) : null}
             <button
               type="button"
@@ -953,10 +981,16 @@ export function AdminPanel({ locale }: AdminPanelProps) {
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {primaryActions.map((item) => (
-            <a
+            <button
+              type="button"
               key={item.id}
-              href={`#${item.id}`}
-              className="border border-[var(--line)] bg-[var(--paper)] p-4 transition hover:border-[var(--accent)]"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent("ika:open-admin-module", { detail: item.id }),
+                );
+                window.history.replaceState(null, "", `#${item.id}`);
+              }}
+              className="border border-[var(--line)] bg-[var(--paper)] p-4 text-left transition hover:border-[var(--accent)]"
             >
               <div className="flex size-10 items-center justify-center bg-[var(--ink-blue)] text-white">
                 <item.icon size={18} />
@@ -965,7 +999,7 @@ export function AdminPanel({ locale }: AdminPanelProps) {
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
                 {item.text}
               </p>
-            </a>
+            </button>
           ))}
         </div>
       </section>
@@ -1619,6 +1653,34 @@ function AdminModule({
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [hasOpened, setHasOpened] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+
+    const openModule = (event?: Event) => {
+      const requestedId =
+        event instanceof CustomEvent ? String(event.detail ?? "") : window.location.hash.slice(1);
+      if (requestedId !== id) {
+        return;
+      }
+
+      setIsOpen(true);
+      setHasOpened(true);
+      window.requestAnimationFrame(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    };
+
+    openModule();
+    window.addEventListener("hashchange", openModule);
+    window.addEventListener("ika:open-admin-module", openModule);
+    return () => {
+      window.removeEventListener("hashchange", openModule);
+      window.removeEventListener("ika:open-admin-module", openModule);
+    };
+  }, [id]);
 
   return (
     <details
