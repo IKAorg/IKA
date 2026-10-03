@@ -35,6 +35,11 @@ a {
   text-decoration: none;
 }
 
+/* Primary links are rendered as buttons and must retain accessible contrast. */
+a.ika-primary-action {
+  color: #ffffff;
+}
+
 button,
 input,
 textarea,

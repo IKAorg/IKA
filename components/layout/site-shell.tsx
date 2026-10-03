@@ -65,7 +65,7 @@ export function SiteShell({ locale, dictionary, children }: SiteShellProps) {
             <LanguageSwitcher locale={locale} />
             <Link
               href={`/${locale}/portal`}
-              className="inline-flex min-h-11 items-center border border-[var(--accent)] bg-[var(--accent)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-dark)] sm:px-4"
+              className="ika-primary-action inline-flex min-h-11 items-center border border-[var(--accent)] bg-[var(--accent)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-dark)] sm:px-4"
             >
               {nav.portal}
             </Link>

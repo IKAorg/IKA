@@ -130,7 +130,7 @@ function CountrySection({
                         href={country.responsibleWebsite}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#761223] sm:px-4"
+                        className="ika-primary-action inline-flex min-h-11 items-center gap-2 whitespace-nowrap bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#761223] sm:px-4"
                       >
                         <ExternalLink size={16} aria-hidden="true" />
                         {labels.website}
@@ -188,7 +188,7 @@ function CountrySection({
                         ) : null}
                         {country.responsibleWebsite ? (
                           <a
-                            className="inline-flex min-h-11 w-fit items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white transition-colors hover:bg-[#761223]"
+                            className="ika-primary-action inline-flex min-h-11 w-fit items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white transition-colors hover:bg-[#761223]"
                             href={country.responsibleWebsite}
                             target="_blank"
                             rel="noreferrer"

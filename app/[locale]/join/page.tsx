@@ -166,7 +166,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
           </Link>
           <Link
             href={`/${safeLocale}/contact`}
-            className="inline-flex min-h-11 border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[var(--accent-dark)] sm:px-5"
+            className="ika-primary-action inline-flex min-h-11 border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[var(--accent-dark)] sm:px-5"
           >
             {guidance.contact}
           </Link>

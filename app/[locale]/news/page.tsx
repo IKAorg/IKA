@@ -257,7 +257,7 @@ export default async function NewsPage({ params }: NewsPageProps) {
           </p>
           <Link
             href={`/${safeLocale}/news/archive`}
-            className="mt-6 inline-flex items-center justify-center bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white"
+            className="ika-primary-action mt-6 inline-flex items-center justify-center bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white"
           >
             {labels.archiveAction}
           </Link>

@@ -52,7 +52,7 @@ export default async function HomePage({ params }: HomePageProps) {
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 href={`/${locale}/about`}
-                className="inline-flex min-h-11 items-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.28)] sm:px-5"
+                className="ika-primary-action inline-flex min-h-11 items-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.28)] sm:px-5"
               >
                 {dictionary.home.primaryAction}
                 <ArrowRight size={16} aria-hidden="true" />
@@ -224,7 +224,7 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
         <Link
           href={`/${locale}/join`}
-          className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white sm:px-5"
+          className="ika-primary-action inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white sm:px-5"
         >
           {dictionary.home.joinAction}
           <MapPin size={16} aria-hidden="true" />

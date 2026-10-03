@@ -2607,7 +2607,7 @@ export function PortalClient({
                         saveAdminSessionBridge(session);
                       }
                     }}
-                    className="inline-flex min-h-11 items-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white"
+                    className="ika-primary-action inline-flex min-h-11 items-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white"
                   >
                     <ExternalLink size={16} />
                     {copy.generalAccess}
@@ -2882,7 +2882,7 @@ function AdminDashboard({
                 saveAdminSessionBridge(session);
               }
             }}
-            className="inline-flex min-h-12 items-center gap-2 bg-[var(--accent)] px-5 py-3 font-semibold text-white"
+            className="ika-primary-action inline-flex min-h-12 items-center gap-2 bg-[var(--accent)] px-5 py-3 font-semibold text-white"
           >
             <ExternalLink size={17} />
             {copy.editInfo}
