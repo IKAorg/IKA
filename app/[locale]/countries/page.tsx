@@ -1,5 +1,5 @@
 ﻿import Image from "next/image";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, UserRound } from "lucide-react";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getPublicCountriesAndDojos } from "@/lib/content/locations-cms";
@@ -95,8 +95,8 @@ function CountrySection({
                 key={country.id}
                 className="group border border-[var(--line)] bg-white"
               >
-                <summary className="flex cursor-pointer list-none items-start justify-between gap-4 p-4 marker:hidden sm:items-center">
-                  <span className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+                <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 p-4 marker:hidden sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.8fr)_auto]">
+                  <span className="col-start-1 row-start-1 flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
                     {country.flagUrls.length > 0 ? (
                       <span className="flex shrink-0 items-center gap-1">
                         {country.flagUrls.map((flagUrl) => (
@@ -124,7 +124,20 @@ function CountrySection({
                       </span>
                     </span>
                   </span>
-                  <span className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
+                  <span className="col-span-2 row-start-2 flex min-w-0 items-center gap-3 border-t border-[var(--line)] pt-3 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:border-0 sm:pt-0">
+                    <span className="flex size-9 shrink-0 items-center justify-center bg-[var(--paper)] text-[var(--accent)]">
+                      <UserRound size={18} aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                        {labels.countryContact}
+                      </span>
+                      <span className="mt-0.5 block truncate text-sm font-semibold text-black">
+                        {country.responsiblePerson || labels.pending}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="col-start-2 row-start-1 flex shrink-0 flex-col items-end gap-2 sm:col-start-3 sm:flex-row sm:items-center sm:gap-4">
                     {country.responsibleWebsite ? (
                       <a
                         href={country.responsibleWebsite}
