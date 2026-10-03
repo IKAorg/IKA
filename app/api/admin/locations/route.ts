@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/request-forms";
 
 type LocationScope = {
+  profileId: string;
   isGlobal: boolean;
   countryIds: string[];
   dojoIds: string[];
@@ -1044,6 +1045,7 @@ function normalizeYesNo(value: string, fallback = true) {
 
 function mapScope(scope: RequestFormsAdminScope): LocationScope {
   return {
+    profileId: scope.profileId,
     isGlobal: scope.isSuperAdmin || scope.isGlobalAdmin,
     countryIds: scope.countryIds,
     dojoIds: scope.dojoIds,

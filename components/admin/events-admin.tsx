@@ -85,6 +85,7 @@ type AdminEventRegistration = {
 
 type AdminEvent = {
   id: string;
+  created_by: string | null;
   status: EventStatus;
   event_type: EventType;
   cover_image_url?: string | null;
@@ -128,6 +129,7 @@ type LocationRow = {
 };
 
 type EventAdminScope = {
+  profileId: string;
   isGlobal: boolean;
   countryIds: string[];
   dojoIds: string[];
@@ -207,6 +209,7 @@ export function EventsAdmin({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deletingEventId, setDeletingEventId] = useState("");
   const [message, setMessage] = useState("");
   const [registrationsCountryFilter, setRegistrationsCountryFilter] = useState("");
   const [registrationsDojoFilter, setRegistrationsDojoFilter] = useState("");
@@ -225,7 +228,7 @@ export function EventsAdmin({
     const { data, error } = await supabase
       .from("events")
       .select(
-        "id,status,event_type,cover_image_url,cover_image_alt,taikai_config,is_official_ika,allow_member_registration,registration_open,tshirt_enabled,duration_days,starts_at,ends_at,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name)),event_translations(id,language_code,title,slug,excerpt,body,location_label),event_registrations(id,status,payment_status,checked_in_at,admin_notes,wants_tshirt,tshirt_size,created_at,members(id,ika_number,first_name,last_name,email,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(id,city,dojo_translations(language_code,name))),event_registration_checkins(day_number,checked_in_at))",
+        "id,created_by,status,event_type,cover_image_url,cover_image_alt,taikai_config,is_official_ika,allow_member_registration,registration_open,tshirt_enabled,duration_days,starts_at,ends_at,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(city,dojo_translations(language_code,name)),event_translations(id,language_code,title,slug,excerpt,body,location_label),event_registrations(id,status,payment_status,checked_in_at,admin_notes,wants_tshirt,tshirt_size,created_at,members(id,ika_number,first_name,last_name,email,current_grade,country_id,dojo_id,countries(code,country_translations(language_code,name)),dojos(id,city,dojo_translations(language_code,name))),event_registration_checkins(day_number,checked_in_at))",
       )
       .order("starts_at", { ascending: true });
 
@@ -621,20 +624,45 @@ export function EventsAdmin({
     setUploading(false);
   }
 
-  async function deleteEvent(id: string) {
-    const { error } = await supabase.from("events").delete().eq("id", id);
+  async function deleteEvent(event: AdminEvent) {
+    const title =
+      getEventTranslation(event.event_translations, form.locale)?.title ?? copy.untitledEvent;
+    const confirmed = window.confirm(copy.deleteConfirm.replace("{title}", title));
 
-    if (error) {
-      setMessage(error.message);
+    if (!confirmed) {
       return;
     }
 
-    if (form.id === id) {
+    setDeletingEventId(event.id);
+    setMessage("");
+    const headers = new Headers(
+      session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : getAdminSessionBridgeHeaders(),
+    );
+    const directorToken = readDirectorSessionToken();
+    if (directorToken) {
+      headers.set("x-ika-director-session", directorToken);
+    }
+    const response = await fetch(`/api/admin/events/${event.id}`, {
+      method: "DELETE",
+      headers,
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+    if (!response.ok) {
+      setMessage(payload.error ?? copy.deleteError);
+      setDeletingEventId("");
+      return;
+    }
+
+    if (form.id === event.id) {
       setForm(createEmptyForm(form.locale));
     }
 
     setMessage(copy.deleted);
     await loadEvents();
+    setDeletingEventId("");
   }
 
   async function closeEvent(event: AdminEvent) {
@@ -1024,13 +1052,23 @@ export function EventsAdmin({
                       >
                         {copy.edit}
                       </button>
-                      <button
-                        onClick={() => deleteEvent(event.id)}
-                        className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
-                      >
-                        <Trash2 size={15} />
-                        {copy.delete}
-                      </button>
+                      {scope?.isGlobal ||
+                      event.created_by === scope?.profileId ||
+                      (!event.created_by && isEventManageable(event)) ? (
+                        <button
+                          type="button"
+                          onClick={() => void deleteEvent(event)}
+                          disabled={deletingEventId === event.id}
+                          className="inline-flex items-center gap-2 border border-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--accent)] disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {deletingEventId === event.id ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={15} />
+                          )}
+                          {copy.deleteCourse}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </article>
@@ -1890,6 +1928,36 @@ function getDojoLabel(
   );
 }
 
+function readDirectorSessionToken() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    const storageKey = "ika-super-admin-director-session";
+    const raw =
+      window.localStorage.getItem(storageKey) ??
+      window.sessionStorage.getItem(storageKey);
+    const stored = raw
+      ? (JSON.parse(raw) as { token?: string; expiresAt?: string })
+      : null;
+
+    if (!stored?.token) {
+      return "";
+    }
+
+    if (stored.expiresAt && Date.parse(stored.expiresAt) <= Date.now()) {
+      window.localStorage.removeItem(storageKey);
+      window.sessionStorage.removeItem(storageKey);
+      return "";
+    }
+
+    return stored.token;
+  } catch {
+    return "";
+  }
+}
+
 function eventsAdminCopy(locale: Locale) {
   const es = locale === "es";
 
@@ -1898,7 +1966,10 @@ function eventsAdminCopy(locale: Locale) {
     checkEmail: es ? "Revisa tu email para entrar al admin." : "Check your email to access admin.",
     saveError: es ? "No se pudo guardar el evento." : "The event could not be saved.",
     saved: es ? "Evento guardado." : "Event saved.",
-    deleted: es ? "Evento eliminado." : "Event deleted.",
+    deleted: es
+      ? "Curso y datos vinculados eliminados correctamente."
+      : "Course and linked data deleted successfully.",
+    deleteError: es ? "No se pudo eliminar el curso." : "The course could not be deleted.",
     adminAccess: es ? "Acceso admin" : "Admin access",
     loginHelp: es
       ? "Accede con un usuario administrador. Los admin de pais pueden crear y gestionar eventos de su pais."
@@ -1913,6 +1984,10 @@ function eventsAdminCopy(locale: Locale) {
     untitledEvent: es ? "Evento sin titulo" : "Untitled event",
     edit: es ? "Editar" : "Edit",
     delete: es ? "Borrar" : "Delete",
+    deleteCourse: es ? "Eliminar curso" : "Delete course",
+    deleteConfirm: es
+      ? 'Vas a eliminar definitivamente el curso "{title}". Tambien se borraran sus inscripciones, asistencias, historiales generados y resultados vinculados. Los Kenshis no se eliminaran. Esta accion no se puede deshacer. Deseas continuar?'
+      : 'You are about to permanently delete "{title}". Its registrations, attendance, generated histories, and linked results will also be deleted. Kenshi profiles will not be deleted. This action cannot be undone. Do you want to continue?',
     closeEvent: es ? "Cerrar evento" : "Close event",
     closeEventConfirm: es
       ? 'Se cerrara el evento "{title}", se archivara y se cerrara la inscripcion web. Continuar?'

@@ -2,6 +2,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getSupabaseProjectUrl } from "@/lib/supabase/url";
+import { requireScopedAdmin } from "@/lib/admin/request-forms";
 
 type UntypedTable = {
   Row: Record<string, unknown>;
@@ -23,6 +24,95 @@ type SupabaseAdminClient = ReturnType<
 >;
 
 const officialSuperAdminEmail = "internationalkempoassociation@gmail.com";
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ eventId: string }> },
+) {
+  const guard = await requireScopedAdmin(request);
+
+  if ("error" in guard) {
+    return NextResponse.json({ error: guard.error }, { status: guard.status });
+  }
+
+  const { eventId } = await context.params;
+  const eventResult = await guard.admin
+    .from("events")
+    .select("id,event_type,country_id,dojo_id,created_by,event_translations(language_code,title)")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (eventResult.error) {
+    return NextResponse.json({ error: eventResult.error.message }, { status: 500 });
+  }
+
+  if (!eventResult.data) {
+    return NextResponse.json({ error: "Curso no encontrado." }, { status: 404 });
+  }
+
+  const event = eventResult.data as {
+    id: string;
+    event_type: string | null;
+    country_id: string | null;
+    dojo_id: string | null;
+    created_by: string | null;
+    event_translations?: Array<{ language_code: string; title: string }>;
+  };
+  const isGlobalAdmin = guard.scope.isSuperAdmin || guard.scope.isGlobalAdmin;
+  const isCreator = guard.scope.roleProfileIds.includes(event.created_by ?? "");
+  const isLegacyScopedOwner =
+    !event.created_by &&
+    ((event.country_id && guard.scope.countryIds.includes(event.country_id)) ||
+      (event.dojo_id && guard.scope.dojoIds.includes(event.dojo_id)));
+
+  if (!isGlobalAdmin && !isCreator && !isLegacyScopedOwner) {
+    return NextResponse.json(
+      { error: "Solo el super admin o el responsable que creo este curso puede eliminarlo." },
+      { status: 403 },
+    );
+  }
+
+  const rpcClient = guard.admin as unknown as {
+    rpc: (
+      name: string,
+      args: { p_event_id: string },
+    ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
+  };
+  const deleted = await rpcClient.rpc("delete_ika_event_cascade", { p_event_id: eventId });
+
+  if (deleted.error) {
+    return NextResponse.json({ error: deleted.error.message }, { status: 500 });
+  }
+
+  if (!deleted.data) {
+    return NextResponse.json({ error: "Curso no encontrado." }, { status: 404 });
+  }
+
+  const title =
+    event.event_translations?.find((translation) => translation.language_code === "es")?.title ??
+    event.event_translations?.[0]?.title ??
+    "Curso IKA";
+
+  await guard.admin.from("audit_logs").insert({
+    actor_profile_id: guard.scope.profileId,
+    director_profile_id: guard.scope.director?.id ?? null,
+    action: "event.delete",
+    table_name: "events",
+    record_id: eventId,
+    old_value: {
+      id: eventId,
+      title,
+      eventType: event.event_type,
+      createdBy: event.created_by,
+    },
+    metadata: {
+      linkedDataDeleted: true,
+      path: request.nextUrl.pathname,
+    },
+  });
+
+  return NextResponse.json({ ok: true, eventId });
+}
 
 export async function GET(
   request: NextRequest,
