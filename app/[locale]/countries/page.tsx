@@ -1,4 +1,5 @@
 ﻿import Image from "next/image";
+import { ExternalLink } from "lucide-react";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getPublicCountriesAndDojos } from "@/lib/content/locations-cms";
@@ -129,8 +130,9 @@ function CountrySection({
                         href={country.responsibleWebsite}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-sm font-semibold text-[var(--accent)] underline-offset-4 hover:underline"
+                        className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#761223] sm:px-4"
                       >
+                        <ExternalLink size={16} aria-hidden="true" />
                         {labels.website}
                       </a>
                     ) : null}
@@ -186,11 +188,12 @@ function CountrySection({
                         ) : null}
                         {country.responsibleWebsite ? (
                           <a
-                            className="inline-flex w-fit items-center border border-[var(--accent)] px-3 py-2 font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
+                            className="inline-flex min-h-11 w-fit items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white transition-colors hover:bg-[#761223]"
                             href={country.responsibleWebsite}
                             target="_blank"
                             rel="noreferrer"
                           >
+                            <ExternalLink size={16} aria-hidden="true" />
                             {labels.website}
                           </a>
                         ) : null}
@@ -363,7 +366,7 @@ const countryPageLabels: Partial<
     phone: "Phone",
     email: "Email",
     flag: "flag",
-    website: "Official website",
+    website: "Visit official website",
     officialMembers: "Members",
     associatedMembers: "Associated members",
   },
@@ -384,7 +387,7 @@ const countryPageLabels: Partial<
     phone: "Telefono",
     email: "Email",
     flag: "bandera",
-    website: "Web oficial",
+    website: "Visitar web oficial",
     officialMembers: "Miembros",
     associatedMembers: "Miembros asociados",
   },
@@ -405,7 +408,7 @@ const countryPageLabels: Partial<
     phone: "Telefono",
     email: "Email",
     flag: "bandiera",
-    website: "Sito ufficiale",
+    website: "Visita il sito ufficiale",
   },
   fr: {
     countryContact: "Representant officiel IKA",
@@ -424,7 +427,7 @@ const countryPageLabels: Partial<
     phone: "Telephone",
     email: "Email",
     flag: "drapeau",
-    website: "Site officiel",
+    website: "Visiter le site officiel",
   },
   ja: {
     countryContact: "\u516c\u5f0f IKA \u4ee3\u8868",
@@ -443,7 +446,7 @@ const countryPageLabels: Partial<
     phone: "\u96fb\u8a71",
     email: "\u30e1\u30fc\u30eb",
     flag: "\u65d7",
-    website: "\u516c\u5f0f\u30b5\u30a4\u30c8",
+    website: "\u516c\u5f0f\u30b5\u30a4\u30c8\u3092\u898b\u308b",
   },
   zh: {
     countryContact: "IKA \u5b98\u65b9\u4ee3\u8868",
@@ -462,7 +465,7 @@ const countryPageLabels: Partial<
     phone: "\u7535\u8bdd",
     email: "\u7535\u5b50\u90ae\u7bb1",
     flag: "\u56fd\u65d7",
-    website: "\u5b98\u65b9\u7f51\u7ad9",
+    website: "\u8bbf\u95ee\u5b98\u65b9\u7f51\u7ad9",
   },
   cs: {
     countryContact: "Oficialni zastupce IKA",
@@ -481,7 +484,7 @@ const countryPageLabels: Partial<
     phone: "Telefon",
     email: "Email",
     flag: "vlajka",
-    website: "Oficialni web",
+    website: "Navstivit oficialni web",
   },
   id: {
     countryContact: "Perwakilan resmi IKA",
@@ -500,7 +503,7 @@ const countryPageLabels: Partial<
     phone: "Telepon",
     email: "Email",
     flag: "bendera",
-    website: "Situs rasmi",
+    website: "Kunjungi situs resmi",
   },
   ms: {
     countryContact: "Wakil rasmi IKA",
@@ -519,7 +522,7 @@ const countryPageLabels: Partial<
     phone: "Telefon",
     email: "E-mel",
     flag: "bendera",
-    website: "Laman rasmi",
+    website: "Lawati laman rasmi",
   },
   eu: {
     countryContact: "IKA ordezkari ofiziala",
@@ -538,7 +541,7 @@ const countryPageLabels: Partial<
     phone: "Telefonoa",
     email: "Emaila",
     flag: "bandera",
-    website: "Webgune ofiziala",
+    website: "Webgune ofiziala bisitatu",
   },
   pt: {
     countryContact: "Representante oficial da IKA",
@@ -557,7 +560,7 @@ const countryPageLabels: Partial<
     phone: "Telefone",
     email: "Email",
     flag: "bandeira",
-    website: "Site oficial",
+    website: "Visitar site oficial",
   },
   de: {
     countryContact: "Offizieller IKA-Vertreter",
@@ -576,7 +579,7 @@ const countryPageLabels: Partial<
     phone: "Telefon",
     email: "E-Mail",
     flag: "Flagge",
-    website: "Offizielle Website",
+    website: "Offizielle Website besuchen",
   },
 };
 
