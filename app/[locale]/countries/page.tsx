@@ -130,10 +130,10 @@ function CountrySection({
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                        {labels.countryContact}
+                        {labels.representativeEntity}
                       </span>
                       <span className="mt-0.5 block truncate text-sm font-semibold text-black">
-                        {country.responsiblePerson || labels.pending}
+                        {country.representativeEntity || labels.pending}
                       </span>
                     </span>
                   </span>
