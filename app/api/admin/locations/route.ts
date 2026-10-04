@@ -4,10 +4,7 @@ import {
   type AdminScope as RequestFormsAdminScope,
   type SupabaseAdminClient,
 } from "@/lib/admin/request-forms";
-import {
-  canManageCountryRepresentativeLogo,
-  getRepresentativeLogoMutation,
-} from "./route-helpers";
+import { applyRepresentativeLogoToCountryPayload } from "./route-helpers";
 
 type LocationScope = {
   profileId: string;
@@ -520,24 +517,7 @@ async function saveCountry(
     );
   }
 
-  const representativeLogoMutation = getRepresentativeLogoMutation(
-    input,
-    !countryId || canManageCountryRepresentativeLogo(scope, countryId),
-  );
-  const payload: {
-    code: string;
-    membership_type: string;
-    status: string;
-    is_public: boolean;
-    responsible_person: string | null;
-    representative_entity: string | null;
-    responsible_entity_type: string | null;
-    responsible_website: string | null;
-    responsible_email: string | null;
-    flag_media_id: string | null;
-    representative_logo_media_id?: string | null;
-    main_image_media_id: null;
-  } = {
+  const payloadBase = {
     code,
     membership_type: normalizeMembershipType(input.membershipType),
     status: normalizeStatus(input.status),
@@ -555,15 +535,19 @@ async function saveCountry(
     ),
     main_image_media_id: null,
   };
-
-  if (representativeLogoMutation.action === "resolve") {
-    payload.representative_logo_media_id = await resolveMediaId(
-      admin,
-      representativeLogoMutation.mediaId,
-      representativeLogoMutation.mediaUrl,
-      `${name} representative entity logo`,
-    );
-  }
+  const payload = await applyRepresentativeLogoToCountryPayload(
+    payloadBase,
+    input,
+    scope,
+    countryId,
+    (mediaId, mediaUrl) =>
+      resolveMediaId(
+        admin,
+        mediaId,
+        mediaUrl,
+        `${name} representative entity logo`,
+      ),
+  );
   const country = countryId
     ? await admin
         .from("countries")
