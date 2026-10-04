@@ -76,6 +76,16 @@ test("extractLogoCandidates deduplicates URLs and returns at most six", () => {
   assert.equal(new Set(result.map((candidate) => candidate.url)).size, 6);
 });
 
+test("extractLogoCandidates rejects candidate URLs containing credentials", () => {
+  const html = `
+    <link rel="logo" href="https://user:secret@example.com/logo.svg">
+    <meta property="og:image" content="https://example.com/social.png">
+  `;
+  assert.deepEqual(extractLogoCandidates(html, new URL("https://example.com")), [
+    { url: "https://example.com/social.png", source: "og-image", label: "Open Graph image" },
+  ]);
+});
+
 function response(body: string, init: ResponseInit = {}) {
   return new Response(body, init);
 }
@@ -117,6 +127,17 @@ test("discoverRemoteLogos aborts timed-out requests", async () => {
     });
   await assert.rejects(
     () => discoverRemoteLogos("https://example.com", { fetchImpl, resolver: publicResolver, timeoutMs: 5 }),
+    /timed out/i,
+  );
+});
+
+test("discoverRemoteLogos times out while DNS resolution is pending", async () => {
+  const resolver = async () => await new Promise<never>(() => {});
+  const fetchImpl = async () => {
+    assert.fail("fetch must not run before DNS resolution completes");
+  };
+  await assert.rejects(
+    () => discoverRemoteLogos("https://example.com", { fetchImpl, resolver, timeoutMs: 5 }),
     /timed out/i,
   );
 });

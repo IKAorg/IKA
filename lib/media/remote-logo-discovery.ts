@@ -113,7 +113,7 @@ export async function discoverRemoteLogos(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    let url = await assertPublicRemoteUrl(website, resolver);
+    let url = await rejectOnTimeout(assertPublicRemoteUrl(website, resolver), controller.signal);
     for (let redirects = 0; ; redirects += 1) {
       let response: Response;
       try {
@@ -127,7 +127,10 @@ export async function discoverRemoteLogos(
         if (redirects >= 5) throw new Error("Remote website exceeded the redirect limit");
         const location = response.headers.get("location");
         if (!location) throw new Error("Remote website returned a redirect without a location");
-        url = await assertPublicRemoteUrl(new URL(location, url).href, resolver);
+        url = await rejectOnTimeout(
+          assertPublicRemoteUrl(new URL(location, url).href, resolver),
+          controller.signal,
+        );
         continue;
       }
 
@@ -165,10 +168,29 @@ function addCandidate(
   try {
     const url = new URL(value.trim(), pageUrl);
     if (url.protocol !== "http:" && url.protocol !== "https:") return;
+    if (url.username || url.password) return;
     candidates.push({ url: url.href, source, label, quality, order });
   } catch {
     // Ignore malformed candidate URLs.
   }
+}
+
+async function rejectOnTimeout<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) throw new Error("Remote website request timed out");
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new Error("Remote website request timed out"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 function iconQuality(sizes?: string) {
