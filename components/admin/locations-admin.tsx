@@ -228,6 +228,8 @@ export function LocationsAdmin({
     useState(false);
   const [importingRepresentativeLogoUrl, setImportingRepresentativeLogoUrl] =
     useState<string | null>(null);
+  const [uploadingRepresentativeLogo, setUploadingRepresentativeLogo] =
+    useState(false);
   const [representativeLogoCandidates, setRepresentativeLogoCandidates] =
     useState<RemoteLogoCandidate[]>([]);
   const [representativeLogoMessage, setRepresentativeLogoMessage] =
@@ -237,6 +239,8 @@ export function LocationsAdmin({
   const [dojoCsvText, setDojoCsvText] = useState("");
   const requestCounterRef = useRef(0);
   const representativeLogoRequestRef = useRef(0);
+  const representativeLogoBusyRef = useRef(false);
+  const uploadRequestByScopeRef = useRef(new Map<string, number>());
   const inFlightRef = useRef(false);
 
   function openEditor(editorId: "country-editor" | "dojo-editor") {
@@ -394,8 +398,10 @@ export function LocationsAdmin({
 
   function resetRepresentativeLogoDiscovery() {
     representativeLogoRequestRef.current += 1;
+    representativeLogoBusyRef.current = false;
     setDiscoveringRepresentativeLogos(false);
     setImportingRepresentativeLogoUrl(null);
+    setUploadingRepresentativeLogo(false);
     setRepresentativeLogoCandidates([]);
     setRepresentativeLogoMessage("");
   }
@@ -443,9 +449,13 @@ export function LocationsAdmin({
       setRepresentativeLogoMessage(copy.representativeLogoDiscoveryError);
       return;
     }
+    if (representativeLogoBusyRef.current) {
+      return;
+    }
 
     const requestId = representativeLogoRequestRef.current + 1;
     representativeLogoRequestRef.current = requestId;
+    representativeLogoBusyRef.current = true;
     setDiscoveringRepresentativeLogos(true);
     setRepresentativeLogoCandidates([]);
     setRepresentativeLogoMessage("");
@@ -490,18 +500,23 @@ export function LocationsAdmin({
       }
     } finally {
       if (requestId === representativeLogoRequestRef.current) {
+        representativeLogoBusyRef.current = false;
         setDiscoveringRepresentativeLogos(false);
       }
     }
   }
 
   async function importRepresentativeLogo(candidate: RemoteLogoCandidate) {
-    if (!countryForm.id) {
+    if (
+      !countryForm.id ||
+      representativeLogoBusyRef.current
+    ) {
       return;
     }
 
     const requestId = representativeLogoRequestRef.current + 1;
     representativeLogoRequestRef.current = requestId;
+    representativeLogoBusyRef.current = true;
     setImportingRepresentativeLogoUrl(candidate.url);
     setRepresentativeLogoMessage("");
 
@@ -539,7 +554,41 @@ export function LocationsAdmin({
       }
     } finally {
       if (requestId === representativeLogoRequestRef.current) {
+        representativeLogoBusyRef.current = false;
         setImportingRepresentativeLogoUrl(null);
+      }
+    }
+  }
+
+  async function uploadRepresentativeLogo(file: File) {
+    if (
+      representativeLogoBusyRef.current
+    ) {
+      return;
+    }
+
+    const activeCountryId = countryForm.id;
+    const requestId = representativeLogoRequestRef.current + 1;
+    representativeLogoRequestRef.current = requestId;
+    representativeLogoBusyRef.current = true;
+    setUploadingRepresentativeLogo(true);
+    setRepresentativeLogoMessage("");
+
+    try {
+      const url = await uploadPublicImage(file, "country-representative-logo");
+      if (!url || requestId !== representativeLogoRequestRef.current) {
+        return;
+      }
+
+      setCountryForm((current) =>
+        current.id === activeCountryId
+          ? { ...current, representativeLogoUrl: url }
+          : current,
+      );
+    } finally {
+      if (requestId === representativeLogoRequestRef.current) {
+        representativeLogoBusyRef.current = false;
+        setUploadingRepresentativeLogo(false);
       }
     }
   }
@@ -991,6 +1040,8 @@ export function LocationsAdmin({
       return null;
     }
 
+    const uploadRequestId = (uploadRequestByScopeRef.current.get(scope) ?? 0) + 1;
+    uploadRequestByScopeRef.current.set(scope, uploadRequestId);
     setUploadingField(scope);
     setMessage("");
     const optimizedFile = await optimizeImageForUpload(file, {
@@ -1004,13 +1055,17 @@ export function LocationsAdmin({
 
     try {
       const url = await uploadImageToDrive(optimizedFile, "locations");
-      setUploadingField(null);
+      if (uploadRequestByScopeRef.current.get(scope) === uploadRequestId) {
+        setUploadingField((current) => (current === scope ? null : current));
+      }
       return url;
     } catch (error) {
-      setUploadingField(null);
-      setMessage(
-        error instanceof Error ? error.message : "No se pudo subir la imagen.",
-      );
+      if (uploadRequestByScopeRef.current.get(scope) === uploadRequestId) {
+        setUploadingField((current) => (current === scope ? null : current));
+        setMessage(
+          error instanceof Error ? error.message : "No se pudo subir la imagen.",
+        );
+      }
       return null;
     }
   }
@@ -1179,6 +1234,7 @@ export function LocationsAdmin({
                 onUploadImage={uploadPublicImage}
                 discoveringRepresentativeLogos={discoveringRepresentativeLogos}
                 importingRepresentativeLogoUrl={importingRepresentativeLogoUrl}
+                uploadingRepresentativeLogo={uploadingRepresentativeLogo}
                 representativeLogoCandidates={representativeLogoCandidates}
                 representativeLogoMessage={representativeLogoMessage}
                 hasValidResponsibleWebsite={isValidRepresentativeWebsite(
@@ -1186,6 +1242,7 @@ export function LocationsAdmin({
                 )}
                 onDiscoverRepresentativeLogos={discoverRepresentativeLogos}
                 onImportRepresentativeLogo={importRepresentativeLogo}
+                onUploadRepresentativeLogo={uploadRepresentativeLogo}
                 onResponsibleWebsiteChange={(value) => {
                   resetRepresentativeLogoDiscovery();
                   setCountryForm((current) => ({
@@ -1443,11 +1500,13 @@ function CountryFormView({
   onUploadImage,
   discoveringRepresentativeLogos,
   importingRepresentativeLogoUrl,
+  uploadingRepresentativeLogo,
   representativeLogoCandidates,
   representativeLogoMessage,
   hasValidResponsibleWebsite,
   onDiscoverRepresentativeLogos,
   onImportRepresentativeLogo,
+  onUploadRepresentativeLogo,
   onResponsibleWebsiteChange,
   onSave,
   onReset,
@@ -1462,11 +1521,13 @@ function CountryFormView({
   onUploadImage: UploadImageFn;
   discoveringRepresentativeLogos: boolean;
   importingRepresentativeLogoUrl: string | null;
+  uploadingRepresentativeLogo: boolean;
   representativeLogoCandidates: RemoteLogoCandidate[];
   representativeLogoMessage: string;
   hasValidResponsibleWebsite: boolean;
   onDiscoverRepresentativeLogos: () => void;
   onImportRepresentativeLogo: (candidate: RemoteLogoCandidate) => void;
+  onUploadRepresentativeLogo: (file: File) => void;
   onResponsibleWebsiteChange: (value: string) => void;
   onSave: () => void;
   onReset: () => void;
@@ -1478,6 +1539,10 @@ function CountryFormView({
   );
   const selectedCountryName =
     countryCatalog.find((option) => option.code === form.code)?.name ?? "";
+  const representativeLogoBusy =
+    discoveringRepresentativeLogos ||
+    Boolean(importingRepresentativeLogoUrl) ||
+    uploadingRepresentativeLogo;
 
   return (
     <details className="border border-[var(--line)] p-4">
@@ -1678,8 +1743,7 @@ function CountryFormView({
             disabled={
               !form.id ||
               !hasValidResponsibleWebsite ||
-              discoveringRepresentativeLogos ||
-              Boolean(importingRepresentativeLogoUrl)
+              representativeLogoBusy
             }
             aria-label={copy.representativeLogoSearch}
             className="inline-flex min-h-11 w-fit items-center gap-2 border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
@@ -1757,10 +1821,7 @@ function CountryFormView({
                       <button
                         type="button"
                         onClick={() => onImportRepresentativeLogo(candidate)}
-                        disabled={
-                          discoveringRepresentativeLogos ||
-                          Boolean(importingRepresentativeLogoUrl)
-                        }
+                        disabled={representativeLogoBusy}
                         aria-label={`${copy.representativeLogoUse}: ${candidate.label || getRemoteLogoHost(candidate.url)}`}
                         className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -1781,19 +1842,9 @@ function CountryFormView({
             label={copy.representativeLogoManualLabel}
             helperText={copy.representativeLogoSaveReminder}
             value={form.representativeLogoUrl}
-            uploading={uploadingField === "country-representative-logo"}
-            onUpload={async (file) => {
-              const url = await onUploadImage(
-                file,
-                "country-representative-logo",
-              );
-              if (url) {
-                setForm((current) => ({
-                  ...current,
-                  representativeLogoUrl: url,
-                }));
-              }
-            }}
+            uploading={uploadingRepresentativeLogo}
+            disabled={representativeLogoBusy}
+            onUpload={onUploadRepresentativeLogo}
             onClear={() =>
               setForm((current) => ({ ...current, representativeLogoUrl: "" }))
             }
@@ -2202,6 +2253,7 @@ function ImageUploadField({
   helperText,
   value,
   uploading,
+  disabled = false,
   onUpload,
   onClear,
   copy,
@@ -2210,6 +2262,7 @@ function ImageUploadField({
   helperText?: string;
   value: string;
   uploading: boolean;
+  disabled?: boolean;
   onUpload: (file: File) => void;
   onClear: () => void;
   copy: ReturnType<typeof locationsAdminCopy>;
@@ -2235,7 +2288,9 @@ function ImageUploadField({
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          <label className="inline-flex cursor-pointer items-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white">
+          <label
+            className={`inline-flex items-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+          >
             {uploading ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
@@ -2245,7 +2300,7 @@ function ImageUploadField({
             <input
               type="file"
               accept="image/*"
-              disabled={uploading}
+              disabled={uploading || disabled}
               className="sr-only"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -2260,7 +2315,8 @@ function ImageUploadField({
             <button
               type="button"
               onClick={onClear}
-              className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+              disabled={disabled}
+              className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X size={16} />
               {copy.removeImage}
