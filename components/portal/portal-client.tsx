@@ -173,6 +173,7 @@ type PortalDashboard = {
     countries: number;
     dojos: number;
     activeDojos: number;
+    globalDojos?: number;
     members: number;
     activeMembers: number;
     globalActiveMembers?: number;
@@ -2707,9 +2708,9 @@ function AdminDashboard({
             </span>
             <span>
               <strong className="text-base text-[var(--ink)]">
-                {dashboard.totals.activeDojos ?? dashboard.totals.dojos}
+                {dashboard.totals.globalDojos ?? dashboard.totals.dojos}
               </strong>{" "}
-              {copy.metrics.activeDojos ?? copy.metrics.dojos}
+              {copy.metrics.dojos}
             </span>
           </div>
         </div>
@@ -2898,8 +2899,8 @@ function AdminDashboard({
         />
         <MetricCard label={copy.metrics.countries} value={dashboard.totals.countries} />
         <MetricCard
-          label={copy.metrics.activeDojos ?? copy.metrics.dojos}
-          value={dashboard.totals.activeDojos ?? dashboard.totals.dojos}
+          label={copy.metrics.dojos}
+          value={dashboard.totals.globalDojos ?? dashboard.totals.dojos}
         />
         <MetricCard
           label={copy.metrics.coursesRegistered ?? copy.metrics.activeMembers}

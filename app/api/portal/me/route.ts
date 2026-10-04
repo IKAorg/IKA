@@ -835,6 +835,7 @@ async function getPortalDashboard(
     countries: visibleCountries.length,
     dojos: visibleDojos.length,
     activeDojos: membersByDojo.filter((dojo) => dojo.activeMembers > 0).length,
+    globalDojos: allDojos.length,
       members: visibleMembers.length,
       activeMembers: activeMembers.length,
       globalActiveMembers: globalActiveMembers.length,
