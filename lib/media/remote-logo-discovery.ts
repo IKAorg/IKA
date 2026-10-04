@@ -22,6 +22,20 @@ export type RemoteLogoDiscoveryOptions = {
   maxBytes?: number;
 };
 
+export type DownloadedRemoteImage = {
+  buffer: Buffer;
+  contentType: string;
+  fileName: string;
+};
+
+const allowedImageTypes = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+  ["image/gif", "gif"],
+  ["image/svg+xml", "svg"],
+]);
+
 const defaultResolver: Resolver = async (hostname) =>
   await dns.lookup(hostname, { all: true, verbatim: true });
 
@@ -162,6 +176,75 @@ export async function discoverRemoteLogos(
   }
 }
 
+export async function downloadRemoteImage(
+  imageUrl: string,
+  options: RemoteLogoDiscoveryOptions = {},
+): Promise<DownloadedRemoteImage> {
+  const transport: PinnedTransport = options.transport ?? (options.fetchImpl
+    ? async (url, _address, signal) => await options.fetchImpl!(url, { redirect: "manual", signal })
+    : requestPinned);
+  const resolver = options.resolver ?? defaultResolver;
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  const maxBytes = options.maxBytes ?? 10 * 1024 * 1024;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    let target = await rejectOnTimeout(resolvePublicRemoteUrl(imageUrl, resolver), controller.signal);
+    for (let redirects = 0; ; redirects += 1) {
+      let response: Response;
+      try {
+        response = await rejectOnTimeout(
+          transport(target.url, target.addresses[0], controller.signal),
+          controller.signal,
+        );
+      } catch (error) {
+        if (controller.signal.aborted) throw new Error("Remote image request timed out");
+        throw error;
+      }
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        await disposeResponse(response);
+        if (redirects >= 5) throw new Error("Remote image exceeded the redirect limit");
+        if (!location) throw new Error("Remote image returned a redirect without a location");
+        target = await rejectOnTimeout(
+          resolvePublicRemoteUrl(new URL(location, target.url).href, resolver),
+          controller.signal,
+        );
+        continue;
+      }
+
+      if (!response.ok) {
+        await disposeResponse(response);
+        throw new Error(`Remote image returned HTTP ${response.status}`);
+      }
+
+      const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
+      const extension = allowedImageTypes.get(contentType);
+      if (!extension) {
+        await disposeResponse(response);
+        throw new Error("Remote response is not allowed image content");
+      }
+
+      const buffer = await readBoundedBuffer(response, maxBytes, controller.signal);
+      if (!matchesImageContent(buffer, contentType)) {
+        throw new Error("Remote response is not valid image content");
+      }
+      return {
+        buffer,
+        contentType,
+        fileName: safeImageFileName(target.url, extension),
+      };
+    }
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("Remote image request timed out");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function parseAttributes(tag: string) {
   const attributes: Record<string, string> = {};
   const pattern = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
@@ -245,6 +328,76 @@ async function readBoundedText(response: Response, maxBytes: number) {
     offset += chunk.byteLength;
   }
   return new TextDecoder().decode(combined);
+}
+
+async function readBoundedBuffer(response: Response, maxBytes: number, signal: AbortSignal) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await disposeResponse(response);
+    throw new Error("Remote image response is too large");
+  }
+  if (!response.body) return Buffer.alloc(0);
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await rejectOnTimeout(reader.read(), signal);
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) throw new Error("Remote image response is too large");
+      chunks.push(value);
+    }
+  } catch (error) {
+    try {
+      await reader.cancel();
+    } catch {
+      // The transport may already have closed the body.
+    }
+    throw error;
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), bytes);
+}
+
+function safeImageFileName(url: URL, extension: string) {
+  let pathname = url.pathname;
+  try {
+    pathname = decodeURIComponent(pathname);
+  } catch {
+    // Keep the encoded path when it contains malformed escapes.
+  }
+  const rawBase = pathname.split("/").pop()?.replace(/\.[^.]*$/, "") ?? "";
+  const base = rawBase
+    .replace(/[\0-\x1f\x7f]+/g, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "image";
+  return `${base}.${extension}`;
+}
+
+function matchesImageContent(buffer: Buffer, contentType: string) {
+  if (contentType === "image/jpeg") {
+    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (contentType === "image/png") {
+    return buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (contentType === "image/gif") {
+    const signature = buffer.subarray(0, 6).toString("ascii");
+    return signature === "GIF87a" || signature === "GIF89a";
+  }
+  if (contentType === "image/webp") {
+    return buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+  }
+  if (contentType === "image/svg+xml") {
+    const prefix = buffer.subarray(0, 4096).toString("utf8")
+      .replace(/^\uFEFF/, "")
+      .replace(/^\s*<\?xml[^>]*>\s*/i, "")
+      .replace(/^\s*<!--(?:.|[\r\n])*?-->\s*/i, "");
+    return /^\s*<svg(?:\s|>)/i.test(prefix);
+  }
+  return false;
 }
 
 async function disposeResponse(response: Response) {

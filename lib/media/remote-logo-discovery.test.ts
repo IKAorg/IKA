@@ -3,7 +3,7 @@ import test from "node:test";
 
 // Node's type-stripping runner requires the source extension; the app tsconfig does not enable it.
 // @ts-expect-error TS5097
-import { assertPublicRemoteUrl, discoverRemoteLogos, extractLogoCandidates } from "./remote-logo-discovery.ts";
+import { assertPublicRemoteUrl, discoverRemoteLogos, downloadRemoteImage, extractLogoCandidates } from "./remote-logo-discovery.ts";
 
 const publicResolver = async () => [{ address: "93.184.216.34", family: 4 as const }];
 
@@ -232,4 +232,102 @@ test("discoverRemoteLogos rejects oversized and non-HTML responses", async () =>
     () => discoverRemoteLogos("https://example.com", { fetchImpl: imageFetch, resolver: publicResolver }),
     /HTML/i,
   );
+});
+
+test("downloadRemoteImage returns a valid image with its metadata", async () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const result = await downloadRemoteImage("https://example.com/brand.png", {
+    fetchImpl: async () => new Response(png, {
+      headers: { "content-type": "image/png" },
+    }),
+    resolver: publicResolver,
+  });
+
+  assert.deepEqual(result.buffer, Buffer.from(png));
+  assert.equal(result.contentType, "image/png");
+  assert.equal(result.fileName, "brand.png");
+});
+
+test("downloadRemoteImage rejects HTML masquerading as an image and cleans up its body", async () => {
+  await assert.rejects(
+    () => downloadRemoteImage("https://example.com/logo.png", {
+      fetchImpl: async () => new Response("<!doctype html><html></html>", {
+        headers: { "content-type": "image/png" },
+      }),
+      resolver: publicResolver,
+    }),
+    /image content/i,
+  );
+});
+
+test("downloadRemoteImage rejects oversized declared and streamed bodies", async () => {
+  let headerBodyCancelled = false;
+  await assert.rejects(
+    () => downloadRemoteImage("https://example.com/logo.png", {
+      fetchImpl: async () => new Response(
+        new ReadableStream({ cancel: () => { headerBodyCancelled = true; } }),
+        { headers: { "content-type": "image/png", "content-length": "11" } },
+      ),
+      resolver: publicResolver,
+      maxBytes: 10,
+    }),
+    /large/i,
+  );
+  assert.equal(headerBodyCancelled, true);
+
+  let streamCancelled = false;
+  await assert.rejects(
+    () => downloadRemoteImage("https://example.com/logo.png", {
+      fetchImpl: async () => new Response(new ReadableStream({
+        pull(controller) {
+          controller.enqueue(new Uint8Array(6));
+          controller.enqueue(new Uint8Array(6));
+        },
+        cancel: () => { streamCancelled = true; },
+      }), { headers: { "content-type": "image/png" } }),
+      resolver: publicResolver,
+      maxBytes: 10,
+    }),
+    /large/i,
+  );
+  assert.equal(streamCancelled, true);
+});
+
+test("downloadRemoteImage validates every redirect target", async () => {
+  let cancelled = false;
+  await assert.rejects(
+    () => downloadRemoteImage("https://example.com/logo.png", {
+      fetchImpl: async () => new Response(
+        new ReadableStream({ cancel: () => { cancelled = true; } }),
+        { status: 302, headers: { location: "http://127.0.0.1/private.png" } },
+      ),
+      resolver: publicResolver,
+    }),
+    /public/i,
+  );
+  assert.equal(cancelled, true);
+});
+
+test("downloadRemoteImage times out while reading the body", async () => {
+  await assert.rejects(
+    () => downloadRemoteImage("https://example.com/logo.png", {
+      fetchImpl: async () => new Response(new ReadableStream({ pull: () => undefined }), {
+        headers: { "content-type": "image/png" },
+      }),
+      resolver: publicResolver,
+      timeoutMs: 5,
+    }),
+    /timed out/i,
+  );
+});
+
+test("downloadRemoteImage produces a safe filename", async () => {
+  const result = await downloadRemoteImage("https://example.com/%2e%2e/%2e%2e/%00evil%20logo.PHP?x=1", {
+    fetchImpl: async () => new Response("<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>", {
+      headers: { "content-type": "image/svg+xml" },
+    }),
+    resolver: publicResolver,
+  });
+
+  assert.equal(result.fileName, "evil-logo.svg");
 });
