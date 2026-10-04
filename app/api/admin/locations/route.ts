@@ -4,10 +4,15 @@ import {
   type AdminScope as RequestFormsAdminScope,
   type SupabaseAdminClient,
 } from "@/lib/admin/request-forms";
+import {
+  canManageCountryRepresentativeLogo,
+  getRepresentativeLogoMutation,
+} from "./route-helpers";
 
 type LocationScope = {
   profileId: string;
   isGlobal: boolean;
+  countryAdminIds: string[];
   countryIds: string[];
   dojoIds: string[];
   roleKeys: string[];
@@ -515,7 +520,24 @@ async function saveCountry(
     );
   }
 
-  const payload = {
+  const representativeLogoMutation = getRepresentativeLogoMutation(
+    input,
+    !countryId || canManageCountryRepresentativeLogo(scope, countryId),
+  );
+  const payload: {
+    code: string;
+    membership_type: string;
+    status: string;
+    is_public: boolean;
+    responsible_person: string | null;
+    representative_entity: string | null;
+    responsible_entity_type: string | null;
+    responsible_website: string | null;
+    responsible_email: string | null;
+    flag_media_id: string | null;
+    representative_logo_media_id?: string | null;
+    main_image_media_id: null;
+  } = {
     code,
     membership_type: normalizeMembershipType(input.membershipType),
     status: normalizeStatus(input.status),
@@ -531,14 +553,17 @@ async function saveCountry(
       input.flagMediaUrl ?? null,
       `${name} flag`,
     ),
-    representative_logo_media_id: await resolveMediaId(
-      admin,
-      input.representativeLogoMediaId ?? null,
-      input.representativeLogoMediaUrl ?? null,
-      `${name} representative entity logo`,
-    ),
     main_image_media_id: null,
   };
+
+  if (representativeLogoMutation.action === "resolve") {
+    payload.representative_logo_media_id = await resolveMediaId(
+      admin,
+      representativeLogoMutation.mediaId,
+      representativeLogoMutation.mediaUrl,
+      `${name} representative entity logo`,
+    );
+  }
   const country = countryId
     ? await admin
         .from("countries")
@@ -1057,6 +1082,7 @@ function mapScope(scope: RequestFormsAdminScope): LocationScope {
   return {
     profileId: scope.profileId,
     isGlobal: scope.isSuperAdmin || scope.isGlobalAdmin,
+    countryAdminIds: scope.countryAdminIds,
     countryIds: scope.countryIds,
     dojoIds: scope.dojoIds,
     roleKeys: scope.roleKeys,
