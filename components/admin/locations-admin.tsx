@@ -55,6 +55,7 @@ type CountryRow = {
   responsible_website: string | null;
   responsible_email: string | null;
   flag_media_id: string | null;
+  representative_logo_media_id: string | null;
   main_image_media_id: string | null;
   country_translations: CountryTranslationRow[];
 };
@@ -100,6 +101,7 @@ type CountryForm = {
   responsibleWebsite: string;
   responsibleEmail: string;
   logoUrl: string;
+  representativeLogoUrl: string;
   imageUrl: string;
 };
 
@@ -153,6 +155,7 @@ function createEmptyCountryForm(locale: Locale): CountryForm {
     responsibleWebsite: "",
     responsibleEmail: "",
     logoUrl: "",
+    representativeLogoUrl: "",
     imageUrl: "",
   };
 }
@@ -412,6 +415,7 @@ export function LocationsAdmin({
         country: {
           ...countryForm,
           flagMediaUrl: countryForm.logoUrl || null,
+          representativeLogoMediaUrl: countryForm.representativeLogoUrl || null,
         },
       }),
     });
@@ -2004,6 +2008,10 @@ function hydrateCountryForm(
     responsibleWebsite: country.responsible_website ?? "",
     responsibleEmail: country.responsible_email ?? "",
     logoUrl: getMediaUrl(country.flag_media_id, mediaById),
+    representativeLogoUrl: getMediaUrl(
+      country.representative_logo_media_id,
+      mediaById,
+    ),
     imageUrl: getMediaUrl(country.main_image_media_id, mediaById),
   };
 }

@@ -41,6 +41,8 @@ type LocationBody = {
     responsibleEmail?: string;
     flagMediaId?: string | null;
     flagMediaUrl?: string | null;
+    representativeLogoMediaId?: string | null;
+    representativeLogoMediaUrl?: string | null;
   };
   dojo?: {
     id?: string;
@@ -98,6 +100,7 @@ export async function GET(request: NextRequest) {
       id: string;
       membership_type: string;
       flag_media_id: string | null;
+      representative_logo_media_id: string | null;
       main_image_media_id: string | null;
       representative_entity: string | null;
     }>,
@@ -109,6 +112,7 @@ export async function GET(request: NextRequest) {
       [
         ...countries.flatMap((country) => [
           country.flag_media_id,
+          country.representative_logo_media_id,
           country.main_image_media_id,
         ]),
         ...dojos.flatMap((dojo) => [
@@ -527,6 +531,12 @@ async function saveCountry(
       input.flagMediaUrl ?? null,
       `${name} flag`,
     ),
+    representative_logo_media_id: await resolveMediaId(
+      admin,
+      input.representativeLogoMediaId ?? null,
+      input.representativeLogoMediaUrl ?? null,
+      `${name} representative entity logo`,
+    ),
     main_image_media_id: null,
   };
   const country = countryId
@@ -821,7 +831,7 @@ function getScopedCountries(
   const query = admin
     .from("countries")
     .select(
-      "id,code,membership_type,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_entity_type,responsible_website,responsible_email,flag_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,membership_type,ika_country_id,status,is_public,responsible_person,representative_entity,responsible_entity_type,responsible_website,responsible_email,flag_media_id,representative_logo_media_id,main_image_media_id,country_translations(language_code,name,slug,description)",
     )
     .order("code", { ascending: true });
 
