@@ -1,4 +1,6 @@
 import { promises as dns } from "node:dns";
+import http from "node:http";
+import https from "node:https";
 import { isIP } from "node:net";
 
 export type RemoteLogoCandidate = {
@@ -7,12 +9,14 @@ export type RemoteLogoCandidate = {
   label: string;
 };
 
-type LookupAddress = { address: string; family: number };
-type Resolver = (hostname: string) => Promise<LookupAddress[]>;
+export type RemoteAddress = { address: string; family: number };
+type Resolver = (hostname: string) => Promise<RemoteAddress[]>;
 type FetchImplementation = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+type PinnedTransport = (url: URL, address: RemoteAddress, signal: AbortSignal) => Promise<Response>;
 
 export type RemoteLogoDiscoveryOptions = {
   fetchImpl?: FetchImplementation;
+  transport?: PinnedTransport;
   resolver?: Resolver;
   timeoutMs?: number;
   maxBytes?: number;
@@ -25,6 +29,10 @@ export async function assertPublicRemoteUrl(
   value: string,
   resolver: Resolver = defaultResolver,
 ): Promise<URL> {
+  return (await resolvePublicRemoteUrl(value, resolver)).url;
+}
+
+async function resolvePublicRemoteUrl(value: string, resolver: Resolver) {
   let url: URL;
   try {
     url = new URL(value);
@@ -52,14 +60,14 @@ export async function assertPublicRemoteUrl(
   if (addresses.length === 0 || addresses.some(({ address }) => !isPublicIp(address))) {
     throw new Error("Remote URL must resolve only to public addresses");
   }
-  return url;
+  return { url, addresses };
 }
 
 export function extractLogoCandidates(html: string, pageUrl: URL): RemoteLogoCandidate[] {
   const ranked: Array<RemoteLogoCandidate & { quality: number; order: number }> = [];
   let order = 0;
 
-  for (const tag of html.match(/<(?:link|meta)\b[^>]*>/gi) ?? []) {
+  for (const tag of findMetadataTags(html)) {
     const name = /^<\s*(link|meta)\b/i.exec(tag)?.[1]?.toLowerCase();
     const attributes = parseAttributes(tag);
     if (name === "meta") {
@@ -105,7 +113,9 @@ export async function discoverRemoteLogos(
   website: string,
   options: RemoteLogoDiscoveryOptions = {},
 ): Promise<RemoteLogoCandidate[]> {
-  const fetchImpl = options.fetchImpl ?? fetch;
+  const transport: PinnedTransport = options.transport ?? (options.fetchImpl
+    ? async (url, _address, signal) => await options.fetchImpl!(url, { redirect: "manual", signal })
+    : requestPinned);
   const resolver = options.resolver ?? defaultResolver;
   const timeoutMs = options.timeoutMs ?? 10_000;
   const maxBytes = options.maxBytes ?? 2 * 1024 * 1024;
@@ -113,34 +123,39 @@ export async function discoverRemoteLogos(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    let url = await rejectOnTimeout(assertPublicRemoteUrl(website, resolver), controller.signal);
+    let target = await rejectOnTimeout(resolvePublicRemoteUrl(website, resolver), controller.signal);
     for (let redirects = 0; ; redirects += 1) {
       let response: Response;
       try {
-        response = await fetchImpl(url, { redirect: "manual", signal: controller.signal });
+        response = await transport(target.url, target.addresses[0], controller.signal);
       } catch (error) {
         if (controller.signal.aborted) throw new Error("Remote website request timed out");
         throw error;
       }
 
       if (response.status >= 300 && response.status < 400) {
-        if (redirects >= 5) throw new Error("Remote website exceeded the redirect limit");
         const location = response.headers.get("location");
+        await disposeResponse(response);
+        if (redirects >= 5) throw new Error("Remote website exceeded the redirect limit");
         if (!location) throw new Error("Remote website returned a redirect without a location");
-        url = await rejectOnTimeout(
-          assertPublicRemoteUrl(new URL(location, url).href, resolver),
+        target = await rejectOnTimeout(
+          resolvePublicRemoteUrl(new URL(location, target.url).href, resolver),
           controller.signal,
         );
         continue;
       }
 
-      if (!response.ok) throw new Error(`Remote website returned HTTP ${response.status}`);
+      if (!response.ok) {
+        await disposeResponse(response);
+        throw new Error(`Remote website returned HTTP ${response.status}`);
+      }
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
       if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+        await disposeResponse(response);
         throw new Error("Remote website did not return HTML content");
       }
       const html = await readBoundedText(response, maxBytes);
-      return extractLogoCandidates(html, url);
+      return extractLogoCandidates(html, target.url);
     }
   } finally {
     clearTimeout(timer);
@@ -151,7 +166,7 @@ function parseAttributes(tag: string) {
   const attributes: Record<string, string> = {};
   const pattern = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
   for (const match of tag.matchAll(pattern)) {
-    attributes[match[1].toLowerCase()] = match[2] ?? match[3] ?? match[4] ?? "";
+    attributes[match[1].toLowerCase()] = decodeHtmlEntities(match[2] ?? match[3] ?? match[4] ?? "");
   }
   return attributes;
 }
@@ -205,6 +220,7 @@ function iconQuality(sizes?: string) {
 async function readBoundedText(response: Response, maxBytes: number) {
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await disposeResponse(response);
     throw new Error("Remote website response is too large");
   }
   if (!response.body) return "";
@@ -229,6 +245,108 @@ async function readBoundedText(response: Response, maxBytes: number) {
     offset += chunk.byteLength;
   }
   return new TextDecoder().decode(combined);
+}
+
+async function disposeResponse(response: Response) {
+  if (!response.body) return;
+  try {
+    await response.body.cancel();
+  } catch {
+    // The transport may already have closed the body.
+  }
+}
+
+function requestPinned(url: URL, address: RemoteAddress, signal: AbortSignal): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const client = url.protocol === "https:" ? https : http;
+    const request = client.request(url, {
+      method: "GET",
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": "IKA-LogoDiscovery/1.0",
+      },
+      lookup: (_hostname, _options, callback) => {
+        callback(null, address.address, address.family);
+      },
+      signal,
+      ...(url.protocol === "https:" ? { servername: stripIpv6Brackets(url.hostname) } : {}),
+    }, (incoming) => {
+      const headers = new Headers();
+      for (let index = 0; index < incoming.rawHeaders.length; index += 2) {
+        headers.append(incoming.rawHeaders[index], incoming.rawHeaders[index + 1]);
+      }
+      const status = incoming.statusCode ?? 500;
+      const bodyForbidden = status === 101 || status === 204 || status === 205 || status === 304;
+      if (bodyForbidden) incoming.resume();
+      const body = bodyForbidden ? null : new ReadableStream<Uint8Array>({
+        start(controller) {
+          incoming.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+          incoming.on("end", () => controller.close());
+          incoming.on("error", (error) => controller.error(error));
+        },
+        cancel() {
+          incoming.destroy();
+          request.destroy();
+        },
+      });
+      resolve(new Response(body, { status, statusText: incoming.statusMessage, headers }));
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+function findMetadataTags(html: string) {
+  const visible = html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
+  const tags: string[] = [];
+  let cursor = 0;
+  while (cursor < visible.length) {
+    const start = visible.indexOf("<", cursor);
+    if (start < 0) break;
+    const name = /^<\s*(link|meta)\b/i.exec(visible.slice(start))?.[1];
+    if (!name) {
+      cursor = start + 1;
+      continue;
+    }
+    let quote = "";
+    let end = start + 1;
+    for (; end < visible.length; end += 1) {
+      const character = visible[end];
+      if (quote) {
+        if (character === quote) quote = "";
+      } else if (character === "\"" || character === "'") {
+        quote = character;
+      } else if (character === ">") {
+        tags.push(visible.slice(start, end + 1));
+        break;
+      }
+    }
+    cursor = end + 1;
+  }
+  return tags;
+}
+
+function decodeHtmlEntities(value: string) {
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    quot: "\"",
+  };
+  return value.replace(/&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi, (entity, decimal, hexadecimal, name) => {
+    if (decimal || hexadecimal) {
+      const codePoint = Number.parseInt(decimal ?? hexadecimal, decimal ? 10 : 16);
+      try {
+        return String.fromCodePoint(codePoint);
+      } catch {
+        return entity;
+      }
+    }
+    return named[String(name).toLowerCase()] ?? entity;
+  });
 }
 
 function stripIpv6Brackets(hostname: string) {

@@ -86,6 +86,19 @@ test("extractLogoCandidates rejects candidate URLs containing credentials", () =
   ]);
 });
 
+test("extractLogoCandidates handles quoted angle brackets, ignores inert text, and decodes URL entities", () => {
+  const html = `
+    <!-- <link rel="logo" href="/comment.svg"> -->
+    <script data-value=">">const fake = '<link rel="logo" href="/script.svg">';</script>
+    <link rel="logo" href="/brand>mark.svg?one=1&amp;two=2">
+    <link rel="apple-touch-icon" href="&#47;touch&#x2e;png">
+  `;
+  assert.deepEqual(extractLogoCandidates(html, new URL("https://example.com")), [
+    { url: "https://example.com/brand%3Emark.svg?one=1&two=2", source: "logo", label: "Logo" },
+    { url: "https://example.com/touch.png", source: "apple-touch-icon", label: "Apple touch icon" },
+  ]);
+});
+
 function response(body: string, init: ResponseInit = {}) {
   return new Response(body, init);
 }
@@ -101,6 +114,71 @@ test("discoverRemoteLogos follows a validated public redirect", async () => {
   const result = await discoverRemoteLogos("https://example.com", { fetchImpl, resolver: publicResolver });
   assert.deepEqual(calls, ["https://example.com/", "https://example.com/home"]);
   assert.equal(result[0]?.url, "https://example.com/logo.svg");
+});
+
+test("discoverRemoteLogos pins the connection to the address from its only DNS lookup", async () => {
+  let resolutions = 0;
+  const resolver = async () => {
+    resolutions += 1;
+    return [{ address: resolutions === 1 ? "93.184.216.34" : "127.0.0.1", family: 4 }];
+  };
+  const transport = async (url: URL, address: { address: string; family: number }) => {
+    assert.equal(url.hostname, "example.com");
+    assert.deepEqual(address, { address: "93.184.216.34", family: 4 });
+    return response('<link rel="logo" href="/logo.svg">', { headers: { "content-type": "text/html" } });
+  };
+
+  await discoverRemoteLogos("https://example.com", { resolver, transport });
+  assert.equal(resolutions, 1);
+});
+
+test("discoverRemoteLogos cancels redirect and rejected response bodies", async () => {
+  const cancelled: string[] = [];
+  const trackedResponse = (name: string, init: ResponseInit) => new Response(
+    new ReadableStream({ cancel: () => { cancelled.push(name); } }),
+    init,
+  );
+  let request = 0;
+  const redirectFetch = async () => {
+    request += 1;
+    if (request === 1) {
+      return trackedResponse("redirect", { status: 302, headers: { location: "/next" } });
+    }
+    return response("<html></html>", { headers: { "content-type": "text/html" } });
+  };
+  await discoverRemoteLogos("https://example.com", { fetchImpl: redirectFetch, resolver: publicResolver });
+  assert.deepEqual(cancelled, ["redirect"]);
+
+  const rejectedFetch = async () => trackedResponse("rejected", {
+    status: 415,
+    headers: { "content-type": "image/png" },
+  });
+  await assert.rejects(
+    () => discoverRemoteLogos("https://example.com", { fetchImpl: rejectedFetch, resolver: publicResolver }),
+    /HTTP 415/,
+  );
+  assert.deepEqual(cancelled, ["redirect", "rejected"]);
+
+  const nonHtmlFetch = async () => trackedResponse("non-html", {
+    headers: { "content-type": "image/png" },
+  });
+  await assert.rejects(
+    () => discoverRemoteLogos("https://example.com", { fetchImpl: nonHtmlFetch, resolver: publicResolver }),
+    /HTML/,
+  );
+
+  const oversizedFetch = async () => trackedResponse("oversized", {
+    headers: { "content-type": "text/html", "content-length": "100" },
+  });
+  await assert.rejects(
+    () => discoverRemoteLogos("https://example.com", {
+      fetchImpl: oversizedFetch,
+      resolver: publicResolver,
+      maxBytes: 10,
+    }),
+    /large/,
+  );
+  assert.deepEqual(cancelled, ["redirect", "rejected", "non-html", "oversized"]);
 });
 
 test("discoverRemoteLogos rejects a redirect to a private host", async () => {
