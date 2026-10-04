@@ -3,22 +3,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireScopedAdmin } from "@/lib/admin/request-forms";
 import { uploadDriveImage } from "@/lib/google-drive/media";
 import { discoverRemoteLogos, downloadRemoteImage } from "@/lib/media/remote-logo-discovery";
+import {
+  canManageRepresentativeLogo,
+  completeRepresentativeLogoImport,
+  toRepresentativeLogoAsset,
+  type StoredRepresentativeLogoAsset,
+} from "./route-helpers";
 
 export const runtime = "nodejs";
 
 type RequestBody =
   | { action: "discover"; countryId: string; website: string }
   | { action: "import"; countryId: string; imageUrl: string };
-
-type ExistingAsset = {
-  id: string;
-  file_name: string;
-  mime_type: string;
-  byte_size: number | null;
-  width: number | null;
-  height: number | null;
-  migration_status: string;
-};
 
 export async function POST(request: NextRequest) {
   const guard = await requireScopedAdmin(request);
@@ -55,8 +51,7 @@ export async function POST(request: NextRequest) {
     return jsonError(404, "COUNTRY_NOT_FOUND", "No se encontro el pais solicitado.");
   }
 
-  const isGlobal = guard.scope.isSuperAdmin || guard.scope.isGlobalAdmin;
-  if (!isGlobal && !guard.scope.countryIds.includes(body.countryId)) {
+  if (!canManageRepresentativeLogo(guard.scope, body.countryId)) {
     return jsonError(403, "COUNTRY_FORBIDDEN", "No tienes permisos para gestionar este pais.");
   }
 
@@ -80,12 +75,12 @@ export async function POST(request: NextRequest) {
     .from("drive_media_assets")
     .select("id,file_name,mime_type,byte_size,width,height,migration_status")
     .eq("source_key", sourceKey)
-    .maybeSingle<ExistingAsset>();
+    .maybeSingle<StoredRepresentativeLogoAsset>();
   if (existing.error) {
     return jsonError(502, "DRIVE_LOOKUP_FAILED", "No se pudo consultar el archivo importado.");
   }
   if (existing.data?.migration_status === "verified") {
-    return NextResponse.json({ asset: toAssetResponse(existing.data), reused: true });
+    return NextResponse.json({ asset: toRepresentativeLogoAsset(existing.data), reused: true });
   }
   if (existing.data) {
     return jsonError(502, "IMPORT_SOURCE_CONFLICT", "Ya existe una importacion incompleta para esta imagen.");
@@ -93,25 +88,29 @@ export async function POST(request: NextRequest) {
 
   try {
     const image = await downloadRemoteImage(body.imageUrl);
-    const uploaded = await uploadDriveImage({
-      admin: guard.admin,
-      input: image.buffer,
-      originalName: image.fileName,
-      category: "locations",
-      visibility: "public",
-      profileId: guard.scope.profileId,
-      sourceUrl: body.imageUrl,
-      sourceKey,
+    const result = await completeRepresentativeLogoImport({
+      upload: async () => await uploadDriveImage({
+        admin: guard.admin,
+        input: image.buffer,
+        originalName: image.fileName,
+        category: "locations",
+        visibility: "public",
+        profileId: guard.scope.profileId,
+        sourceUrl: body.imageUrl,
+        sourceKey,
+      }),
+      findById: async (assetId) => await guard.admin
+        .from("drive_media_assets")
+        .select("id,file_name,mime_type,byte_size,width,height,migration_status")
+        .eq("id", assetId)
+        .maybeSingle<StoredRepresentativeLogoAsset>(),
+      findBySourceKey: async () => await guard.admin
+        .from("drive_media_assets")
+        .select("id,file_name,mime_type,byte_size,width,height,migration_status")
+        .eq("source_key", sourceKey)
+        .maybeSingle<StoredRepresentativeLogoAsset>(),
     });
-    const stored = await guard.admin
-      .from("drive_media_assets")
-      .select("id,file_name,mime_type,byte_size,width,height,migration_status")
-      .eq("id", uploaded.assetId)
-      .maybeSingle<ExistingAsset>();
-    return NextResponse.json({
-      asset: stored.data ? toAssetResponse(stored.data) : uploaded,
-      reused: false,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     if (isRemoteUrlValidationError(error)) {
       return jsonError(400, "INVALID_URL", "La URL de la imagen no es valida o segura.");
@@ -131,18 +130,6 @@ function isValidBody(value: unknown): value is RequestBody {
 
 function isRemoteUrlValidationError(error: unknown) {
   return error instanceof Error && /malformed|must use|credentials|public host|public addresses/i.test(error.message);
-}
-
-function toAssetResponse(asset: ExistingAsset) {
-  return {
-    id: asset.id,
-    url: `/api/media/public/${asset.id}`,
-    fileName: asset.file_name,
-    mimeType: asset.mime_type,
-    byteSize: asset.byte_size,
-    width: asset.width,
-    height: asset.height,
-  };
 }
 
 function jsonError(status: number, code: string, message: string) {
