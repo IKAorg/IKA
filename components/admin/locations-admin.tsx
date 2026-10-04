@@ -9,6 +9,7 @@ import {
   Loader2,
   Plus,
   Save,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -40,7 +41,14 @@ type CountryTranslationRow = {
   description: string | null;
 };
 
-type ResponsibleEntityType = "association" | "dojo" | "club" | "group" | "other";
+type ResponsibleEntityType =
+  "association" | "dojo" | "club" | "group" | "other";
+
+type RemoteLogoCandidate = {
+  url: string;
+  source: "logo" | "og-image" | "apple-touch-icon" | "icon";
+  label: string;
+};
 
 type CountryRow = {
   id: string;
@@ -216,10 +224,19 @@ export function LocationsAdmin({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [discoveringRepresentativeLogos, setDiscoveringRepresentativeLogos] =
+    useState(false);
+  const [importingRepresentativeLogoUrl, setImportingRepresentativeLogoUrl] =
+    useState<string | null>(null);
+  const [representativeLogoCandidates, setRepresentativeLogoCandidates] =
+    useState<RemoteLogoCandidate[]>([]);
+  const [representativeLogoMessage, setRepresentativeLogoMessage] =
+    useState("");
   const [message, setMessage] = useState("");
   const [countryCsvText, setCountryCsvText] = useState("");
   const [dojoCsvText, setDojoCsvText] = useState("");
   const requestCounterRef = useRef(0);
+  const representativeLogoRequestRef = useRef(0);
   const inFlightRef = useRef(false);
 
   function openEditor(editorId: "country-editor" | "dojo-editor") {
@@ -233,7 +250,9 @@ export function LocationsAdmin({
     });
   }
 
-  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+  const getAuthHeaders = useCallback(async (): Promise<
+    Record<string, string>
+  > => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
 
@@ -316,12 +335,17 @@ export function LocationsAdmin({
       return;
     }
 
-    const nextCountries = ((payload as { countries?: CountryRow[] }).countries ?? []) as CountryRow[];
-    const nextDojos = ((payload as { dojos?: DojoRow[] }).dojos ?? []) as DojoRow[];
-    const nextScope = ((payload as { scope?: LocationScope | null }).scope ?? null) as LocationScope | null;
+    const nextCountries = ((payload as { countries?: CountryRow[] })
+      .countries ?? []) as CountryRow[];
+    const nextDojos = ((payload as { dojos?: DojoRow[] }).dojos ??
+      []) as DojoRow[];
+    const nextScope = ((payload as { scope?: LocationScope | null }).scope ??
+      null) as LocationScope | null;
 
     const nextMediaById = new Map(
-      (((payload as { media?: MediaRow[] }).media ?? []) as MediaRow[]).map((media) => [media.id, media]),
+      (((payload as { media?: MediaRow[] }).media ?? []) as MediaRow[]).map(
+        (media) => [media.id, media],
+      ),
     );
 
     setCountries(nextCountries);
@@ -368,7 +392,16 @@ export function LocationsAdmin({
     return () => subscription.unsubscribe();
   }, [loadLocations, supabase]);
 
+  function resetRepresentativeLogoDiscovery() {
+    representativeLogoRequestRef.current += 1;
+    setDiscoveringRepresentativeLogos(false);
+    setImportingRepresentativeLogoUrl(null);
+    setRepresentativeLogoCandidates([]);
+    setRepresentativeLogoMessage("");
+  }
+
   function editCountry(country: CountryRow) {
+    resetRepresentativeLogoDiscovery();
     setCountryForm(hydrateCountryForm(country, countryForm.locale, mediaById));
     openEditor("country-editor");
   }
@@ -396,8 +429,115 @@ export function LocationsAdmin({
         ? dojos.find((item) => item.id === current.id)
         : undefined;
 
-      return dojo ? hydrateDojoForm(dojo, locale, mediaById) : { ...current, locale };
+      return dojo
+        ? hydrateDojoForm(dojo, locale, mediaById)
+        : { ...current, locale };
     });
+  }
+
+  async function discoverRepresentativeLogos() {
+    if (!countryForm.id || !countryForm.responsibleWebsite.trim()) {
+      return;
+    }
+
+    const requestId = representativeLogoRequestRef.current + 1;
+    representativeLogoRequestRef.current = requestId;
+    setDiscoveringRepresentativeLogos(true);
+    setRepresentativeLogoCandidates([]);
+    setRepresentativeLogoMessage("");
+
+    try {
+      const response = await fetch("/api/admin/locations/representative-logo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({
+          action: "discover",
+          countryId: countryForm.id,
+          website: countryForm.responsibleWebsite,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (requestId !== representativeLogoRequestRef.current) {
+        return;
+      }
+      if (!response.ok) {
+        setRepresentativeLogoMessage(
+          data.code === "NO_LOGO_CANDIDATES"
+            ? copy.representativeLogoNoResult
+            : copy.representativeLogoDiscoveryError,
+        );
+        return;
+      }
+
+      const candidates = Array.isArray(data.candidates)
+        ? (data.candidates as RemoteLogoCandidate[])
+        : [];
+      setRepresentativeLogoCandidates(candidates);
+      setRepresentativeLogoMessage(
+        candidates.length > 0 ? "" : copy.representativeLogoNoResult,
+      );
+    } catch {
+      if (requestId === representativeLogoRequestRef.current) {
+        setRepresentativeLogoMessage(copy.representativeLogoDiscoveryError);
+      }
+    } finally {
+      if (requestId === representativeLogoRequestRef.current) {
+        setDiscoveringRepresentativeLogos(false);
+      }
+    }
+  }
+
+  async function importRepresentativeLogo(candidate: RemoteLogoCandidate) {
+    if (!countryForm.id) {
+      return;
+    }
+
+    const requestId = representativeLogoRequestRef.current + 1;
+    representativeLogoRequestRef.current = requestId;
+    setImportingRepresentativeLogoUrl(candidate.url);
+    setRepresentativeLogoMessage("");
+
+    try {
+      const response = await fetch("/api/admin/locations/representative-logo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({
+          action: "import",
+          countryId: countryForm.id,
+          imageUrl: candidate.url,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (requestId !== representativeLogoRequestRef.current) {
+        return;
+      }
+      if (!response.ok || typeof data.asset?.url !== "string") {
+        setRepresentativeLogoMessage(copy.representativeLogoImportError);
+        return;
+      }
+
+      setCountryForm((current) => ({
+        ...current,
+        representativeLogoUrl: data.asset.url,
+      }));
+      setRepresentativeLogoMessage(copy.representativeLogoSelected);
+    } catch {
+      if (requestId === representativeLogoRequestRef.current) {
+        setRepresentativeLogoMessage(copy.representativeLogoImportError);
+      }
+    } finally {
+      if (requestId === representativeLogoRequestRef.current) {
+        setImportingRepresentativeLogoUrl(null);
+      }
+    }
   }
 
   async function saveCountry() {
@@ -428,6 +568,7 @@ export function LocationsAdmin({
     }
 
     setCountryForm(createEmptyCountryForm(countryForm.locale));
+    resetRepresentativeLogoDiscovery();
     setMessage(copy.countrySaved);
     await loadLocations();
     setSaving(false);
@@ -783,7 +924,10 @@ export function LocationsAdmin({
         "Content-Type": "application/json",
         ...(await getAuthHeaders()),
       },
-      body: JSON.stringify({ action: "import_countries_csv", csv: countryCsvText }),
+      body: JSON.stringify({
+        action: "import_countries_csv",
+        csv: countryCsvText,
+      }),
     });
     const data = await response.json().catch(() => ({}));
 
@@ -860,7 +1004,9 @@ export function LocationsAdmin({
       return url;
     } catch (error) {
       setUploadingField(null);
-      setMessage(error instanceof Error ? error.message : "No se pudo subir la imagen.");
+      setMessage(
+        error instanceof Error ? error.message : "No se pudo subir la imagen.",
+      );
       return null;
     }
   }
@@ -935,6 +1081,7 @@ export function LocationsAdmin({
           <button
             type="button"
             onClick={() => {
+              resetRepresentativeLogoDiscovery();
               setCountryForm(createEmptyCountryForm(countryForm.locale));
               openEditor("country-editor");
             }}
@@ -1019,20 +1166,34 @@ export function LocationsAdmin({
           {canEditCountry && (canCreateCountry || Boolean(countryForm.id)) ? (
             <div id="country-editor" className="scroll-mt-24">
               <CountryFormView
-              form={countryForm}
-              setForm={setCountryForm}
-              onLocaleChange={changeCountryFormLocale}
-              canCreate={canCreateCountry}
-              saving={saving}
-              uploadingField={uploadingField}
-              onUploadImage={uploadPublicImage}
-              onSave={saveCountry}
-              onReset={() => {
-                if (canCreateCountry) {
-                  setCountryForm(createEmptyCountryForm(countryForm.locale));
-                }
-              }}
-              copy={copy}
+                form={countryForm}
+                setForm={setCountryForm}
+                onLocaleChange={changeCountryFormLocale}
+                canCreate={canCreateCountry}
+                saving={saving}
+                uploadingField={uploadingField}
+                onUploadImage={uploadPublicImage}
+                discoveringRepresentativeLogos={discoveringRepresentativeLogos}
+                importingRepresentativeLogoUrl={importingRepresentativeLogoUrl}
+                representativeLogoCandidates={representativeLogoCandidates}
+                representativeLogoMessage={representativeLogoMessage}
+                onDiscoverRepresentativeLogos={discoverRepresentativeLogos}
+                onImportRepresentativeLogo={importRepresentativeLogo}
+                onResponsibleWebsiteChange={(value) => {
+                  resetRepresentativeLogoDiscovery();
+                  setCountryForm((current) => ({
+                    ...current,
+                    responsibleWebsite: value,
+                  }));
+                }}
+                onSave={saveCountry}
+                onReset={() => {
+                  if (canCreateCountry) {
+                    resetRepresentativeLogoDiscovery();
+                    setCountryForm(createEmptyCountryForm(countryForm.locale));
+                  }
+                }}
+                copy={copy}
               />
             </div>
           ) : null}
@@ -1113,9 +1274,7 @@ function CountryList({
         {loading ? (
           <p className="text-sm text-[var(--muted)]">{copy.loadingCountries}</p>
         ) : countries.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">
-            {copy.noCountries}
-          </p>
+          <p className="text-sm text-[var(--muted)]">{copy.noCountries}</p>
         ) : (
           countries.map((country) => {
             const name =
@@ -1127,7 +1286,10 @@ function CountryList({
             const logoUrl = getMediaUrl(country.flag_media_id, mediaById);
 
             return (
-              <article key={country.id} className="border border-[var(--line)] p-4">
+              <article
+                key={country.id}
+                className="border border-[var(--line)] p-4"
+              >
                 <div className="flex items-start gap-3">
                   {logoUrl ? (
                     <Image
@@ -1140,7 +1302,8 @@ function CountryList({
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
-                      {country.status} · {country.is_public ? copy.public : copy.hidden} ·{" "}
+                      {country.status} ·{" "}
+                      {country.is_public ? copy.public : copy.hidden} ·{" "}
                       {country.membership_type === "associated"
                         ? copy.associatedMember
                         : copy.officialMember}
@@ -1149,7 +1312,7 @@ function CountryList({
                     <p className="text-sm text-[var(--muted)]">
                       {country.membership_type === "associated"
                         ? copy.noIkaCountryId
-                        : country.ika_country_id ?? copy.pendingId}{" "}
+                        : (country.ika_country_id ?? copy.pendingId)}{" "}
                       · {country.code}
                     </p>
                   </div>
@@ -1228,7 +1391,10 @@ function DojoList({
               dojo.city;
 
             return (
-              <article key={dojo.id} className="border border-[var(--line)] p-4">
+              <article
+                key={dojo.id}
+                className="border border-[var(--line)] p-4"
+              >
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
                   {dojo.status} · {countryNameById.get(dojo.country_id) ?? ""}
                 </p>
@@ -1268,6 +1434,13 @@ function CountryFormView({
   saving,
   uploadingField,
   onUploadImage,
+  discoveringRepresentativeLogos,
+  importingRepresentativeLogoUrl,
+  representativeLogoCandidates,
+  representativeLogoMessage,
+  onDiscoverRepresentativeLogos,
+  onImportRepresentativeLogo,
+  onResponsibleWebsiteChange,
   onSave,
   onReset,
   copy,
@@ -1279,11 +1452,21 @@ function CountryFormView({
   saving: boolean;
   uploadingField: string | null;
   onUploadImage: UploadImageFn;
+  discoveringRepresentativeLogos: boolean;
+  importingRepresentativeLogoUrl: string | null;
+  representativeLogoCandidates: RemoteLogoCandidate[];
+  representativeLogoMessage: string;
+  onDiscoverRepresentativeLogos: () => void;
+  onImportRepresentativeLogo: (candidate: RemoteLogoCandidate) => void;
+  onResponsibleWebsiteChange: (value: string) => void;
   onSave: () => void;
   onReset: () => void;
   copy: ReturnType<typeof locationsAdminCopy>;
 }) {
-  const countryCatalog = useMemo(() => getCountryCatalog(form.locale), [form.locale]);
+  const countryCatalog = useMemo(
+    () => getCountryCatalog(form.locale),
+    [form.locale],
+  );
   const selectedCountryName =
     countryCatalog.find((option) => option.code === form.code)?.name ?? "";
 
@@ -1292,7 +1475,11 @@ function CountryFormView({
       <summary className="cursor-pointer">
         <span className="inline-flex items-center gap-2 text-xl font-semibold">
           <Flag size={20} className="text-[var(--accent)]" />
-          {form.id ? copy.editCountry : canCreate ? copy.newCountry : copy.selectCountry}
+          {form.id
+            ? copy.editCountry
+            : canCreate
+              ? copy.newCountry
+              : copy.selectCountry}
         </span>
       </summary>
       <div className="mt-4 grid gap-3">
@@ -1318,13 +1505,18 @@ function CountryFormView({
               setForm((current) => ({
                 ...current,
                 code: value.toUpperCase(),
-                name: current.name.trim() ? current.name : countryCatalog.find((option) => option.code === value.toUpperCase())?.name ?? current.name,
+                name: current.name.trim()
+                  ? current.name
+                  : (countryCatalog.find(
+                      (option) => option.code === value.toUpperCase(),
+                    )?.name ?? current.name),
                 slug:
                   current.slugTouched || current.slug.trim()
                     ? current.slug
                     : slugify(
-                        countryCatalog.find((option) => option.code === value.toUpperCase())?.name ??
-                          current.name,
+                        countryCatalog.find(
+                          (option) => option.code === value.toUpperCase(),
+                        )?.name ?? current.name,
                       ),
               }))
             }
@@ -1370,7 +1562,10 @@ function CountryFormView({
         />
         {selectedCountryName ? (
           <p className="text-xs font-normal leading-5 text-[var(--muted)]">
-            {copy.countryFlagSelectorHelp.replace("{country}", selectedCountryName)}
+            {copy.countryFlagSelectorHelp.replace(
+              "{country}",
+              selectedCountryName,
+            )}
           </p>
         ) : null}
         <Checkbox
@@ -1411,17 +1606,20 @@ function CountryFormView({
         />
         <div className="grid gap-3 md:grid-cols-2">
           <TextInput
-          label={copy.responsible}
+            label={copy.responsible}
             value={form.responsiblePerson}
             onChange={(value) =>
               setForm((current) => ({ ...current, responsiblePerson: value }))
             }
           />
           <TextInput
-          label={copy.representativeEntity}
+            label={copy.representativeEntity}
             value={form.representativeEntity}
             onChange={(value) =>
-              setForm((current) => ({ ...current, representativeEntity: value }))
+              setForm((current) => ({
+                ...current,
+                representativeEntity: value,
+              }))
             }
           />
         </div>
@@ -1447,14 +1645,145 @@ function CountryFormView({
           <TextInput
             label={copy.responsibleWebsite}
             value={form.responsibleWebsite}
-            onChange={(value) =>
-              setForm((current) => ({ ...current, responsibleWebsite: value }))
-            }
+            onChange={onResponsibleWebsiteChange}
           />
         </div>
+        <section
+          className="grid gap-3 border-y border-[var(--line)] py-4"
+          aria-labelledby="representative-logo-heading"
+        >
+          <div>
+            <h3
+              id="representative-logo-heading"
+              className="text-sm font-semibold"
+            >
+              {copy.representativeLogoLabel}
+            </h3>
+            <p className="mt-1 text-xs font-normal leading-5 text-[var(--muted)]">
+              {copy.representativeLogoHelp}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onDiscoverRepresentativeLogos}
+            disabled={
+              !form.id ||
+              !form.responsibleWebsite.trim() ||
+              discoveringRepresentativeLogos ||
+              Boolean(importingRepresentativeLogoUrl)
+            }
+            aria-label={copy.representativeLogoSearch}
+            className="inline-flex min-h-11 w-fit items-center gap-2 border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {discoveringRepresentativeLogos ? (
+              <Loader2 size={17} className="animate-spin" />
+            ) : (
+              <Search size={17} />
+            )}
+            {discoveringRepresentativeLogos
+              ? copy.representativeLogoSearching
+              : copy.representativeLogoSearch}
+          </button>
+          {representativeLogoMessage ? (
+            <p
+              role="status"
+              aria-live="polite"
+              className="text-sm font-semibold text-[var(--accent)]"
+            >
+              {representativeLogoMessage}
+            </p>
+          ) : null}
+          {representativeLogoCandidates.length > 0 ? (
+            <div className="grid gap-3">
+              <p className="text-sm font-semibold">
+                {copy.representativeLogoCandidates}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {representativeLogoCandidates.map((candidate) => {
+                  const importing =
+                    importingRepresentativeLogoUrl === candidate.url;
+                  return (
+                    <article
+                      key={`${candidate.source}-${candidate.url}`}
+                      className="grid content-start gap-3 border border-[var(--line)] p-3"
+                    >
+                      <div className="relative aspect-[4/3] overflow-hidden bg-white">
+                        <Image
+                          src={candidate.url}
+                          alt={`${form.representativeEntity || form.name || selectedCountryName} ${copy.representativeLogoLabel}`.trim()}
+                          fill
+                          unoptimized
+                          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                          className="object-contain p-3"
+                        />
+                      </div>
+                      <div className="min-w-0 text-xs leading-5">
+                        <p className="font-semibold">
+                          {copy.representativeLogoSource}:{" "}
+                          {representativeLogoSourceLabel(
+                            candidate.source,
+                            copy,
+                          )}
+                        </p>
+                        <p className="truncate text-[var(--muted)]">
+                          {getRemoteLogoHost(candidate.url)}
+                        </p>
+                        <p
+                          className="truncate text-[var(--muted)]"
+                          title={candidate.url}
+                        >
+                          {candidate.url}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onImportRepresentativeLogo(candidate)}
+                        disabled={
+                          discoveringRepresentativeLogos ||
+                          Boolean(importingRepresentativeLogoUrl)
+                        }
+                        aria-label={`${copy.representativeLogoUse}: ${candidate.label || getRemoteLogoHost(candidate.url)}`}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--ink-blue)] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {importing ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : null}
+                        {importing
+                          ? copy.representativeLogoImporting
+                          : copy.representativeLogoUse}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+          <ImageUploadField
+            label={copy.representativeLogoManualLabel}
+            helperText={copy.representativeLogoSaveReminder}
+            value={form.representativeLogoUrl}
+            uploading={uploadingField === "country-representative-logo"}
+            onUpload={async (file) => {
+              const url = await onUploadImage(
+                file,
+                "country-representative-logo",
+              );
+              if (url) {
+                setForm((current) => ({
+                  ...current,
+                  representativeLogoUrl: url,
+                }));
+              }
+            }}
+            onClear={() =>
+              setForm((current) => ({ ...current, representativeLogoUrl: "" }))
+            }
+            copy={copy}
+          />
+        </section>
         <div className="grid gap-3 md:grid-cols-2">
           <TextInput
-          label={copy.responsibleEmail}
+            label={copy.responsibleEmail}
             value={form.responsibleEmail}
             onChange={(value) =>
               setForm((current) => ({ ...current, responsibleEmail: value }))
@@ -1513,13 +1842,15 @@ function DojoFormView({
   onReset: () => void;
   copy: ReturnType<typeof locationsAdminCopy>;
 }) {
-  const effectiveCountryId = lockCountry ? countries[0]?.id ?? "" : form.countryId;
+  const effectiveCountryId = lockCountry
+    ? (countries[0]?.id ?? "")
+    : form.countryId;
 
   return (
     <details className="border border-[var(--line)] p-4">
       <summary className="cursor-pointer">
         <span className="inline-flex items-center gap-2 text-xl font-semibold">
-        <Building2 size={20} className="text-[var(--accent)]" />
+          <Building2 size={20} className="text-[var(--accent)]" />
           {form.id ? copy.editDojo : copy.newDojo}
         </span>
       </summary>
@@ -1657,7 +1988,7 @@ function DojoFormView({
             }
           />
           <TextInput
-          label={copy.phone}
+            label={copy.phone}
             value={form.phone}
             onChange={(value) =>
               setForm((current) => ({ ...current, phone: value }))
@@ -1728,7 +2059,11 @@ function FormButtons({
         disabled={saving || disabled}
         className="inline-flex items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
       >
-        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+        {saving ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : (
+          <Save size={16} />
+        )}
         {copy.save}
       </button>
       {showReset ? (
@@ -1943,7 +2278,9 @@ function CsvImportPanel({
 }) {
   return (
     <details className="border border-[var(--line)] p-4">
-      <summary className="cursor-pointer text-xl font-semibold">{title}</summary>
+      <summary className="cursor-pointer text-xl font-semibold">
+        {title}
+      </summary>
       <div className="mt-4 grid gap-3">
         <p className="text-sm leading-6 text-[var(--muted)]">{description}</p>
         <label className="inline-flex w-fit cursor-pointer items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold">
@@ -1974,7 +2311,11 @@ function CsvImportPanel({
           disabled={saving || !csvText.trim()}
           className="inline-flex w-fit items-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-50"
         >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {saving ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Save size={16} />
+          )}
           {buttonLabel}
         </button>
       </div>
@@ -2050,7 +2391,29 @@ function hydrateDojoForm(
 }
 
 function getMediaUrl(id: string | null, mediaById: Map<string, MediaRow>) {
-  return id ? mediaById.get(id)?.storage_path ?? "" : "";
+  return id ? (mediaById.get(id)?.storage_path ?? "") : "";
+}
+
+function getRemoteLogoHost(value: string) {
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
+}
+
+function representativeLogoSourceLabel(
+  source: RemoteLogoCandidate["source"],
+  copy: ReturnType<typeof locationsAdminCopy>,
+) {
+  const labels = {
+    logo: copy.representativeLogoSourceLogo,
+    "og-image": copy.representativeLogoSourceOgImage,
+    "apple-touch-icon": copy.representativeLogoSourceAppleTouchIcon,
+    icon: copy.representativeLogoSourceIcon,
+  } satisfies Record<RemoteLogoCandidate["source"], string>;
+
+  return labels[source];
 }
 
 function slugify(value: string) {
@@ -2092,7 +2455,9 @@ function locationsAdminCopy(locale: Locale) {
       ? "No se pudo importar el CSV de dojos."
       : "Could not import the dojos CSV.",
     dojoDeleted: es ? "Dojo eliminado." : "Dojo deleted.",
-    selectImageFile: es ? "Selecciona un archivo de imagen." : "Select an image file.",
+    selectImageFile: es
+      ? "Selecciona un archivo de imagen."
+      : "Select an image file.",
     importSummary: es ? "Resumen de importacion" : "Import summary",
     created: es ? "creados" : "created",
     updated: es ? "actualizados" : "updated",
@@ -2103,8 +2468,12 @@ function locationsAdminCopy(locale: Locale) {
       ? "Gestiona paises, logos, responsables y dojos asociados. Las fichas publicas se actualizan desde Supabase."
       : "Manage countries, logos, responsible contacts and associated dojos. Public records update from Supabase.",
     countries: es ? "Paises" : "Countries",
-    importExistingCountries: es ? "Importar paises existentes" : "Import existing countries",
-    importCountriesTitle: es ? "Importacion CSV de paises" : "Countries CSV import",
+    importExistingCountries: es
+      ? "Importar paises existentes"
+      : "Import existing countries",
+    importCountriesTitle: es
+      ? "Importacion CSV de paises"
+      : "Countries CSV import",
     importCountriesDescription: es
       ? "Pega o sube el CSV exportado desde Google Sheets para crear o actualizar paises en bloque. Solo super admin."
       : "Paste or upload the CSV exported from Google Sheets to create or update countries in bulk. Super admin only.",
@@ -2130,27 +2499,75 @@ function locationsAdminCopy(locale: Locale) {
     editCountry: es ? "Editar pais" : "Edit country",
     newCountry: es ? "Nuevo pais" : "New country",
     selectCountry: es ? "Selecciona pais" : "Select country",
-    selectCountryToEdit: es ? "Selecciona tu pais en la lista para editarlo." : "Select your country in the list to edit it.",
+    selectCountryToEdit: es
+      ? "Selecciona tu pais en la lista para editarlo."
+      : "Select your country in the list to edit it.",
     language: es ? "Idioma" : "Language",
     status: es ? "Estado" : "Status",
     countryCode: es ? "Pais oficial" : "Official country",
-    selectOfficialCountry: es ? "Selecciona un pais oficial" : "Select an official country",
+    selectOfficialCountry: es
+      ? "Selecciona un pais oficial"
+      : "Select an official country",
     countryCodeReadOnly: es ? "Codigo ISO" : "ISO code",
     draft: es ? "Borrador" : "Draft",
     published: es ? "Publicado" : "Published",
     archived: es ? "Archivado" : "Archived",
     slug: "Slug",
-    visibleOnPublicSite: es ? "Visible en la web publica" : "Visible on the public website",
+    visibleOnPublicSite: es
+      ? "Visible en la web publica"
+      : "Visible on the public website",
     name: es ? "Nombre" : "Name",
     countryInfo: es ? "Informacion del pais" : "Country information",
     responsible: es ? "Responsable" : "Responsible person",
     representativeEntity: es
       ? "Entidad representante del pais"
       : "Country representative entity",
-    responsibleEntityType: es ? "Tipo de entidad responsable" : "Responsible entity type",
-    responsibleWebsite: es ? "Pagina web oficial del responsable" : "Responsible entity website",
-    optionalNotDefined: es ? "Opcional / sin definir" : "Optional / not defined",
-    entityAssociation: es ? "Asociacion o federacion" : "Association or federation",
+    responsibleEntityType: es
+      ? "Tipo de entidad responsable"
+      : "Responsible entity type",
+    responsibleWebsite: es
+      ? "Pagina web oficial del responsable"
+      : "Responsible entity website",
+    representativeLogoLabel: es
+      ? "Logo de la entidad representante"
+      : "Representative entity logo",
+    representativeLogoHelp: es
+      ? "Busca logos en la web oficial o sube uno manualmente. La busqueda nunca sustituye el logo actual de forma automatica."
+      : "Search the official website for logos or upload one manually. Search never replaces the current logo automatically.",
+    representativeLogoSearch: es ? "Buscar logos" : "Search for logos",
+    representativeLogoSearching: es
+      ? "Buscando logos..."
+      : "Searching for logos...",
+    representativeLogoCandidates: es ? "Logos encontrados" : "Logo candidates",
+    representativeLogoNoResult: es
+      ? "No se encontraron logos en la web indicada."
+      : "No logos were found on the specified website.",
+    representativeLogoDiscoveryError: es
+      ? "No se pudieron buscar logos en la web indicada. Revisa la URL e intentalo de nuevo."
+      : "Could not search the specified website for logos. Check the URL and try again.",
+    representativeLogoImportError: es
+      ? "No se pudo importar el logo seleccionado."
+      : "Could not import the selected logo.",
+    representativeLogoUse: es ? "Usar este logo" : "Use this logo",
+    representativeLogoImporting: es ? "Importando..." : "Importing...",
+    representativeLogoSource: es ? "Fuente" : "Source",
+    representativeLogoSourceLogo: "Logo",
+    representativeLogoSourceOgImage: es ? "Imagen social" : "Social image",
+    representativeLogoSourceAppleTouchIcon: "Apple touch icon",
+    representativeLogoSourceIcon: es ? "Icono del sitio" : "Site icon",
+    representativeLogoManualLabel: es ? "Subida manual" : "Manual upload",
+    representativeLogoSelected: es
+      ? "Logo seleccionado. Guarda el pais para aplicar el cambio."
+      : "Logo selected. Save the country to apply the change.",
+    representativeLogoSaveReminder: es
+      ? "El logo seleccionado o subido no se aplicara hasta que guardes el pais."
+      : "The selected or uploaded logo will not be applied until you save the country.",
+    optionalNotDefined: es
+      ? "Opcional / sin definir"
+      : "Optional / not defined",
+    entityAssociation: es
+      ? "Asociacion o federacion"
+      : "Association or federation",
     entityDojo: es ? "Dojo" : "Dojo",
     entityClub: es ? "Club" : "Club",
     entityGroup: es ? "Grupo" : "Group",
@@ -2177,10 +2594,16 @@ function locationsAdminCopy(locale: Locale) {
     country: es ? "Pais" : "Country",
     city: es ? "Ciudad" : "City",
     dojoName: es ? "Nombre dojo" : "Dojo name",
-    dojoInfo: es ? "Informacion, horarios y notas" : "Information, schedule and notes",
+    dojoInfo: es
+      ? "Informacion, horarios y notas"
+      : "Information, schedule and notes",
     address: es ? "Direccion" : "Address",
-    responsibleInstructor: es ? "Instructor responsable" : "Responsible instructor",
-    instructorPhoto: es ? "Foto del responsable tecnico" : "Technical lead photo",
+    responsibleInstructor: es
+      ? "Instructor responsable"
+      : "Responsible instructor",
+    instructorPhoto: es
+      ? "Foto del responsable tecnico"
+      : "Technical lead photo",
     instructorPhotoHelp: es
       ? "Foto del sensei o responsable tecnico que se mostrara en la ficha publica del dojo."
       : "Photo of the sensei or technical lead shown on the public dojo card.",
