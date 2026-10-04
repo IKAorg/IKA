@@ -125,9 +125,19 @@ function CountrySection({
                     </span>
                   </span>
                   <span className="col-span-2 row-start-2 flex min-w-0 items-center gap-3 border-t border-[var(--line)] pt-3 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:border-0 sm:pt-0">
-                    <span className="flex size-9 shrink-0 items-center justify-center bg-[var(--paper)] text-[var(--accent)]">
-                      <UserRound size={18} aria-hidden="true" />
-                    </span>
+                    {country.representativeLogoUrl ? (
+                      <Image
+                        src={country.representativeLogoUrl}
+                        alt={country.representativeLogoAlt}
+                        width={44}
+                        height={44}
+                        className="size-11 shrink-0 border border-[var(--line)] bg-white object-contain p-1"
+                      />
+                    ) : (
+                      <span className="flex size-9 shrink-0 items-center justify-center bg-[var(--paper)] text-[var(--accent)]">
+                        <UserRound size={18} aria-hidden="true" />
+                      </span>
+                    )}
                     <span className="min-w-0">
                       <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
                         {labels.representativeEntity}

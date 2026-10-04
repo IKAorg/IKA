@@ -19,6 +19,7 @@ type CountryRow = {
   responsible_website: string | null;
   responsible_email: string | null;
   flag_media_id: string | null;
+  representative_logo_media_id: string | null;
   country_translations: Array<{
     language_code: Locale;
     name: string;
@@ -60,6 +61,8 @@ export type PublicCountry = {
   responsibleEntityType: "association" | "dojo" | "club" | "group" | "other" | "";
   responsibleWebsite: string;
   responsibleEmail: string;
+  representativeLogoUrl: string;
+  representativeLogoAlt: string;
   logoUrl: string;
   flagUrls: string[];
 };
@@ -94,7 +97,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
   const { data: countriesData } = await supabase
     .from("countries")
     .select(
-      "id,code,membership_type,ika_country_id,responsible_person,representative_entity,responsible_entity_type,responsible_website,responsible_email,flag_media_id,country_translations(language_code,name,slug,description)",
+      "id,code,membership_type,ika_country_id,responsible_person,representative_entity,responsible_entity_type,responsible_website,responsible_email,flag_media_id,representative_logo_media_id,country_translations(language_code,name,slug,description)",
     )
     .eq("status", "published")
     .eq("is_public", true)
@@ -125,6 +128,7 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
 
   const mediaIds = [
     ...countries.map((country) => country.flag_media_id),
+    ...countries.map((country) => country.representative_logo_media_id),
     ...dojos.map((dojo) => dojo.main_image_media_id),
     ...dojos.map((dojo) => dojo.responsible_instructor_media_id),
   ].filter(Boolean) as string[];
@@ -138,6 +142,9 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
     );
     const logo = country.flag_media_id
       ? mediaById.get(country.flag_media_id)
+      : undefined;
+    const representativeLogo = country.representative_logo_media_id
+      ? mediaById.get(country.representative_logo_media_id)
       : undefined;
 
     return {
@@ -156,6 +163,11 @@ export async function getPublicCountriesAndDojos(locale: Locale) {
       responsibleEntityType: country.responsible_entity_type ?? "",
       responsibleWebsite: normalizePublicWebsite(country.responsible_website),
       responsibleEmail: country.responsible_email ?? "",
+      representativeLogoUrl: representativeLogo?.storage_path ?? "",
+      representativeLogoAlt:
+        representativeLogo?.alt_text ||
+        country.representative_entity ||
+        translation.name,
       logoUrl: logo?.storage_path ?? "",
       flagUrls: getCountryFlagUrls(country.code, logo?.storage_path),
     };
