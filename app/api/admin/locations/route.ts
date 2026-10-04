@@ -1,10 +1,28 @@
-import { NextResponse, type NextRequest } from "next/server";
-import {
-  requireScopedAdmin,
-  type AdminScope as RequestFormsAdminScope,
-  type SupabaseAdminClient,
+import { NextResponse, type NextRequest } from "next/server.js";
+import type {
+  AdminScope as RequestFormsAdminScope,
+  SupabaseAdminClient,
 } from "@/lib/admin/request-forms";
-import { applyRepresentativeLogoToCountryPayload } from "./route-helpers";
+// Node's type-stripping test runner requires the source extension.
+// @ts-expect-error TS5097
+import { applyRepresentativeLogoToCountryPayload } from "./route-helpers.ts";
+
+type RequireScopedAdmin = typeof import("@/lib/admin/request-forms").requireScopedAdmin;
+let requireScopedAdminForLocationsTest: RequireScopedAdmin | null = null;
+
+export function setRequireScopedAdminForLocationsTests(
+  dependency: RequireScopedAdmin | null,
+) {
+  requireScopedAdminForLocationsTest = dependency;
+}
+
+async function getRequireScopedAdmin() {
+  if (requireScopedAdminForLocationsTest) {
+    return requireScopedAdminForLocationsTest;
+  }
+
+  return (await import("@/lib/admin/request-forms")).requireScopedAdmin;
+}
 
 type LocationScope = {
   profileId: string;
@@ -744,6 +762,7 @@ async function deleteDojo(
 }
 
 async function requireLocationsAdmin(request: NextRequest) {
+  const requireScopedAdmin = await getRequireScopedAdmin();
   const guard = await requireScopedAdmin(request);
   if ("error" in guard) {
     const message =
