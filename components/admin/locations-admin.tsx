@@ -436,7 +436,11 @@ export function LocationsAdmin({
   }
 
   async function discoverRepresentativeLogos() {
-    if (!countryForm.id || !countryForm.responsibleWebsite.trim()) {
+    if (
+      !countryForm.id ||
+      !isValidRepresentativeWebsite(countryForm.responsibleWebsite)
+    ) {
+      setRepresentativeLogoMessage(copy.representativeLogoDiscoveryError);
       return;
     }
 
@@ -1177,6 +1181,9 @@ export function LocationsAdmin({
                 importingRepresentativeLogoUrl={importingRepresentativeLogoUrl}
                 representativeLogoCandidates={representativeLogoCandidates}
                 representativeLogoMessage={representativeLogoMessage}
+                hasValidResponsibleWebsite={isValidRepresentativeWebsite(
+                  countryForm.responsibleWebsite,
+                )}
                 onDiscoverRepresentativeLogos={discoverRepresentativeLogos}
                 onImportRepresentativeLogo={importRepresentativeLogo}
                 onResponsibleWebsiteChange={(value) => {
@@ -1438,6 +1445,7 @@ function CountryFormView({
   importingRepresentativeLogoUrl,
   representativeLogoCandidates,
   representativeLogoMessage,
+  hasValidResponsibleWebsite,
   onDiscoverRepresentativeLogos,
   onImportRepresentativeLogo,
   onResponsibleWebsiteChange,
@@ -1456,6 +1464,7 @@ function CountryFormView({
   importingRepresentativeLogoUrl: string | null;
   representativeLogoCandidates: RemoteLogoCandidate[];
   representativeLogoMessage: string;
+  hasValidResponsibleWebsite: boolean;
   onDiscoverRepresentativeLogos: () => void;
   onImportRepresentativeLogo: (candidate: RemoteLogoCandidate) => void;
   onResponsibleWebsiteChange: (value: string) => void;
@@ -1668,7 +1677,7 @@ function CountryFormView({
             onClick={onDiscoverRepresentativeLogos}
             disabled={
               !form.id ||
-              !form.responsibleWebsite.trim() ||
+              !hasValidResponsibleWebsite ||
               discoveringRepresentativeLogos ||
               Boolean(importingRepresentativeLogoUrl)
             }
@@ -1684,6 +1693,16 @@ function CountryFormView({
               ? copy.representativeLogoSearching
               : copy.representativeLogoSearch}
           </button>
+          {form.id &&
+          !hasValidResponsibleWebsite &&
+          !representativeLogoMessage ? (
+            <p
+              role="status"
+              className="text-sm font-semibold text-[var(--accent)]"
+            >
+              {copy.representativeLogoDiscoveryError}
+            </p>
+          ) : null}
           {representativeLogoMessage ? (
             <p
               role="status"
@@ -2399,6 +2418,50 @@ function getRemoteLogoHost(value: string) {
     return new URL(value).host;
   } catch {
     return value;
+  }
+}
+
+function isValidRepresentativeWebsite(value: string) {
+  try {
+    const url = new URL(value.trim());
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.username ||
+      url.password ||
+      !url.hostname
+    ) {
+      return false;
+    }
+
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    if (hostname === "localhost" || !hostname.includes(".")) {
+      return false;
+    }
+
+    if (/^\d+(?:\.\d+){3}$/.test(hostname)) {
+      const octets = hostname.split(".").map(Number);
+      if (
+        octets.some((octet) => octet > 255) ||
+        octets[0] === 0 ||
+        octets[0] === 10 ||
+        octets[0] === 127 ||
+        (octets[0] === 169 && octets[1] === 254) ||
+        (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+        (octets[0] === 192 && octets[1] === 168) ||
+        octets[0] >= 224
+      ) {
+        return false;
+      }
+    }
+
+    return hostname.split(".").every(
+      (label) =>
+        label.length > 0 &&
+        label.length <= 63 &&
+        /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label),
+    );
+  } catch {
+    return false;
   }
 }
 
