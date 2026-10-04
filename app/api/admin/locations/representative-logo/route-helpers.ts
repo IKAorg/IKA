@@ -3,6 +3,7 @@ export type RepresentativeLogoScope = {
   isGlobalAdmin: boolean;
   roleKeys: readonly string[];
   countryIds: readonly string[];
+  countryAdminIds: readonly string[];
 };
 
 export type StoredRepresentativeLogoAsset = {
@@ -21,9 +22,7 @@ type AssetLookup = Promise<{
 }>;
 
 export function canManageRepresentativeLogo(scope: RepresentativeLogoScope, countryId: string) {
-  return scope.isSuperAdmin || scope.isGlobalAdmin || (
-    scope.roleKeys.includes("country_admin") && scope.countryIds.includes(countryId)
-  );
+  return scope.isSuperAdmin || scope.isGlobalAdmin || scope.countryAdminIds.includes(countryId);
 }
 
 export function toRepresentativeLogoAsset(asset: StoredRepresentativeLogoAsset) {

@@ -11,6 +11,7 @@ const baseScope = {
   isGlobalAdmin: false,
   roleKeys: [] as string[],
   countryIds: [] as string[],
+  countryAdminIds: [] as string[],
 };
 
 test("canManageRepresentativeLogo allows global admins and explicit matching country admins", () => {
@@ -20,6 +21,7 @@ test("canManageRepresentativeLogo allows global admins and explicit matching cou
     ...baseScope,
     roleKeys: ["country_admin"],
     countryIds: [countryId],
+    countryAdminIds: [countryId],
   }, countryId), true);
 });
 
@@ -28,12 +30,25 @@ test("canManageRepresentativeLogo denies nonmatching country admins and dojo-onl
     ...baseScope,
     roleKeys: ["country_admin"],
     countryIds: ["country-2"],
+    countryAdminIds: ["country-2"],
   }, countryId), false);
   assert.equal(canManageRepresentativeLogo({
     ...baseScope,
     roleKeys: ["dojo_admin"],
     countryIds: [countryId],
   }, countryId), false);
+});
+
+test("canManageRepresentativeLogo separates direct country access from dojo-inferred countries", () => {
+  const mixedScope = {
+    ...baseScope,
+    roleKeys: ["country_admin", "dojo_admin"],
+    countryIds: ["country-a", "country-b"],
+    countryAdminIds: ["country-a"],
+  };
+
+  assert.equal(canManageRepresentativeLogo(mixedScope, "country-a"), true);
+  assert.equal(canManageRepresentativeLogo(mixedScope, "country-b"), false);
 });
 
 const storedAsset = {

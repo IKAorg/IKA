@@ -35,6 +35,7 @@ export type AdminScope = {
   roleProfileIds: string[];
   isSuperAdmin: boolean;
   isGlobalAdmin: boolean;
+  countryAdminIds: string[];
   countryIds: string[];
   dojoIds: string[];
   roleKeys: string[];
@@ -152,6 +153,7 @@ export async function requireScopedAdmin(request: NextRequest) {
     isSuperAdmin: roleKeys.includes("super_admin"),
     isGlobalAdmin: roleKeys.includes("global_admin"),
     roleKeys,
+    countryAdminIds: Array.from(new Set(directCountryIds)),
     countryIds: Array.from(new Set([...directCountryIds, ...inferredCountryIds])),
     dojoIds: directDojoIds,
     director: null,
