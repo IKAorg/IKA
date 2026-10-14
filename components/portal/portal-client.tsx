@@ -1930,6 +1930,7 @@ export function PortalClient({
   const portalRef = useRef<PortalPayload | null>(portal);
   const portalLoadInFlightRef = useRef(false);
   const portalDashboardInFlightRef = useRef(false);
+  const dashboardRefreshUserRef = useRef("");
 
   useEffect(() => {
     sessionRef.current = session;
@@ -2040,10 +2041,21 @@ export function PortalClient({
   }, [getAuthHeaders, saveCachedPortal]);
 
   useEffect(() => {
-    if (portal && !portal.dashboard && hasAdminPortalRole(portal.roles)) {
-      void loadPortalDashboard();
+    const userId = session?.user?.id ?? "";
+
+    if (
+      !userId ||
+      !portal ||
+      !hasAdminPortalRole(portal.roles) ||
+      dashboardRefreshUserRef.current === userId
+    ) {
+      return;
     }
-  }, [loadPortalDashboard, portal]);
+
+    // Keep the cached first paint, then refresh totals once for this session.
+    dashboardRefreshUserRef.current = userId;
+    void loadPortalDashboard();
+  }, [loadPortalDashboard, portal, session?.user?.id]);
 
   const loadPortal = useCallback(async (options?: { silent?: boolean }) => {
     const silent = Boolean(options?.silent);
@@ -2338,6 +2350,7 @@ export function PortalClient({
   }
 
   async function signOut() {
+    dashboardRefreshUserRef.current = "";
     setSession(null);
     setPortal(null);
     setRecoveryMode(false);
