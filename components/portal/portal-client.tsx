@@ -2721,7 +2721,9 @@ function AdminDashboard({
             </span>
             <span>
               <strong className="text-base text-[var(--ink)]">
-                {dashboard.totals.globalDojos ?? dashboard.totals.dojos}
+                {dashboard.scope.isGlobal
+                  ? (dashboard.totals.globalDojos ?? dashboard.totals.dojos)
+                  : dashboard.totals.dojos}
               </strong>{" "}
               {copy.metrics.dojos}
             </span>
@@ -2907,13 +2909,21 @@ function AdminDashboard({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label={copy.metrics.globalActiveMembers ?? copy.metrics.activeMembers}
-          value={dashboard.totals.globalActiveMembers ?? dashboard.totals.activeMembers}
+          value={
+            dashboard.scope.isGlobal
+              ? (dashboard.totals.globalActiveMembers ?? dashboard.totals.activeMembers)
+              : dashboard.totals.activeMembers
+          }
           emphasis
         />
         <MetricCard label={copy.metrics.countries} value={dashboard.totals.countries} />
         <MetricCard
           label={copy.metrics.dojos}
-          value={dashboard.totals.globalDojos ?? dashboard.totals.dojos}
+          value={
+            dashboard.scope.isGlobal
+              ? (dashboard.totals.globalDojos ?? dashboard.totals.dojos)
+              : dashboard.totals.dojos
+          }
         />
         <MetricCard
           label={copy.metrics.coursesRegistered ?? copy.metrics.activeMembers}

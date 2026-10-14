@@ -78,6 +78,7 @@ type FormState = {
   countryId: string;
   dojoId: string;
   sendInvite: boolean;
+  initialPassword: string;
 };
 
 type EditFormState = {
@@ -125,7 +126,8 @@ function createEmptyForm(): FormState {
     roleKey: "",
     countryId: "",
     dojoId: "",
-    sendInvite: true,
+    sendInvite: false,
+    initialPassword: "",
   };
 }
 
@@ -281,8 +283,14 @@ export function UsersAdmin({
       roleKey: payload.assignableRoles[0] ?? "",
       sendInvite: current.sendInvite,
     }));
-    setMessage(data.invited ? copy.invitationSentAndRoleSaved : copy.roleSaved);
+    const successMessage =
+      data.generatedPassword
+        ? copy.credentialsCreated(form.email, data.generatedPassword)
+        : data.invited
+          ? copy.invitationSentAndRoleSaved
+          : copy.roleSaved;
     await loadUsers();
+    setMessage(successMessage);
     setSaving(false);
   }
 
@@ -606,6 +614,22 @@ export function UsersAdmin({
             />
           ) : null}
 
+          {!form.sendInvite ? (
+            <TextInput
+              label={copy.initialPassword}
+              value={form.initialPassword}
+              type="password"
+              disabled={payload.assignableRoles.length === 0}
+              onChange={(value) =>
+                setForm((current) => ({ ...current, initialPassword: value }))
+              }
+            />
+          ) : null}
+
+          <p className="text-sm leading-6 text-[var(--muted)]">
+            {form.sendInvite ? copy.inviteHelp : copy.passwordHelp}
+          </p>
+
           <label className="flex items-center gap-3 text-sm font-semibold">
             <input
               type="checkbox"
@@ -615,6 +639,9 @@ export function UsersAdmin({
                 setForm((current) => ({
                   ...current,
                   sendInvite: event.target.checked,
+                  initialPassword: event.target.checked
+                    ? ""
+                    : current.initialPassword,
                 }))
               }
             />
@@ -879,7 +906,7 @@ function PermissionAssignmentRow({
       editing?.countryId
         ? dojos.filter((dojo) => dojo.country_id === editing.countryId)
         : dojos,
-    [dojos, editing?.countryId],
+    [dojos, editing],
   );
 
   return (
@@ -1158,6 +1185,19 @@ function usersAdminCopy(locale: Locale) {
     noDojos: es ? "No hay dojos disponibles" : "No dojos available",
     selectDojo: es ? "Selecciona dojo" : "Select dojo",
     sendInvite: es ? "Enviar invitacion por email" : "Send invitation by email",
+    initialPassword: es
+      ? "Contrasena inicial (opcional)"
+      : "Initial password (optional)",
+    passwordHelp: es
+      ? "Si la dejas vacia, el sistema generara una contrasena segura y la mostrara una sola vez. El usuario podra cambiarla despues."
+      : "Leave it blank to generate a secure password shown only once. The user can change it later.",
+    inviteHelp: es
+      ? "El usuario recibira un enlace por email para crear su propia contrasena."
+      : "The user will receive an email link to create their own password.",
+    credentialsCreated: (email: string, password: string) =>
+      es
+        ? `Acceso creado para ${email}. Contrasena temporal: ${password}`
+        : `Access created for ${email}. Temporary password: ${password}`,
     saveRole: es ? "Guardar rol" : "Save role",
     permissionRulesTitle: es ? "Reglas de permisos" : "Permission rules",
     permissionRules: es

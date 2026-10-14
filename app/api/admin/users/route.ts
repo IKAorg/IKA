@@ -159,6 +159,8 @@ export async function POST(request: NextRequest) {
   const dojoId = normalizeOptionalId(body?.dojoId);
   const locale = normalizeText(body?.locale) || "es";
   const sendInvite = body?.sendInvite !== false;
+  const requestedPassword =
+    typeof body?.initialPassword === "string" ? body.initialPassword : "";
   const assignableRoles = getAssignableRoles(guard.scope);
 
   if (!email) {
@@ -169,10 +171,30 @@ export async function POST(request: NextRequest) {
     return jsonError("No puedes asignar ese rol con tu nivel de permisos.", 403);
   }
 
+  if (requestedPassword && requestedPassword.length < 8) {
+    return jsonError("La contrasena debe tener al menos 8 caracteres.", 400);
+  }
+
   let authUserId = await findAuthUserIdByEmail(guard.admin, email);
   let invited = false;
+  let generatedPassword: string | null = null;
 
-  if (!authUserId && sendInvite) {
+  if (!authUserId && !sendInvite) {
+    const initialPassword = requestedPassword || generateTemporaryPassword();
+    generatedPassword = initialPassword;
+    const created = await guard.admin.auth.admin.createUser({
+      email,
+      password: initialPassword,
+      email_confirm: true,
+      user_metadata: { display_name: displayName || email },
+    });
+
+    if (created.error) {
+      return jsonError(created.error.message, 400);
+    }
+
+    authUserId = created.data.user?.id ?? null;
+  } else if (!authUserId && sendInvite) {
     const invite = await guard.admin.auth.admin.inviteUserByEmail(email, {
       redirectTo: buildPublicRedirectUrl(request, locale, "admin"),
     });
@@ -270,7 +292,15 @@ export async function POST(request: NextRequest) {
     return jsonError(assignment.error.message, 500);
   }
 
-  return NextResponse.json({ ok: true, invited });
+  return NextResponse.json({ ok: true, invited, generatedPassword });
+}
+
+function generateTemporaryPassword() {
+  const alphabet =
+    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  const bytes = new Uint32Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (value) => alphabet[value % alphabet.length]).join("");
 }
 
 export async function DELETE(request: NextRequest) {
