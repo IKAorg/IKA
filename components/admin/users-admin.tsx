@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Check,
+  Copy,
   Loader2,
   Pencil,
   RefreshCw,
@@ -148,6 +150,11 @@ export function UsersAdmin({
   const [message, setMessage] = useState("");
   const [permissionSearch, setPermissionSearch] = useState("");
   const [editing, setEditing] = useState<EditFormState | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
+  const [credentialsCopied, setCredentialsCopied] = useState(false);
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -278,6 +285,7 @@ export function UsersAdmin({
       return;
     }
 
+    const createdEmail = form.email;
     setForm((current) => ({
       ...createEmptyForm(),
       roleKey: payload.assignableRoles[0] ?? "",
@@ -289,6 +297,12 @@ export function UsersAdmin({
         : data.invited
           ? copy.invitationSentAndRoleSaved
           : copy.roleSaved;
+    setCreatedCredentials(
+      data.generatedPassword
+        ? { email: createdEmail, password: data.generatedPassword }
+        : null,
+    );
+    setCredentialsCopied(false);
     await loadUsers();
     setMessage(successMessage);
     setSaving(false);
@@ -310,6 +324,17 @@ export function UsersAdmin({
 
     setMessage(copy.roleRemoved);
     await loadUsers();
+  }
+
+  async function copyCreatedCredentials() {
+    if (!createdCredentials) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(
+      copy.credentialsText(createdCredentials.email, createdCredentials.password),
+    );
+    setCredentialsCopied(true);
   }
 
   async function saveAssignmentEdit() {
@@ -612,6 +637,34 @@ export function UsersAdmin({
                 }))
               }
             />
+          ) : null}
+
+          {createdCredentials ? (
+            <div className="grid gap-3 border border-[var(--accent)] bg-[var(--paper)] p-4">
+              <div>
+                <p className="text-sm font-semibold text-[var(--accent)]">
+                  {copy.credentialsReady}
+                </p>
+                <p className="mt-2 break-all text-sm">
+                  <strong>{copy.email}:</strong> {createdCredentials.email}
+                </p>
+                <p className="mt-1 break-all text-sm">
+                  <strong>{copy.initialPasswordLabel}:</strong>{" "}
+                  {createdCredentials.password}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void copyCreatedCredentials()}
+                className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 font-semibold text-white"
+              >
+                {credentialsCopied ? <Check size={16} /> : <Copy size={16} />}
+                {credentialsCopied ? copy.credentialsCopied : copy.copyCredentials}
+              </button>
+              <p className="text-xs leading-5 text-[var(--muted)]">
+                {copy.credentialsOneTimeHelp}
+              </p>
+            </div>
           ) : null}
 
           {!form.sendInvite ? (
@@ -1198,6 +1251,17 @@ function usersAdminCopy(locale: Locale) {
       es
         ? `Acceso creado para ${email}. Contrasena temporal: ${password}`
         : `Access created for ${email}. Temporary password: ${password}`,
+    credentialsReady: es ? "Credenciales provisionales" : "Temporary credentials",
+    initialPasswordLabel: es ? "Contrasena" : "Password",
+    copyCredentials: es ? "Copiar credenciales" : "Copy credentials",
+    credentialsCopied: es ? "Credenciales copiadas" : "Credentials copied",
+    credentialsOneTimeHelp: es
+      ? "Puedes pegarlas en WhatsApp, Telegram u otro canal. El usuario tendra que cambiar la contrasena al entrar por primera vez."
+      : "Paste them into WhatsApp, Telegram, or another channel. The user must change the password on first sign-in.",
+    credentialsText: (email: string, password: string) =>
+      es
+        ? `Acceso al Portal IKA\nEmail: ${email}\nContrasena provisional: ${password}\nAl entrar por primera vez deberas crear una contrasena nueva.`
+        : `IKA Portal access\nEmail: ${email}\nTemporary password: ${password}\nYou must create a new password on first sign-in.`,
     saveRole: es ? "Guardar rol" : "Save role",
     permissionRulesTitle: es ? "Reglas de permisos" : "Permission rules",
     permissionRules: es

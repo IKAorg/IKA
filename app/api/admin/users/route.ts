@@ -186,7 +186,10 @@ export async function POST(request: NextRequest) {
       email,
       password: initialPassword,
       email_confirm: true,
-      user_metadata: { display_name: displayName || email },
+      user_metadata: {
+        display_name: displayName || email,
+        must_change_password: true,
+      },
     });
 
     if (created.error) {

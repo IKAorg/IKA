@@ -754,7 +754,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Enter your email and password.",
     emailCredentialsRequired: "Enter your email to recover your password.",
     kenshiEmailRequired: "Enter the Kenshi email.",
-    passwordMinLength: "The password must contain at least 6 characters.",
+    passwordMinLength: "The password must contain at least 8 characters.",
     invalidRecoverySession:
       "The recovery link did not open a valid session. Request a new email and open it in a private window.",
     recoveryLinkMismatch: (activeEmail, expectedEmail) =>
@@ -866,7 +866,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Introduce email y contrasena.",
     emailCredentialsRequired: "Introduce tu email para recuperar la contrasena.",
     kenshiEmailRequired: "Introduce el email del Kenshi.",
-    passwordMinLength: "La contrasena debe tener al menos 6 caracteres.",
+    passwordMinLength: "La contrasena debe tener al menos 8 caracteres.",
     invalidRecoverySession:
       "El enlace de recuperacion no ha abierto una sesion valida. Solicita un nuevo email y abrelo en una ventana privada.",
     recoveryLinkMismatch: (activeEmail, expectedEmail) =>
@@ -957,7 +957,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Inserisci email e password.",
     emailCredentialsRequired: "Inserisci la tua email per recuperare la password.",
     kenshiEmailRequired: "Inserisci l'email del Kenshi.",
-    passwordMinLength: "La password deve contenere almeno 6 caratteri.",
+    passwordMinLength: "La password deve contenere almeno 8 caratteri.",
     invalidRecoverySession:
       "Il link di recupero non ha aperto una sessione valida. Richiedi una nuova email e aprila in una finestra privata.",
     recoveryLinkMismatch: (activeEmail, expectedEmail) =>
@@ -1065,7 +1065,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Saisissez votre email et votre mot de passe.",
     emailCredentialsRequired: "Saisissez votre email pour recuperer votre mot de passe.",
     kenshiEmailRequired: "Saisissez l'email du Kenshi.",
-    passwordMinLength: "Le mot de passe doit contenir au moins 6 caracteres.",
+    passwordMinLength: "Le mot de passe doit contenir au moins 8 caracteres.",
     invalidRecoverySession:
       "Le lien de recuperation n'a pas ouvert de session valide. Demandez un nouvel email et ouvrez-le dans une fenetre privee.",
     recoveryLinkMismatch: (activeEmail, expectedEmail) =>
@@ -1169,7 +1169,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u3068\u30d1\u30b9\u30ef\u30fc\u30c9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     emailCredentialsRequired: "\u30d1\u30b9\u30ef\u30fc\u30c9\u5fa9\u65e7\u306e\u305f\u3081\u306b\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     kenshiEmailRequired: "Kenshi \u306e\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
-    passwordMinLength: "\u30d1\u30b9\u30ef\u30fc\u30c9\u306f 6 \u6587\u5b57\u4ee5\u4e0a\u5fc5\u8981\u3067\u3059\u3002",
+    passwordMinLength: "\u30d1\u30b9\u30ef\u30fc\u30c9\u306f 8 \u6587\u5b57\u4ee5\u4e0a\u5fc5\u8981\u3067\u3059\u3002",
     invalidRecoverySession: "\u5fa9\u65e7\u30ea\u30f3\u30af\u3067\u6709\u52b9\u306a\u30bb\u30c3\u30b7\u30e7\u30f3\u3092\u958b\u3051\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u65b0\u3057\u3044\u30e1\u30fc\u30eb\u3092\u30ea\u30af\u30a8\u30b9\u30c8\u3057\u3001\u30d7\u30e9\u30a4\u30d9\u30fc\u30c8\u30a6\u30a3\u30f3\u30c9\u30a6\u3067\u958b\u3044\u3066\u304f\u3060\u3055\u3044\u3002",
     recoveryLinkMismatch: (activeEmail, expectedEmail) =>
       `\u3053\u306e\u30ea\u30f3\u30af\u306f ${activeEmail} \u7528\u3067\u3001${expectedEmail} \u7528\u3067\u306f\u3042\u308a\u307e\u305b\u3093\u3002\u73fe\u5728\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u304b\u3089\u30ed\u30b0\u30a2\u30a6\u30c8\u3059\u308b\u304b\u3001\u30e1\u30fc\u30eb\u3092\u30d7\u30e9\u30a4\u30d9\u30fc\u30c8\u30a6\u30a3\u30f3\u30c9\u30a6\u3067\u958b\u3044\u3066\u304f\u3060\u3055\u3044\u3002`,
@@ -1271,7 +1271,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "\u8bf7\u8f93\u5165\u7535\u5b50\u90ae\u7bb1\u548c\u5bc6\u7801\u3002",
     emailCredentialsRequired: "\u8bf7\u8f93\u5165\u60a8\u7684\u7535\u5b50\u90ae\u7bb1\u4ee5\u6062\u590d\u5bc6\u7801\u3002",
     kenshiEmailRequired: "\u8bf7\u8f93\u5165 Kenshi \u90ae\u7bb1\u3002",
-    passwordMinLength: "\u5bc6\u7801\u81f3\u5c11\u9700\u8981 6 \u4e2a\u5b57\u7b26\u3002",
+    passwordMinLength: "\u5bc6\u7801\u81f3\u5c11\u9700\u8981 8 \u4e2a\u5b57\u7b26\u3002",
     invalidRecoverySession: "\u6062\u590d\u94fe\u63a5\u672a\u6253\u5f00\u6709\u6548\u4f1a\u8bdd\u3002\u8bf7\u91cd\u65b0\u8bf7\u6c42\u90ae\u4ef6\uff0c\u5e76\u5728\u9690\u79c1\u7a97\u53e3\u4e2d\u6253\u5f00\u3002",
     recoveryLinkMismatch: (activeEmail, expectedEmail) =>
       `\u6b64\u94fe\u63a5\u9002\u7528\u4e8e ${activeEmail}\uff0c\u4e0d\u9002\u7528\u4e8e ${expectedEmail}\u3002\u8bf7\u9000\u51fa\u5f53\u524d\u8d26\u53f7\uff0c\u6216\u5728\u9690\u79c1\u7a97\u53e3\u4e2d\u6253\u5f00\u90ae\u4ef6\u3002`,
@@ -1377,7 +1377,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Zadejte email a heslo.",
     emailCredentialsRequired: "Zadejte email pro obnovu hesla.",
     kenshiEmailRequired: "Zadejte email Kenshi.",
-    passwordMinLength: "Heslo musi mit alespon 6 znaku.",
+    passwordMinLength: "Heslo musi mit alespon 8 znaku.",
     invalidRecoverySession:
       "Obnovovaci odkaz neotevrel platnou relaci. Pozadejte o novy email a otevete ho v soukromem okne.",
     recoveryLinkMismatch: (activeEmail, expectedEmail) =>
@@ -1480,7 +1480,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Masukkan email dan kata sandi.",
     emailCredentialsRequired: "Masukkan email Anda untuk memulihkan kata sandi.",
     kenshiEmailRequired: "Masukkan email Kenshi.",
-    passwordMinLength: "Kata sandi minimal 6 karakter.",
+    passwordMinLength: "Kata sandi minimal 8 karakter.",
     passwordUpdated: "Kata sandi diperbarui.",
     recoveryEyebrow: "Data IKA",
     recoveryTitle: "Buat kata sandi baru",
@@ -1571,7 +1571,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Masukkan e-mel dan kata laluan.",
     emailCredentialsRequired: "Masukkan e-mel anda untuk memulihkan kata laluan.",
     kenshiEmailRequired: "Masukkan e-mel Kenshi.",
-    passwordMinLength: "Kata laluan mesti sekurang-kurangnya 6 aksara.",
+    passwordMinLength: "Kata laluan mesti sekurang-kurangnya 8 aksara.",
     passwordUpdated: "Kata laluan dikemas kini.",
     recoveryEyebrow: "Rekod IKA",
     recoveryTitle: "Cipta kata laluan baharu",
@@ -1662,7 +1662,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Sartu e-posta eta pasahitza.",
     emailCredentialsRequired: "Sartu zure e-posta pasahitza berreskuratzeko.",
     kenshiEmailRequired: "Sartu Kenshi-ren e-posta.",
-    passwordMinLength: "Pasahitzak gutxienez 6 karaktere izan behar ditu.",
+    passwordMinLength: "Pasahitzak gutxienez 8 karaktere izan behar ditu.",
     passwordUpdated: "Pasahitza eguneratu da.",
     recoveryEyebrow: "IKA fitxa",
     recoveryTitle: "Sortu pasahitz berria",
@@ -1753,7 +1753,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Introduza e-mail e palavra-passe.",
     emailCredentialsRequired: "Introduza o seu e-mail para recuperar a palavra-passe.",
     kenshiEmailRequired: "Introduza o e-mail do Kenshi.",
-    passwordMinLength: "A palavra-passe deve ter pelo menos 6 caracteres.",
+    passwordMinLength: "A palavra-passe deve ter pelo menos 8 caracteres.",
     passwordUpdated: "Palavra-passe atualizada.",
     recoveryEyebrow: "Ficha IKA",
     recoveryTitle: "Criar nova palavra-passe",
@@ -1844,7 +1844,7 @@ const portalCopies: Partial<Record<Locale, Partial<PortalCopy>>> = {
     emailPasswordRequired: "Geben Sie E-Mail und Passwort ein.",
     emailCredentialsRequired: "Geben Sie Ihre E-Mail zur Passwortwiederherstellung ein.",
     kenshiEmailRequired: "Geben Sie die Kenshi-E-Mail ein.",
-    passwordMinLength: "Das Passwort muss mindestens 6 Zeichen enthalten.",
+    passwordMinLength: "Das Passwort muss mindestens 8 Zeichen enthalten.",
     passwordUpdated: "Passwort aktualisiert.",
     recoveryEyebrow: "IKA-Datensatz",
     recoveryTitle: "Neues Passwort erstellen",
@@ -2358,7 +2358,7 @@ export function PortalClient({
   }
 
   async function saveRecoveryPassword() {
-    const expectedEmail = normalizeEmail(recoveryEmail);
+    const expectedEmail = normalizeEmail(recoveryEmail || session?.user.email);
     const currentEmail = normalizeEmail(session?.user.email);
 
     if (!expectedEmail) {
@@ -2366,7 +2366,7 @@ export function PortalClient({
       return;
     }
 
-    if (!recoveryPassword || recoveryPassword.length < 6) {
+    if (!recoveryPassword || recoveryPassword.length < 8) {
       setMessage(copy.passwordMinLength);
       return;
     }
@@ -2398,6 +2398,7 @@ export function PortalClient({
 
     const result = await supabase.auth.updateUser({
       password: recoveryPassword,
+      data: { must_change_password: false },
     });
 
     if (result.error) {
@@ -2427,7 +2428,10 @@ export function PortalClient({
     session?.user.email ||
     "";
 
-  if (recoveryMode) {
+  const requiresPasswordChange =
+    session?.user?.user_metadata?.must_change_password === true;
+
+  if (recoveryMode || requiresPasswordChange) {
     return (
       <section className="mt-8 grid gap-6 border border-[var(--line)] bg-white p-4 sm:mt-10 sm:p-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
@@ -2442,7 +2446,7 @@ export function PortalClient({
 
         <div className="grid gap-3">
           <input
-            value={recoveryEmail}
+            value={recoveryEmail || session?.user.email || ""}
             onChange={(event) => setRecoveryEmail(event.target.value)}
             placeholder={copy.kenshiEmailPlaceholder}
             type="email"
@@ -2595,6 +2599,14 @@ export function PortalClient({
 
       {portal ? (
         <div className="grid gap-5">
+          {hasAdminPortalRole(portal.roles) ? (
+            <PortalCredentialsPanel
+              session={session}
+              locale={locale}
+              copy={copy}
+              supabase={supabase}
+            />
+          ) : null}
           {portal.dashboard ? (
             <AdminDashboard
               dashboard={portal.dashboard}
@@ -3012,6 +3024,138 @@ function MetricCard({
   );
 }
 
+function PortalCredentialsPanel({
+  session,
+  locale,
+  copy,
+  supabase,
+}: {
+  session: Session;
+  locale: Locale;
+  copy: PortalCopy;
+  supabase: ReturnType<typeof createPortalClient>;
+}) {
+  const [accountEmail, setAccountEmail] = useState(session.user.email ?? "");
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState("");
+  const es = locale === "es";
+
+  async function saveCredentials() {
+    const normalizedEmail = normalizeEmail(accountEmail);
+
+    if (!normalizedEmail) {
+      setStatus(es ? "El email es obligatorio." : "Email is required.");
+      return;
+    }
+
+    if (newPassword && newPassword.length < 8) {
+      setStatus(
+        es
+          ? "La contrasena debe tener al menos 8 caracteres."
+          : "The password must contain at least 8 characters.",
+      );
+      return;
+    }
+
+    setSaving(true);
+    setStatus("");
+    const updates: {
+      email?: string;
+      password?: string;
+      data?: { must_change_password: boolean };
+    } = {};
+
+    if (normalizedEmail !== normalizeEmail(session.user.email)) {
+      updates.email = normalizedEmail;
+    }
+    if (newPassword) {
+      updates.password = newPassword;
+      updates.data = { must_change_password: false };
+    }
+
+    if (!updates.email && !updates.password) {
+      setStatus(es ? "No hay cambios que guardar." : "There are no changes to save.");
+      setSaving(false);
+      return;
+    }
+
+    const result = await supabase.auth.updateUser(updates, {
+      emailRedirectTo:
+        typeof window === "undefined"
+          ? undefined
+          : `${window.location.origin}/${locale}/portal`,
+    });
+
+    if (result.error) {
+      setStatus(result.error.message);
+    } else {
+      setNewPassword("");
+      setStatus(
+        updates.email
+          ? es
+            ? "Cambios guardados. Confirma el nuevo email desde el enlace recibido."
+            : "Changes saved. Confirm the new email using the link sent to you."
+          : copy.passwordUpdated,
+      );
+    }
+    setSaving(false);
+  }
+
+  return (
+    <details className="border border-[var(--line)] bg-white p-5">
+      <summary className="cursor-pointer text-xl font-semibold">
+        {es ? "Mis credenciales de acceso" : "My access credentials"}
+      </summary>
+      <div className="mt-4 grid max-w-2xl gap-4 sm:grid-cols-2">
+        <label className="grid gap-1 text-sm font-semibold">
+          <span>{copy.emailLabel}</span>
+          <input
+            type="email"
+            value={accountEmail}
+            onChange={(event) => setAccountEmail(event.target.value)}
+            className="border border-[var(--line)] px-3 py-3 font-normal"
+          />
+        </label>
+        <label className="grid gap-1 text-sm font-semibold">
+          <span>{copy.newPassword}</span>
+          <div className="grid grid-cols-[1fr_auto] border border-[var(--line)]">
+            <input
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              type={showPassword ? "text" : "password"}
+              className="min-w-0 px-3 py-3 font-normal outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              className="inline-flex w-11 items-center justify-center border-l border-[var(--line)]"
+              aria-label={showPassword ? copy.hidePassword : copy.showPassword}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </label>
+        <button
+          type="button"
+          onClick={() => void saveCredentials()}
+          disabled={saving}
+          className="inline-flex min-h-11 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 font-semibold text-white disabled:opacity-50 sm:col-span-2 sm:w-fit"
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {es ? "Guardar credenciales" : "Save credentials"}
+        </button>
+        {status ? (
+          <p className="text-sm font-semibold text-[var(--accent)] sm:col-span-2">
+            {status}
+          </p>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 function MemberPanel({
   member,
   grades,
@@ -3230,8 +3374,18 @@ function MemberPanel({
     }
 
     if (newPassword) {
+      if (newPassword.length < 8) {
+        setPanelMessage(
+          locale === "es"
+            ? "La contrasena debe tener al menos 8 caracteres."
+            : "The password must contain at least 8 characters.",
+        );
+        setSaving(false);
+        return;
+      }
       const passwordUpdate = await supabase.auth.updateUser({
         password: newPassword,
+        data: { must_change_password: false },
       });
 
       if (passwordUpdate.error) {
