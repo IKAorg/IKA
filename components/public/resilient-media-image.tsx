@@ -36,6 +36,7 @@ export function ResilientMediaImage({
       width={width}
       height={height}
       className={className}
+      unoptimized
       onError={() => setFailed(true)}
     />
   );
