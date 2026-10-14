@@ -1424,16 +1424,35 @@ function DojoList({
   onDelete: (id: string) => void;
   copy: ReturnType<typeof locationsAdminCopy>;
 }) {
-  const countryNameById = new Map(
-    countries.map((country) => [
-      country.id,
-      country.country_translations.find(
-        (translation) => translation.language_code === displayLocale,
-      )?.name ??
+  const countryGroups: Array<{
+    country: CountryRow | null;
+    name: string;
+    dojos: DojoRow[];
+  }> = countries
+    .map((country) => ({
+      country,
+      name:
+        country.country_translations.find(
+          (translation) => translation.language_code === displayLocale,
+        )?.name ??
         country.country_translations[0]?.name ??
         country.code,
-    ]),
+      dojos: dojos.filter((dojo) => dojo.country_id === country.id),
+    }))
+    .filter((group) => group.dojos.length > 0)
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const knownCountryIds = new Set(countries.map((country) => country.id));
+  const unassignedDojos = dojos.filter(
+    (dojo) => !knownCountryIds.has(dojo.country_id),
   );
+
+  if (unassignedDojos.length > 0) {
+    countryGroups.push({
+      country: null,
+      name: copy.unassignedCountry,
+      dojos: unassignedDojos,
+    });
+  }
 
   return (
     <details className="border border-[var(--line)] p-4">
@@ -1446,44 +1465,66 @@ function DojoList({
         ) : dojos.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">{copy.noDojos}</p>
         ) : (
-          dojos.map((dojo) => {
-            const name =
-              dojo.dojo_translations.find(
-                (translation) => translation.language_code === displayLocale,
-              )?.name ??
-              dojo.dojo_translations[0]?.name ??
-              dojo.city;
+          countryGroups.map((group) => (
+            <details
+              key={group.country?.id ?? "unassigned"}
+              className="border border-[var(--line)] bg-[var(--paper)]"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 marker:content-none">
+                <span>
+                  <strong className="text-lg">{group.name}</strong>
+                  <span className="ml-2 text-sm text-[var(--muted)]">
+                    {group.dojos.length} {copy.dojos.toLowerCase()}
+                  </span>
+                </span>
+                <span className="text-sm font-semibold text-[var(--accent)]">
+                  {copy.expand}
+                </span>
+              </summary>
+              <div className="grid gap-3 border-t border-[var(--line)] bg-white p-3 sm:grid-cols-2 xl:grid-cols-3">
+                {group.dojos.map((dojo) => {
+                  const name =
+                    dojo.dojo_translations.find(
+                      (translation) => translation.language_code === displayLocale,
+                    )?.name ??
+                    dojo.dojo_translations[0]?.name ??
+                    dojo.city;
 
-            return (
-              <article
-                key={dojo.id}
-                className="border border-[var(--line)] p-4"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
-                  {dojo.status} · {countryNameById.get(dojo.country_id) ?? ""}
-                </p>
-                <h4 className="mt-1 text-lg font-semibold">{name}</h4>
-                <p className="text-sm text-[var(--muted)]">
-                  {dojo.ika_dojo_id ?? copy.pendingId} - {dojo.city}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => onEdit(dojo)}
-                    className="border border-[var(--line)] px-3 py-2 text-sm font-semibold"
-                  >
-                    {copy.edit}
-                  </button>
-                  <button
-                    onClick={() => onDelete(dojo.id)}
-                    className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
-                  >
-                    <Trash2 size={15} />
-                    {copy.delete}
-                  </button>
-                </div>
-              </article>
-            );
-          })
+                  return (
+                    <article
+                      key={dojo.id}
+                      className="border border-[var(--line)] p-4"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
+                        {dojo.status}
+                      </p>
+                      <h4 className="mt-1 text-lg font-semibold">{name}</h4>
+                      <p className="text-sm text-[var(--muted)]">
+                        {dojo.ika_dojo_id ?? copy.pendingId} - {dojo.city}
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(dojo)}
+                          className="border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+                        >
+                          {copy.edit}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(dojo.id)}
+                          className="inline-flex items-center gap-2 border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
+                        >
+                          <Trash2 size={15} />
+                          {copy.delete}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </details>
+          ))
         )}
       </div>
     </details>
@@ -2615,6 +2656,8 @@ function locationsAdminCopy(locale: Locale) {
     delete: es ? "Borrar" : "Delete",
     loadingDojos: es ? "Cargando dojos..." : "Loading dojos...",
     noDojos: es ? "Aun no hay dojos." : "There are no dojos yet.",
+    expand: es ? "Desplegar" : "Expand",
+    unassignedCountry: es ? "Pais sin asignar" : "Unassigned country",
     editCountry: es ? "Editar pais" : "Edit country",
     newCountry: es ? "Nuevo pais" : "New country",
     selectCountry: es ? "Selecciona pais" : "Select country",
