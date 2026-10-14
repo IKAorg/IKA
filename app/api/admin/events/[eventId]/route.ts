@@ -457,7 +457,9 @@ async function requireEventsAdmin(request: NextRequest) {
 
   const roles = profile.user_roles ?? [];
   const roleKeys = roles.map((role) => getRoleKey(role.roles)).filter(Boolean) as string[];
-  const isAllowed = roleKeys.some((role) => ["super_admin", "global_admin", "country_admin"].includes(role));
+  const isAllowed = roleKeys.some((role) =>
+    ["super_admin", "global_admin", "country_admin", "dojo_admin"].includes(role),
+  );
 
   if (!isAllowed) {
     return {
@@ -478,7 +480,14 @@ async function requireEventsAdmin(request: NextRequest) {
             .filter(Boolean) as string[],
         ),
       ),
-      dojoIds: [],
+      dojoIds: Array.from(
+        new Set(
+          roles
+            .filter((role) => getRoleKey(role.roles) === "dojo_admin")
+            .map((role) => role.dojo_id)
+            .filter(Boolean) as string[],
+        ),
+      ),
     },
   } as const;
 }
