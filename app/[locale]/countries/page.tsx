@@ -4,6 +4,7 @@ import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 import { getEditablePublicPageContent } from "@/lib/content/public-pages-cms";
 import { getPublicCountriesAndDojos } from "@/lib/content/locations-cms";
 import { PublicContentBlocks } from "@/components/public/public-content-blocks";
+import { ResilientMediaImage } from "@/components/public/resilient-media-image";
 
 type CountriesPageProps = {
   params: Promise<{ locale: string }>;
@@ -125,14 +126,15 @@ function CountrySection({
                     </span>
                   </span>
                   <span className="col-span-2 row-start-2 flex min-w-0 items-center gap-3 border-t border-[var(--line)] pt-3 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:border-0 sm:pt-0">
-                    <span className="flex size-11 shrink-0 items-center justify-center border border-[var(--line)] bg-white p-1 text-[var(--accent)]">
+                    <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden border border-[var(--line)] bg-white p-1 text-[var(--accent)]">
                       {country.representativeLogoUrl ? (
-                        <Image
+                        <ResilientMediaImage
                           src={country.representativeLogoUrl}
                           alt={country.representativeLogoAlt}
                           width={44}
                           height={44}
                           className="size-full object-contain"
+                          fallback="representative"
                         />
                       ) : (
                         <UserRound size={18} aria-hidden="true" />
@@ -245,7 +247,7 @@ function CountrySection({
                           >
                             <div className="flex items-start gap-3">
                               {dojo.logoUrl ? (
-                                <Image
+                                <ResilientMediaImage
                                   src={dojo.logoUrl}
                                   alt={dojo.logoAlt}
                                   width={44}
@@ -266,7 +268,7 @@ function CountrySection({
                             </div>
                             {dojo.responsibleInstructorPhotoUrl ? (
                               <div className="mt-4 flex flex-col gap-4 border-t border-[var(--line)] pt-4 sm:flex-row sm:items-center">
-                                <Image
+                                <ResilientMediaImage
                                   src={dojo.responsibleInstructorPhotoUrl}
                                   alt={dojo.responsibleInstructorPhotoAlt}
                                   width={72}
